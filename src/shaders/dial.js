@@ -144,6 +144,17 @@
         'uniform float u_redFrom;',
         'uniform vec3 u_col;',
         'uniform vec3 u_red;',
+        /* A dark wash under the dots, so a busy background (the modern
+           honeycomb) recedes beneath the dial instead of running through
+           it. 0 for the genuine field. */
+        'uniform vec4 u_smoke;',
+        /* The rpm indication: the annulus fills with light up to the current
+           value, brightest near its leading edge, with a thin red needle
+           across the band at the exact point. x: value, y: fill strength. */
+        'uniform vec2 u_rev;',
+        'uniform vec3 u_litCol;',
+        'uniform vec3 u_needle;',
+        'uniform float u_redV;',
         '',
         'void main() {',
         '  vec2 p = px() - u_centre;',
@@ -151,6 +162,9 @@
         '  float v = dialValue(p, onArc);',
         '  float r = length(p);',
         '  float band = step(u_ring.x, r) * step(r, u_ring.y) * onArc;',
+        /* soft at the inner and outer edges, so the wash has no hard rim */
+        '  float wash = smoothstep(u_ring.x - 10.0, u_ring.x + 6.0, r)',
+        '             * (1.0 - smoothstep(u_ring.y - 4.0, u_ring.y + 12.0, r)) * onArc;',
         '',
         '  float row = floor(p.y / u_dot.x);',
         '  float off = mod(row, 2.0) * u_dot.x * 0.5;',
@@ -158,41 +172,74 @@
         '  float d = cov(length(cell) - u_dot.y);',
         '',
         '  vec3 col = mix(u_col, u_red, step(u_redFrom, v));',
-        '  gl_FragColor = vec4(col, d * band * u_dot.z);',
+        '  float ad = d * band * u_dot.z;',
+        '  float as = wash * u_smoke.a;',
+        '',
+        /* fill behind the lit run */
+        '  float behind = u_rev.x - v;',
+        '  float filled = step(0.0, behind) * wash;',
+        '  float glowFill = filled * (0.10 + 0.34 * exp(-behind * 0.9)) * u_rev.y;',
+        '  vec3 fillCol = mix(u_litCol, u_red * 1.9, step(u_redV, v));',
+        '',
+        /* the needle: a crisp radial line at the current value */
+        '  float dvPx = r * (u_ang.y - u_ang.x) / (u_scale.y - u_scale.x);',
+        '  float nd = abs(behind) * dvPx;',
+        '  float needleBand = smoothstep(u_ring.x - 16.0, u_ring.x - 6.0, r)',
+        '                   * (1.0 - smoothstep(u_ring.y + 4.0, u_ring.y + 12.0, r)) * onArc;',
+        '  float needle = cov(nd - 1.5) * needleBand * step(0.02, u_rev.x) * u_rev.y;',
+        '  float nGlow = exp(-nd / 7.0) * needleBand * 0.35 * u_rev.y * step(0.02, u_rev.x);',
+        '',
+        '  float a = ad + as * (1.0 - ad);',
+        '  vec3 c = col * ad + u_smoke.rgb * as * (1.0 - ad);',
+        '  c += fillCol * glowFill;',
+        '  a = clamp(a + glowFill * (1.0 - a), 0.0, 1.0);',
+        '  c = mix(c, u_needle * a, 0.0);',
+        '  float an = clamp(needle + nGlow, 0.0, 1.0);',
+        '  vec3 outc = (a > 0.0 ? c / max(a, 0.0001) : vec3(0.0));',
+        '  float oa = an + a * (1.0 - an);',
+        '  vec3 oc = (u_needle * needle + u_needle * nGlow + outc * a * (1.0 - an));',
+        '  gl_FragColor = vec4(oa > 0.0 ? oc / oa : vec3(0.0), oa);',
         '}'
     ].join('\n');
 
     /* -------------------------------------------------------- arcnum */
     /*
-     * The scale numerals: narrow, inclined and hollow, white to 8 and red
-     * for 9 and 10 (brief section 4). The slant is baked into the atlas.
+     * The scale numerals: narrow, inclined and hollow (brief section 4); the
+     * slant is baked into the atlas.
      *
-     * Each glyph carries its own scale value in u_gt.x, so "10" works as two
-     * glyphs, and its red/white treatment in u_gt.y. They light as the revs
-     * pass and swell as the sweep goes through, which is this project's rpm
-     * indication rather than anything read off the photograph.
+     * As the revs reach a numeral it swells about 40% and turns to the
+     * accent colour, then settles back to bright white once passed, so the
+     * eye is pulled along the dial. Numerals not yet reached sit dim. The
+     * red zone keeps its own treatment: dim red, vivid once passed, and a
+     * hot pop. This is this project's rpm indication, not something read
+     * off the photograph.
+     *
+     * Each glyph carries its own scale value in u_gt.x (so "10" works as two
+     * glyphs) and 1 in u_gt.y when it belongs to the red zone.
      */
     var arcnum = [
-        'uniform vec4 u_g[11];',
-        'uniform vec4 u_quad[11];',
-        'uniform vec4 u_gt[11];',   /* x: scale value, y: 1 when red */
+        'uniform vec4 u_g[12];',
+        'uniform vec4 u_quad[12];',
+        'uniform vec4 u_gt[12];',
         /* Packed to stay inside the 48-vector budget: count, sharpness,
            current value, hollow-stroke width. */
         'uniform vec4 u_cfg;',
         'uniform vec3 u_colOff;',
         'uniform vec3 u_colOn;',
         'uniform vec3 u_colRed;',
+        'uniform vec3 u_colPop;',
         '',
         'void main() {',
         '  vec2 p = px();',
         '  float cover = 0.0, ring = 0.0, halo = 0.0, accW = 0.0;',
         '  vec3 acc = vec3(0.0);',
-        '  for (int i = 0; i < 11; i++) {',
+        '  for (int i = 0; i < 12; i++) {',
         '    float on = step(float(i) + 0.5, u_cfg.x);',
         '    float vi = u_gt[i].x;',
-        '    float near = exp(-pow((vi - u_cfg.z) * 1.1, 2.0));',
+        '    float red = u_gt[i].y;',
+        '    float pop = exp(-pow((vi - u_cfg.z) * 1.7, 2.0));',
         '    float lit = step(vi, u_cfg.z);',
-        '    float scale = 1.0 + 0.24 * near;',
+        '    float scale = 1.0 + 0.40 * pop;',
         '    vec4 q4 = u_quad[i];',
         '    vec2 cq = q4.xy + q4.zw * 0.5;',
         '    vec2 sz = max(q4.zw * scale, vec2(1.0));',
@@ -205,19 +252,23 @@
         '    float d = (raw - 0.5) * u_cfg.y * scale;',
         '    float dn = (raw - 0.5) * 2.0;',
         '    float cv = clamp(d + 0.5, 0.0, 1.0) * inR;',
-        '    float rv = clamp(d + 0.5 + u_cfg.w, 0.0, 1.0) * inR;',
-        '    vec3 base = mix(u_colOff, u_colOn, clamp(max(lit * 0.55, near), 0.0, 1.0));',
-        '    vec3 cc = mix(base, u_colRed, u_gt[i].y);',
+        /* the stroke thickens a little as it pops */
+        '    float rv = clamp(d + 0.5 + u_cfg.w * (1.0 + 0.6 * pop), 0.0, 1.0) * inR;',
+        '    vec3 white = mix(u_colOff, u_colOn, lit);',
+        '    vec3 reds = mix(u_colRed * 0.55, u_colRed, lit);',
+        '    vec3 cc = mix(white, reds, red);',
+        '    vec3 popc = mix(u_colPop, mix(u_colRed, vec3(1.0), 0.35), red);',
+        '    cc = mix(cc, popc, pop);',
         '    acc += cc * rv;',
         '    accW += rv;',
         '    cover = max(cover, cv);',
         '    ring = max(ring, rv);',
-        '    halo = max(halo, smoothstep(-1.0, -0.06, dn) * inR * max(lit * 0.3, near));',
+        '    halo = max(halo, smoothstep(-1.0, -0.06, dn) * inR * max(lit * 0.25, pop));',
         '  }',
         '  vec3 col = accW > 0.0 ? acc / accW : u_colOff;',
         /* Hollow: keep the stroke, drop the middle, leave the field showing. */
         '  float stroke = max(ring - cover, 0.0);',
-        '  float aura = halo * (1.0 - ring) * 0.35;',
+        '  float aura = halo * (1.0 - ring) * 0.45;',
         '  float a = clamp(stroke + aura, 0.0, 1.0);',
         '  gl_FragColor = vec4(a > 0.0 ? (col * stroke + col * aura) / a : vec3(0.0), a);',
         '}'

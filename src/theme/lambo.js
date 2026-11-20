@@ -34,10 +34,18 @@
     function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
     function lerp(a, b, t) { return a + (b - a) * t; }
 
-    /* Scale value <-> engine speed. */
+    /* The dial reads in thousands: 0 at the start of the sweep, N at its end. */
     function vOf(rpm, scaleMax) {
-        return clamp01(rpm / scaleMax) * (T.vMax - T.vMin) + T.vMin;
+        return clamp01(rpm / scaleMax) * scaleMax / 1000;
     }
+
+    /*
+     * The brief's own angle function places its 1..10 across the sweep. Our
+     * scale runs 0..N over the same sweep, so map a scale value onto the
+     * brief's v before asking where it sits: the arc, its crown and its
+     * ends stay exactly where the brief puts them whatever N is.
+     */
+    function briefV(d, n) { return T.vMin + (T.vMax - T.vMin) * d / n; }
 
     function gearNames(profile) {
         var names = ['P', 'R', 'N'], i;
@@ -77,9 +85,10 @@
         dialBox.h = Math.min(Panel.BOTTOM_CUT, G.point(T.vMax, T.rOuter).y + 40) - dialBox.y;
 
         var dialCentre = [DC.x - dialBox.x, DC.y - dialBox.y];
+        var N = S.scaleMaxRpm / 1000;
         /* Where the red detailing starts, as a scale value. */
         var redV = S.redFromScale !== null && S.redFromScale !== undefined
-            ? S.redFromScale : vOf(S.rpmRedline, S.scaleMaxRpm);
+            ? S.redFromScale : S.rpmRedline / 1000;
 
         /* ------------------------------------------------------ helpers */
 
@@ -156,7 +165,8 @@
                 return {
                     u_black: GC.screenBlack, u_blue: GC.screenBlueBlack,
                     u_lower: GC.lowerField, u_line: GC.geometricLine,
-                    u_hex: S.hexagons, u_hexSize: S.hexSize, u_facets: S.facets
+                    u_hex: S.hexagons, u_hexSize: S.hexSize, u_facets: S.facets,
+                    u_accent: C.accent
                 };
             }
         });
@@ -165,22 +175,29 @@
         function dialBase() {
             return {
                 u_centre: dialCentre, u_ang: ANG,
-                u_scale: [T.vMin, T.vMax]
+                u_scale: [0, N]
             };
         }
 
         layers.push({
             id: 'stipple', z: 4, shader: 'stipple',
             x: dialBox.x, y: dialBox.y, w: dialBox.w, h: dialBox.h,
-            when: function () { return S.stipple > 0; },
-            uniforms: function () {
+            uniforms: function (s) {
                 var u = dialBase();
+                u.u_rev = [vOf(s.rpm || 0, S.scaleMaxRpm), S.dialFill];
+                u.u_litCol = C.lit;
+                u.u_needle = GC.corsaRed;
+                u.u_redV = redV;
                 u.u_ring = [G.gs(T.stippleInner), G.gs(T.stippleOuter)];
                 u.u_dot = [G.gs(G.STIPPLE.spacing), G.gs(G.STIPPLE.dotRadius),
                            G.STIPPLE.opacity * S.stipple];
+                /* the wash is the stipple ring's own outline: always draw it */
                 u.u_redFrom = redV;
                 u.u_col = GC.stipple;
                 u.u_red = GC.dimRed;
+                u.u_smoke = S.background === 'modern'
+                    ? [GC.screenBlack[0], GC.screenBlack[1], GC.screenBlack[2], 0.78]
+                    : [0, 0, 0, 0];
                 return u;
             }
         });
@@ -223,8 +240,8 @@
         /* Scale numerals: narrow, inclined, hollow; red from the red mark. */
         var numSize = G.gs(T.numeralHeight) / 0.70;   /* cap height -> em */
         var numItems = [], numVals = [], v;
-        for (v = T.vMin; v <= T.vMax; v++) {
-            var at = G.point(v, T.rNumeral);
+        for (v = S.showZeroNumeral ? 0 : 1; v <= N; v++) {
+            var at = G.point(briefV(v, N), T.rNumeral);
             numItems.push({ str: String(v), x: at.x, y: at.y });
             numVals.push(v);
         }
@@ -233,7 +250,8 @@
             y: Math.max(0, G.gy(T.cy - T.rNumeral) - 50), w: 0, h: 0
         };
         numBox.w = Math.min(Panel.PANEL_WIDTH, G.gx(T.cx + T.rNumeral) + 60) - numBox.x;
-        numBox.h = Math.min(Panel.BOTTOM_CUT, G.point(T.vMax, T.rNumeral).y + 60) - numBox.y;
+        numBox.h = Math.min(Panel.BOTTOM_CUT,
+            Math.max(G.point(T.vMax, T.rNumeral).y, G.point(T.vMin, T.rNumeral).y) + 64) - numBox.y;
 
         var numLayout = Text.place(atlas, numItems.map(function (it) {
             return { str: it.str, x: it.x - numBox.x, y: it.y - numBox.y };
@@ -250,7 +268,7 @@
                     j++;
                 }
             }
-            while (gt.length < 11 * 4) gt.push(0, 0, 0, 0);
+            while (gt.length < 12 * 4) gt.push(0, 0, 0, 0);
         }());
 
         layers.push({
@@ -261,9 +279,11 @@
                     u_g: numLayout.g, u_quad: numLayout.p, u_gt: gt,
                     u_cfg: [numLayout.count, numLayout.sharp,
                             vOf(s.rpm, S.scaleMaxRpm), G.gs(T.numeralStroke)],
-                    u_colOff: GC.secondaryWhite,
+                    u_colOff: [GC.secondaryWhite[0] * 0.62, GC.secondaryWhite[1] * 0.62,
+                               GC.secondaryWhite[2] * 0.62],
                     u_colOn: GC.primaryWhite,
-                    u_colRed: GC.corsaRed
+                    u_colRed: GC.corsaRed,
+                    u_colPop: C.accent
                 };
             }
         });
@@ -423,8 +443,8 @@
            lateral/longitudinal state (brief section 8). */
         [['gR', 1, 0, 'left', gf.w * 0.42, 5, function (s) { return Math.max(s.gLat, 0); }],
          ['gL', -1, 0, 'right', -gf.w * 0.42, 5, function (s) { return Math.max(-s.gLat, 0); }],
-         ['gU', 0, -1, 'centre', 0, -gf.h * 0.30, function (s) { return Math.max(s.gLon, 0); }],
-         ['gD', 0, 1, 'centre', 0, gf.h * 0.44, function (s) { return Math.max(-s.gLon, 0); }]
+         ['gU', 0, -1, 'centre', 0, -gf.h * 0.52, function (s) { return Math.max(s.gLon, 0); }],
+         ['gD', 0, 1, 'centre', 0, gf.h * 0.62, function (s) { return Math.max(-s.gLon, 0); }]
         ].forEach(function (r) {
             var ax = G.gx(gf.cx + r[4]), ay = G.gy(gf.cy + r[5]);
             txt(r[0], 22, { x: ax - G.gs(46), y: ay - G.gs(20), w: G.gs(92), h: G.gs(28) },
@@ -479,24 +499,28 @@
             [{ str: U.speed, x: sp.x + sp.w - G.gs(168), y: sp.y + G.gs(92) }]);
 
         /* ------------------------------------------------------ boost */
+        /*
+         * Left of the load indicator, under CORSA, where the dial's interior
+         * is open - well clear of the G readings and the gear's foot.
+         */
         if (P.boost && S.showBoost) {
-            var bx = G.gx(700), bw = G.gs(430), by = G.gy(530), bh = G.gs(26);
-            statics('boostLbl', 26, { x: bx - 20, y: by - G.gs(24), w: G.gs(200), h: G.gs(26) },
+            var bx = 575, bw = 215, by = 498, bh = 18;
+            statics('boostLbl', 26, { x: bx - 6, y: by - 30, w: 120, h: 28 },
                 { face: 'label', size: G.gs(15) / 0.70, color: GC.secondaryWhite, tracking: 1.5 },
-                [{ str: 'BOOST ' + U.press, x: bx, y: by - G.gs(7) }]);
+                [{ str: 'BOOST ' + U.press, x: bx, y: by - 9 }]);
             layers.push({
                 id: 'boost', z: 26, shader: 'boost',
                 x: bx, y: by, w: bw, h: bh,
                 uniforms: function (s) {
                     return {
                         u_frac: boostFrac(s.boostPsi, bMax, bMin), u_zero: BOOST_ZERO,
-                        u_segs: 26, u_peak: boostFrac(s.boostPeakPsi, bMax, bMin)
+                        u_segs: 20, u_peak: boostFrac(s.boostPeakPsi, bMax, bMin)
                     };
                 }
             });
-            txt('boostVal', 26, { x: bx + bw - G.gs(90), y: by - G.gs(26), w: G.gs(96), h: G.gs(30) },
+            txt('boostVal', 26, { x: bx + bw - 90, y: by - 32, w: 96, h: 30 },
                 { face: 'display', size: G.gs(18) / 0.70, align: 'right',
-                  x: bx + bw, y: by - G.gs(7), color: GC.primaryWhite },
+                  x: bx + bw, y: by - 9, color: GC.primaryWhite },
                 function (s) { return s.boostPsi.toFixed(imperial ? 1 : 2); });
         }
 
@@ -515,5 +539,5 @@
         return clamp01(BOOST_ZERO * (1 - v / min));
     }
 
-    return { build: build, Guide: Guide, vOf: vOf };
+    return { build: build, Guide: Guide, vOf: vOf, briefV: briefV };
 }));

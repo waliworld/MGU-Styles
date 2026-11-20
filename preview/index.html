@@ -67,7 +67,7 @@
     var profileId = params.get('profile') || 'x3m40i';
     var units = params.get('units') || 'imperial';
     var cfg = { units: units };
-    ['accent', 'litColour', 'revFlash', 'mode'].forEach(function (k) {
+    ['accent', 'litColour', 'revFlash', 'mode', 'background'].forEach(function (k) {
       if (params.get(k)) cfg[k] = params.get(k);
     });
     ['scaleMaxRpm', 'rpmRedline', 'rpmLimiter', 'redFromScale', 'flashFromRpm',
@@ -75,8 +75,9 @@
      'facets'].forEach(function (k) {
       if (params.get(k)) cfg[k] = parseFloat(params.get(k));
     });
-    ['shiftLights', 'showBoost', 'showAuxLeft'].forEach(function (k) {
+    ['shiftLights', 'showBoost', 'showAuxLeft', 'showZeroNumeral'].forEach(function (k) {
       if (params.get(k) === 'off') cfg[k] = false;
+      if (params.get(k) === 'on') cfg[k] = true;
     });
     var engine = MGUEngine.create(document.getElementById('c'),
       { onWarn: function (m) { out.textContent += m + '\n'; } });

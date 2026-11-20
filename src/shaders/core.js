@@ -12,31 +12,42 @@
 
     /* ---------------------------------------------------------------- bg */
     /*
-     * A near-black base, a subtle dark blue gradient, and a gentle lift
-     * under the middle - no more (brief section 6). Behind the gear sit a
-     * few faint angular facets with long diagonals, sparse enough to vanish
-     * at normal viewing distance; the brief is explicit that this is not a
-     * full-screen hexagonal grid.
+     * Two looks, chosen by the `background` setting.
      *
-     * The honeycomb is kept behind u_hex because it was asked for earlier
-     * and suits the Aventador-style references, but it is off by default:
-     * the Huracan's field reads as fine stipple in the annulus instead.
+     * genuine - the Huracan's own field: a near-black base, a subtle dark
+     *   blue gradient and a gentle lift under the middle, with a few faint
+     *   angular facets behind the gear (brief section 6-7).
+     *
+     * modern - the Lamborghini showroom honeycomb: each cell a slightly
+     *   raised plate, lit from the upper left so its near edges catch the
+     *   light and its far edges fall into shadow, with a soft sheen across
+     *   its face. A sparse, fixed handful of cells glow in the accent
+     *   colour. Light and opaque, never loud enough to compete with the
+     *   dial: it sits under everything at a few percent.
+     *
+     * All of it is deterministic, so identical frames are identical.
      */
     var bg = [
         'uniform vec3 u_black;',
         'uniform vec3 u_blue;',
         'uniform vec3 u_lower;',
         'uniform vec3 u_line;',
+        'uniform vec3 u_accent;',
         'uniform float u_hex;',
         'uniform float u_hexSize;',
         'uniform float u_facets;',
         '',
-        'float hexDist(vec2 p, float s) {',
+        /* Which cell p falls in: xy local offset from its centre, zw cell id. */
+        'vec4 hexCell(vec2 p, float s) {',
         '  vec2 hs = vec2(1.7320508, 1.0) * s;',
         '  vec2 a = mod(p, hs) - hs * 0.5;',
         '  vec2 b = mod(p - hs * 0.5, hs) - hs * 0.5;',
-        '  vec2 g = dot(a, a) < dot(b, b) ? a : b;',
-        '  return sdHex(g, s * 0.52);',
+        '  vec2 ia = floor(p / hs);',
+        '  vec2 ib = floor((p - hs * 0.5) / hs) + 0.5;',
+        '  return dot(a, a) < dot(b, b) ? vec4(a, ia) : vec4(b, ib);',
+        '}',
+        'float hash21(vec2 id) {',
+        '  return fract(sin(dot(id, vec2(127.1, 311.7))) * 43758.5453);',
         '}',
         '',
         'void main() {',
@@ -44,13 +55,12 @@
         '  vec2 n = p / u_size;',
         '  vec3 col = u_black;',
         '',
-        /* Blue through the upper and middle field. */
+        /* Blue through the upper and middle field, a restrained lift below. */
         '  col = mix(col, u_blue, 0.55 * exp(-pow((n.y - 0.34) / 0.46, 2.0)));',
-        /* A restrained lift under the middle, not a grey panel. */
         '  float lift = exp(-pow((n.x - 0.5) / 0.34, 2.0)) * exp(-pow((n.y - 0.86) / 0.26, 2.0));',
         '  col = mix(col, u_lower, 0.34 * lift);',
         '',
-        /* A few long asymmetric facets behind the centre. */
+        /* genuine: a few long asymmetric facets, 3-7% opacity */
         '  vec2 q = p - vec2(u_size.x * 0.48, u_size.y * 0.52);',
         '  float f = 1e9;',
         '  f = min(f, abs(dot(q, normalize(vec2(0.92, -0.39))) - 40.0));',
@@ -58,22 +68,45 @@
         '  f = min(f, abs(dot(q, normalize(vec2(-0.55, 0.84))) - 210.0));',
         '  f = min(f, abs(dot(q, normalize(vec2(0.33, 0.94))) + 265.0));',
         '  float facet = cov(f - 0.7) * exp(-dot(q, q) / 150000.0);',
-          /* 3-7% opacity: present under inspection, gone at a glance. */
         '  col += u_line * facet * u_facets * 0.055;',
         '',
-        /* Optional honeycomb, off by default. */
-        '  float hd = hexDist(p - vec2(0.0, 10.0), u_hexSize);',
-        '  float fill = cov(hd + 3.0), rim = cov(abs(hd + 3.0) - 1.3);',
-        '  float near = 0.42 + 0.58 * exp(-pow((n.x - 0.5) / 0.55, 2.0));',
-        '  col += (vec3(0.030, 0.038, 0.049) * fill + vec3(0.085, 0.102, 0.125) * rim)',
-        '       * u_hex * near;',
+        /* modern: raised hexagon plates */
+        '  if (u_hex > 0.001) {',
+        '    vec4 hc = hexCell(p - vec2(0.0, 8.0), u_hexSize);',
+        '    vec2 g = hc.xy;',
+        '    float d = sdHex(g, u_hexSize * 0.50);',      /* < 0 inside the plate */
+        '    float plate = cov(d + 2.0);',
+        '    float gap = 1.0 - cov(d + 0.5);',
+        /* bevel: the band just inside the edge, shaded by which way it faces */
+        '    float bevel = smoothstep(-9.0, -1.5, d) * plate;',
+        '    vec2 nrm = normalize(g + vec2(0.0001));',
+        '    float facing = dot(nrm, normalize(vec2(-0.55, -0.83)));',   /* light from upper left */
+        '    float sheen = 1.0 - clamp(length(g + vec2(u_hexSize * 0.18, u_hexSize * 0.22))',
+        '                              / (u_hexSize * 0.95), 0.0, 1.0);',
+        '    float h = hash21(hc.zw);',
+        '    float near = 0.35 + 0.65 * exp(-pow((n.x - 0.5) / 0.60, 2.0)) * exp(-pow((n.y - 0.45) / 0.85, 2.0));',
+        '',
+        '    vec3 face = vec3(0.026, 0.034, 0.045) * plate * (0.80 + 0.20 * h)',
+        '              + vec3(0.032, 0.040, 0.052) * sheen * sheen * plate;',
+        '    vec3 hi = vec3(0.110, 0.130, 0.160) * bevel * max(facing, 0.0);',
+        '    vec3 lo = -vec3(0.022, 0.026, 0.032) * bevel * max(-facing, 0.0);',
+        '    vec3 groove = -vec3(0.012, 0.014, 0.018) * gap;',
+        '',
+        /* a fixed handful of cells lit in the accent, brightest at the rim */
+        '    float lit = step(0.962, h);',
+        '    float glow = lit * (smoothstep(-12.0, -1.0, d) * plate * 0.55',
+        '                        + exp(-max(d + 1.0, 0.0) / 5.0) * 0.30 * (1.0 - plate));',
+        '',
+        '    col += (face + hi + lo + groove) * u_hex * near;',
+        '    col += u_accent * glow * 0.16 * u_hex * near;',
+        '  }',
         '',
         /* The glass is cut on a diagonal at the top corners: a hard edge. */
         '  float cl = (p.x * 190.0 + p.y * 325.0) - 325.0 * 190.0;',
         '  float cr = ((u_size.x - p.x) * 200.0 + p.y * 270.0) - 270.0 * 200.0;',
         '  col *= clamp(cl * 0.06, 0.0, 1.0) * clamp(cr * 0.06, 0.0, 1.0);',
         '',
-        '  gl_FragColor = vec4(col, 1.0);',
+        '  gl_FragColor = vec4(max(col, vec3(0.0)), 1.0);',
         '}'
     ].join('\n');
 

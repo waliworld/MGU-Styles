@@ -292,36 +292,9 @@ test('the stepped contour generator matches the brief\'s table', () => {
     }
 });
 
-test('the scale is marked 1 to 10 and carries its own values', () => {
-    const theme = Theme.build(atlas, 'x3m40i', {});
-    const nums = theme.layers.find(L => L.id === 'arcNums');
-    const u = nums.uniforms(State.present({ rpm: 0 }, Panel.profile('x3m40i'), theme.settings), 0);
-    assert.strictEqual(u.u_cfg[0], 11, '1..10 is eleven glyphs, "10" being two');
-    const vals = [];
-    for (let i = 0; i < 11; i++) vals.push(u.u_gt[i * 4]);
-    assert.deepStrictEqual(vals, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10]);
-    /* Red where the dial's own red detailing starts, so the two agree. */
-    for (let i = 0; i < 11; i++) {
-        assert.strictEqual(u.u_gt[i * 4 + 1], vals[i] >= theme.dial.redV - 0.001 ? 1 : 0);
-    }
-});
 
-test('the printed scale is artwork, the rev limits are separate', () => {
-    /* The brief is emphatic that 10 is not a permitted rev limit. */
-    const S = Palette.resolve({}, Panel.profile('x3m40i'));
-    assert.strictEqual(S.scaleMaxRpm, 10000);
-    assert.strictEqual(S.rpmRedline, 6750);
-    assert.strictEqual(S.rpmLimiter, 7000);
-    /* The red sector lands where the engine actually redlines. */
-    const theme = Theme.build(atlas, 'x3m40i', {});
-    assert.ok(Math.abs(theme.dial.redV - (1 + 9 * 6750 / 10000)) < 1e-9);
-    /* A shorter artwork scale moves the same revs further round. */
-    const a = Theme.build(atlas, 'x3m40i', { scaleMaxRpm: 10000 });
-    const b = Theme.build(atlas, 'x3m40i', { scaleMaxRpm: 7000 });
-    const at = (t) => t.layers.find(L => L.id === 'dial')
-        .uniforms(State.present({ rpm: 3500 }, Panel.profile('x3m40i'), t.settings), 0).u_frac;
-    assert.ok(at(b) > at(a));
-});
+
+
 
 test('the far-left region and our own additions can be turned off', () => {
     const has = (t, id) => t.layers.some(L => L.id === id);
@@ -329,4 +302,105 @@ test('the far-left region and our own additions can be turned off', () => {
     assert.ok(!has(Theme.build(atlas, 'x3m40i', { showAuxLeft: false }), 'bar_oilT'));
     assert.ok(!has(Theme.build(atlas, 'x3m40i', { showBoost: false }), 'boost'));
     assert.ok(!has(Theme.build(atlas, 'x3m40i', { shiftLights: false }), 'shift'));
+});
+
+
+/* --------------------------------------------- scale, pop, fill, look */
+
+function arcVals(theme, rpm) {
+    const nums = theme.layers.find(L => L.id === 'arcNums');
+    const u = nums.uniforms(State.present({ rpm }, Panel.profile('x3m40i'), theme.settings), 0);
+    const vals = [];
+    for (let i = 0; i < u.u_cfg[0]; i++) vals.push(u.u_gt[i * 4]);
+    return { u, vals };
+}
+
+test('the dial is marked in thousands up to the chosen scale', () => {
+    /* 8000 by default for a BMW six; each numeral carries its own value, so
+       "10" works as two glyphs. */
+    assert.deepStrictEqual(arcVals(Theme.build(atlas, 'x3m40i', {}), 0).vals,
+        [1, 2, 3, 4, 5, 6, 7, 8]);
+    assert.deepStrictEqual(arcVals(Theme.build(atlas, 'x3m40i', { scaleMaxRpm: 10000 }), 0).vals,
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10]);
+    assert.deepStrictEqual(arcVals(Theme.build(atlas, 'x3m40i',
+        { scaleMaxRpm: 10000, showZeroNumeral: true }), 0).vals,
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10]);
+    /* whole thousands only, within 6000..10000 */
+    for (const [ask, got] of [[7400, 7000], [5000, 6000], [12000, 10000], ['x', 8000]]) {
+        assert.strictEqual(Palette.resolve({ scaleMaxRpm: ask }, Panel.profile('x3m40i')).scaleMaxRpm, got);
+    }
+});
+
+test('whatever the scale, the sweep stays where the brief puts it', () => {
+    /* 0 sits at the brief's v=1 end, the top of the scale at its v=10 end. */
+    for (const n of [6, 8, 10]) {
+        assert.strictEqual(Theme.briefV(0, n), Guide.TACH.vMin);
+        assert.strictEqual(Theme.briefV(n, n), Guide.TACH.vMax);
+    }
+});
+
+test('the red zone follows the redline, and the limits stay separate', () => {
+    const S = Palette.resolve({}, Panel.profile('x3m40i'));
+    assert.strictEqual(S.scaleMaxRpm, 8000);
+    assert.strictEqual(S.rpmRedline, 6750);
+    assert.strictEqual(S.rpmLimiter, 7000);
+    const theme = Theme.build(atlas, 'x3m40i', {});
+    assert.strictEqual(theme.dial.redV, 6.75);
+    const { u, vals } = arcVals(theme, 0);
+    for (let i = 0; i < vals.length; i++) {
+        assert.strictEqual(u.u_gt[i * 4 + 1], vals[i] >= 6.75 ? 1 : 0, `numeral ${vals[i]}`);
+    }
+    /* a raised limiter is honoured up to the end of the scale */
+    const T = Palette.resolve({ rpmRedline: 7200, rpmLimiter: 7600 }, Panel.profile('x3m40i'));
+    assert.strictEqual(T.rpmRedline, 7200);
+    assert.strictEqual(T.rpmLimiter, 7600);
+    assert.strictEqual(Palette.resolve({ rpmLimiter: 9500 }, Panel.profile('x3m40i')).rpmLimiter, 8000);
+});
+
+test('the numerals and the band follow the revs', () => {
+    const theme = Theme.build(atlas, 'x3m40i', {});
+    /* the numeral shader is told where the revs are, in scale units */
+    assert.strictEqual(arcVals(theme, 5500).u.u_cfg[2], 5.5);
+    assert.ok(arcVals(theme, 5500).u.u_colPop, 'numerals change colour as they pop');
+    /* and so is the band, with the needle */
+    const band = theme.layers.find(L => L.id === 'stipple');
+    const at = (rpm) => band.uniforms(State.present({ rpm }, Panel.profile('x3m40i'), theme.settings), 0);
+    assert.strictEqual(at(3000).u_rev[0], 3);
+    assert.ok(at(6000).u_rev[0] > at(3000).u_rev[0]);
+    assert.strictEqual(at(3000).u_rev[1], 1, 'the fill is on by default');
+    const off = Theme.build(atlas, 'x3m40i', { dialFill: 0 }).layers.find(L => L.id === 'stipple');
+    assert.strictEqual(off.uniforms(State.present({ rpm: 3000 }, Panel.profile('x3m40i'), {}), 0).u_rev[1], 0);
+    /* past the end of the scale it pins rather than wrapping */
+    assert.strictEqual(at(12000).u_rev[0], 8);
+});
+
+test('genuine and modern backgrounds', () => {
+    const bgOf = (o) => Theme.build(atlas, 'x3m40i', o).layers.find(L => L.id === 'bg').uniforms({}, 0);
+    const g = bgOf({});
+    assert.strictEqual(g.u_hex, 0, 'genuine: no honeycomb');
+    assert.strictEqual(g.u_facets, 1);
+    const m = bgOf({ background: 'modern' });
+    assert.strictEqual(m.u_hex, 1, 'modern: the honeycomb');
+    assert.strictEqual(m.u_facets, 0);
+    /* in modern the dial's band is smoked so the honeycomb recedes under it */
+    const smoke = (o) => Theme.build(atlas, 'x3m40i', o).layers.find(L => L.id === 'stipple')
+        .uniforms(State.present({ rpm: 0 }, Panel.profile('x3m40i'), {}), 0).u_smoke[3];
+    assert.strictEqual(smoke({}), 0);
+    assert.ok(smoke({ background: 'modern' }) > 0.5);
+    /* an explicit setting still wins over the preset */
+    assert.strictEqual(bgOf({ background: 'modern', hexagons: 0.4 }).u_hex, 0.4);
+    assert.strictEqual(Palette.resolve({ background: 'nonsense' }, Panel.profile('x3m40i')).background, 'genuine');
+});
+
+test('the boost gauge stays clear of the G widget and its readings', () => {
+    const theme = Theme.build(atlas, 'x3m40i', {});
+    const boost = theme.layers.filter(L => /^boost/.test(L.id));
+    const g = theme.layers.filter(L => L.id === 'gforce' || /^g[LRUD]$/.test(L.id));
+    assert.ok(boost.length >= 3 && g.length === 5);
+    const gap = 12;
+    for (const b of boost) for (const w of g) {
+        const apart = b.x + b.w + gap <= w.x || w.x + w.w + gap <= b.x ||
+                      b.y + b.h + gap <= w.y || w.y + w.h + gap <= b.y;
+        assert.ok(apart, `${b.id} is within ${gap}px of ${w.id}`);
+    }
 });

@@ -52,20 +52,34 @@
         flashRate: 9,            /* Hz */
         flashStrength: 0.52,
         /*
-         * The dial is marked 1..10 like the car it copies. scaleMaxRpm is the
-         * engine speed that reaches 10; the brief is emphatic that the
-         * printed scale is artwork and never an engine's permitted limit, so
-         * the operating values below are kept separate.
+         * The dial keeps the Huracan's sweep and styling but is marked in
+         * thousands up to scaleMaxRpm: 8000 suits a BMW six, 10000 gives the
+         * Lamborghini's own 1..10. The brief is emphatic that the printed
+         * scale is artwork, never an engine's permitted limit, so the
+         * operating values (rpmRedline, rpmLimiter) are kept separate.
          */
-        scaleMaxRpm: 10000,
+        scaleMaxRpm: 8000,
+        showZeroNumeral: false,  /* the brief keeps the 0 end unlabelled */
         redFromScale: null,      /* null: derive from rpmRedline */
-        stipple: 1.0,
-        facets: 1.0,
-        hexagons: 0.0,           /* the Huracan field is stipple, not honeycomb */
+        /*
+         * genuine: the Huracan's own field, fine stipple and faint facets.
+         * modern:  bevelled hexagon cells in light opaque touches, with a
+         *          few accent-lit cells - the Lamborghini showroom look.
+         */
+        background: 'genuine',
+        /* How strongly the dial's band fills with light up to the revs, with
+           the red needle at the leading edge. 0 leaves only the ticks and
+           numerals to show it, as the brief's still photograph does. */
+        dialFill: 1.0,
+        stipple: null,           /* null: follow the background */
+        facets: null,
+        hexagons: null,
         hexSize: 46
     };
 
     function clampNum(v, lo, hi, fallback) {
+        /* null and '' are "not set", not zero. */
+        if (v === null || v === undefined || v === '') return fallback;
         v = Number(v);
         if (!isFinite(v)) return fallback;
         return Math.max(lo, Math.min(hi, v));
@@ -88,7 +102,9 @@
             }
         }
 
-        var scale = clampNum(settings.scaleMaxRpm, 4000, 12000, DEFAULTS.scaleMaxRpm);
+        /* Whole thousands: every numeral lands on a mark. */
+        var scale = Math.round(clampNum(settings.scaleMaxRpm, 6000, 10000,
+                                        DEFAULTS.scaleMaxRpm) / 1000) * 1000;
         var redline = clampNum(settings.rpmRedline, 2000, scale, profile.rpmRedline);
         var limiter = clampNum(settings.rpmLimiter, redline, scale, profile.rpmLimiter);
         if (limiter < redline) limiter = redline;
@@ -104,9 +120,13 @@
                                   s.rpmLimiter - 150);
         s.flashRate = clampNum(s.flashRate, 1, 20, DEFAULTS.flashRate);
         s.flashStrength = clampNum(s.flashStrength, 0, 1, DEFAULTS.flashStrength);
-        s.stipple = clampNum(s.stipple, 0, 2, DEFAULTS.stipple);
-        s.facets = clampNum(s.facets, 0, 2, DEFAULTS.facets);
-        s.hexagons = clampNum(s.hexagons, 0, 1.5, DEFAULTS.hexagons);
+        if (s.background !== 'modern') s.background = 'genuine';
+        var modern = s.background === 'modern';
+        s.stipple = clampNum(s.stipple, 0, 2, modern ? 0.55 : 1.0);
+        s.facets = clampNum(s.facets, 0, 2, modern ? 0.0 : 1.0);
+        s.hexagons = clampNum(s.hexagons, 0, 1.5, modern ? 1.0 : 0.0);
+        s.showZeroNumeral = s.showZeroNumeral === true;
+        s.dialFill = clampNum(s.dialFill, 0, 1.5, DEFAULTS.dialFill);
         s.hexSize = clampNum(s.hexSize, 20, 120, DEFAULTS.hexSize);
         if (['off', 'band', 'edges', 'both'].indexOf(s.revFlash) < 0) {
             s.revFlash = DEFAULTS.revFlash;
