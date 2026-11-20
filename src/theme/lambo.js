@@ -3,73 +3,40 @@
         module.exports = factory(require('../engine/text.js'),
                                  require('../geometry/panel.js'),
                                  require('./palette.js'),
-                                 require('../geometry/superarc.js'));
+                                 require('./guide.js'));
     } else {
-        root.MGUTheme = factory(root.MGUText, root.MGUPanel, root.MGUPalette,
-                                root.MGUSuperArc);
+        root.MGUTheme = factory(root.MGUText, root.MGUPanel, root.MGUPalette, root.MGUGuide);
     }
-}(typeof self !== 'undefined' ? self : this, function (Text, Panel, Palette, SuperArc) {
+}(typeof self !== 'undefined' ? self : this, function (Text, Panel, Palette, Guide) {
     'use strict';
 
     /*
-     * "Toro" - a Lamborghini-inspired cluster for the BMW iDrive 7 panel.
+     * "Toro" - the Lamborghini Huracan CORSA cluster, reconstructed for the
+     * BMW iDrive 7 panel.
      *
-     * Nothing draws at or below y = 646: the car keeps its own bottom strip,
-     * so the KOMBI never puts its fallback gear box over our artwork.
-     * See docs/CLUSTER-CONSTRAINTS.md section 2.
+     * Geometry and art direction come from the CORSA brief, held as data in
+     * src/theme/guide.js so it can be read against the document. The brief's
+     * grid runs to y = 704; the MGU keeps y >= 646 for the car's own bottom
+     * strip, so the whole instrument is scaled as one and centred.
+     *
+     * Deliberate departures from the brief, all of them for the car:
+     *  - rendered as cluster-render effect layers, not SVG (the head unit
+     *    gives us no other way to draw smoothly; see README);
+     *  - a progressive lit run on the dial as the rpm indication, which the
+     *    brief leaves open rather than specifies;
+     *  - GT3 shift lights and a boost gauge, separately asked for;
+     *  - the far-left region, which the brief says is unreadable in the
+     *    photograph, carries oil temperature and pressure.
      */
 
-    /*
-     * The sweep is a wide, shallow ellipse - twice as wide as it is tall,
-     * ending where its tangent turns vertical. A circular dial sits in a
-     * 1920x720 cluster; this one spans it, which is the whole architecture
-     * of the clusters it is drawn after.
-     */
-    var ARC = {
-        cx: 960, cy: 478, rx: 790, ry: 380, k: 1.55,
-        half: 93 * Math.PI / 180,
-        segs: 40, major: 5,
-        depth: [64, 82],        /* minor, major tick depth */
-        bezelInset: 66, bezelNotch: 20,
-        numInset: 110, numSize: 44,
-        box: { x: 130, y: 58, w: 1660, h: 502 }
-    };
-
-    var GEAR = { y: 335, size: 230 };
-    var STRIP = { y: 350, pitch: 70, gap: 102, band: { x: 520, y: 324, w: 880, h: 44 } };
-    var MODE_Y = 440;
-    /*
-     * The sweep runs nearly the full width, so the side gauges sit in the
-     * narrow columns outside its ends, clear of the factory telltales.
-     */
-    var POD = { w: 46, top: 374, h: 206, valueY: 360, labelY: 606, unitY: 628 };
-    var PODS = [
-        { id: 'oilT',  cx: 52,   key: 'oilTemp',  label: 'T.OLIO' },
-        { id: 'oilP',  cx: 120,  key: 'oilPress', label: 'P.OLIO' },
-        { id: 'water', cx: 1800, key: 'coolant',  label: 'ACQUA' },
-        { id: 'fuel',  cx: 1868, key: 'fuel',     label: 'BENZINA' }
-    ];
-    var BOOST = { x: 620, w: 520, y: 486, h: 34, labelY: 476, zero: 0.22, minPsi: -10 };
-    var PSI_PER_BAR = 14.503774;
-    var GM = { cx: 1300, cy: 500, size: 100 };
-    /* The four readouts run as one row under the dial. */
-    var ROW = { labelY: 556, valueY: 596, cols: [330, 520, 680, 840] };
-    var SPEED = { x: 1700, y: 612, size: 130, unitX: 1712 };
+    var G = Guide, T = Guide.TACH, B = Guide.BOUNDS;
 
     function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+    function lerp(a, b, t) { return a + (b - a) * t; }
 
-    /*
-     * A point on the sweep and the outward normal there, for the
-     * superellipse the dial is built on. Position along the dial is the
-     * ordinary polar angle, matching src/shaders/core.js.
-     */
-    function arcPoint(t, k) {
-        var q = SuperArc.atArc(t, ARC.rx, ARC.ry, k || ARC.k, ARC.half);
-        return { x: ARC.cx + q.x, y: ARC.cy + q.y, nx: q.nx, ny: q.ny };
-    }
-
-    function arcMaps(k) {
-        return SuperArc.maps(ARC.rx, ARC.ry, k || ARC.k, ARC.half);
+    /* Scale value <-> engine speed. */
+    function vOf(rpm, scaleMax) {
+        return clamp01(rpm / scaleMax) * (T.vMax - T.vMin) + T.vMin;
     }
 
     function gearNames(profile) {
@@ -82,6 +49,7 @@
         var P = Panel.profile(profileId);
         var S = Palette.resolve(settings, P);
         var C = S.colours;
+        var GC = G.COLOURS;
         var names = gearNames(P);
         var layers = [];
         var imperial = S.units !== 'metric';
@@ -93,6 +61,27 @@
         };
         var bandFlash = S.revFlash === 'band' || S.revFlash === 'both';
         var edgeFlash = S.revFlash === 'edges' || S.revFlash === 'both';
+
+        /* The dial, in panel pixels. */
+        var DC = { x: G.gx(T.cx), y: G.gy(T.cy) };
+        var rOuter = G.gs(T.rOuter);
+        var ANG = [G.phiRad(T.vMin), G.phiRad(T.vMax)];
+        /* The brief's sweep runs past the crown, so the box is the whole
+           circle's upper cap plus a margin for the glow. */
+        var dialBox = {
+            x: Math.max(0, G.gx(T.cx - T.rOuter) - 26),
+            y: Math.max(0, G.gy(T.cy - T.rOuter) - 26),
+            w: 0, h: 0
+        };
+        dialBox.w = Math.min(Panel.PANEL_WIDTH, G.gx(T.cx + T.rOuter) + 26) - dialBox.x;
+        dialBox.h = Math.min(Panel.BOTTOM_CUT, G.point(T.vMax, T.rOuter).y + 40) - dialBox.y;
+
+        var dialCentre = [DC.x - dialBox.x, DC.y - dialBox.y];
+        /* Where the red detailing starts, as a scale value. */
+        var redV = S.redFromScale !== null && S.redFromScale !== undefined
+            ? S.redFromScale : vOf(S.rpmRedline, S.scaleMaxRpm);
+
+        /* ------------------------------------------------------ helpers */
 
         function txt(id, z, box, style, fn) {
             layers.push({
@@ -120,7 +109,6 @@
             });
         }
 
-        /* Static glyphs, batched; split across layers at the glyph budget. */
         function statics(id, z, box, base, items) {
             var chunk = [], used = 0, n = 0, i;
             function flush() {
@@ -143,7 +131,8 @@
                         return {
                             u_g: L.g, u_quad: L.p, u_count: L.count, u_sharp: L.sharp,
                             u_color: [col[0], col[1], col[2], al],
-                            u_glowCol: col, u_glow: 0, u_outline: 0, u_outCol: col
+                            u_glowCol: col, u_glow: 0,
+                            u_outline: base.outline || 0, u_outCol: col
                         };
                     }
                 });
@@ -159,99 +148,138 @@
             flush();
         }
 
-        /* ------------------------------------------------------ background */
+        /* ------------------------------------------------- background */
         layers.push({
             id: 'bg', z: 0, shader: 'bg',
             x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT,
             uniforms: function () {
-                return { u_tint: C.tint, u_hex: S.hexagons, u_hexSize: S.hexSize };
+                return {
+                    u_black: GC.screenBlack, u_blue: GC.screenBlueBlack,
+                    u_lower: GC.lowerField, u_line: GC.geometricLine,
+                    u_hex: S.hexagons, u_hexSize: S.hexSize, u_facets: S.facets
+                };
             }
         });
 
-        /* -------------------------------------------------------- rev band */
-        var AM = arcMaps(S.arcShape);
-        var arcBase = function (state) {
+        /* ---------------------------------------------- the tachometer */
+        function dialBase() {
             return {
-                u_remapP: AM.P,
-                u_centre: [ARC.cx - ARC.box.x, ARC.cy - ARC.box.y],
-                u_r: [ARC.rx, ARC.ry], u_k: S.arcShape, u_half: ARC.half,
-                u_frac: clamp01(state.rpm / S.rpmMax),
-                u_redline: S.rpmRedline / S.rpmMax,
-                u_lit: C.lit
+                u_centre: dialCentre, u_ang: ANG,
+                u_scale: [T.vMin, T.vMax]
             };
-        };
-        layers.push({ id: 'rail', z: 10, shader: 'rail',
-            x: ARC.box.x, y: ARC.box.y, w: ARC.box.w, h: ARC.box.h,
-            uniforms: arcBase });
-        layers.push({ id: 'tach', z: 12, shader: 'tach',
-            x: ARC.box.x, y: ARC.box.y, w: ARC.box.w, h: ARC.box.h,
-            uniforms: function (s) {
-                var u = arcBase(s);
-                u.u_segs = ARC.segs; u.u_major = ARC.major;
-                u.u_depth = ARC.depth;
-                u.u_remapQ = AM.Q;
-                u.u_arcLen = AM.arcLen;
-                u.u_warn = bandFlash ? (s.limiter || 0) : 0;
-                return u;
-            } });
-
-        /* The stepped inner bezel, notched around every numeral. */
-        var kn = Math.round(S.rpmMax / 1000);
-        layers.push({ id: 'bezel', z: 13, shader: 'bezel',
-            x: ARC.box.x, y: ARC.box.y, w: ARC.box.w, h: ARC.box.h,
-            uniforms: function () {
-                return {
-                    u_centre: [ARC.cx - ARC.box.x, ARC.cy - ARC.box.y],
-                    u_r: [ARC.rx, ARC.ry], u_k: S.arcShape, u_half: ARC.half,
-                    u_remapP: AM.P,
-                    u_steps: kn, u_inset: ARC.bezelInset, u_notch: ARC.bezelNotch,
-                    u_col: C.steel
-                };
-            } });
-
-        /* Numerals that light and swell as the revs sweep past them. */
-        var numBox = { x: 150, y: 150, w: 1620, h: 400 };
-        var numPlace = [], k, pt;
-        for (k = 0; k <= kn; k++) {
-            pt = arcPoint(k / kn, S.arcShape);
-            numPlace.push({
-                str: String(k),
-                x: pt.x - pt.nx * ARC.numInset - numBox.x,
-                y: pt.y - pt.ny * ARC.numInset - numBox.y
-            });
         }
-        var numLayout = Text.place(atlas, numPlace, {
-            face: 'display', size: ARC.numSize, align: 'centre', baseline: 'middle'
-        });
+
         layers.push({
-            id: 'arcNums', z: 14, shader: 'arcnum',
+            id: 'stipple', z: 4, shader: 'stipple',
+            x: dialBox.x, y: dialBox.y, w: dialBox.w, h: dialBox.h,
+            when: function () { return S.stipple > 0; },
+            uniforms: function () {
+                var u = dialBase();
+                u.u_ring = [G.gs(T.stippleInner), G.gs(T.stippleOuter)];
+                u.u_dot = [G.gs(G.STIPPLE.spacing), G.gs(G.STIPPLE.dotRadius),
+                           G.STIPPLE.opacity * S.stipple];
+                u.u_redFrom = redV;
+                u.u_col = GC.stipple;
+                u.u_red = GC.dimRed;
+                return u;
+            }
+        });
+
+        layers.push({
+            id: 'dial', z: 10, shader: 'dial',
+            x: dialBox.x, y: dialBox.y, w: dialBox.w, h: dialBox.h,
+            uniforms: function (s) {
+                var u = dialBase();
+                u.u_rOuter = rOuter;
+                u.u_arcW = G.gs(1.6);
+                u.u_tick = [G.gs(T.tickMinor), G.gs(T.tickMajor), G.gs(T.tickWidth)];
+                u.u_step = T.tickStep;
+                u.u_frac = vOf(s.rpm, S.scaleMaxRpm);
+                u.u_redFrom = redV;
+                u.u_warn = bandFlash ? (s.limiter || 0) : 0;
+                u.u_lit = C.lit;
+                u.u_base = GC.fineContour;
+                u.u_red = GC.corsaRed;
+                return u;
+            }
+        });
+
+        layers.push({
+            id: 'contour', z: 12, shader: 'contour',
+            x: dialBox.x, y: dialBox.y, w: dialBox.w, h: dialBox.h,
+            uniforms: function (s) {
+                var u = dialBase();
+                u.u_radii = [G.gs(T.rRecess), G.gs(T.rPlateau)];
+                u.u_width = G.gs(T.contourWidth);
+                u.u_redFrom = redV;
+                u.u_frac = vOf(s.rpm, S.scaleMaxRpm);
+                u.u_col = GC.fineContour;
+                u.u_red = GC.corsaRed;
+                u.u_lit = C.lit;
+                return u;
+            }
+        });
+
+        /* Scale numerals: narrow, inclined, hollow; red from the red mark. */
+        var numSize = G.gs(T.numeralHeight) / 0.70;   /* cap height -> em */
+        var numItems = [], numVals = [], v;
+        for (v = T.vMin; v <= T.vMax; v++) {
+            var at = G.point(v, T.rNumeral);
+            numItems.push({ str: String(v), x: at.x, y: at.y });
+            numVals.push(v);
+        }
+        var numBox = {
+            x: Math.max(0, G.gx(T.cx - T.rNumeral) - 60),
+            y: Math.max(0, G.gy(T.cy - T.rNumeral) - 50), w: 0, h: 0
+        };
+        numBox.w = Math.min(Panel.PANEL_WIDTH, G.gx(T.cx + T.rNumeral) + 60) - numBox.x;
+        numBox.h = Math.min(Panel.BOTTOM_CUT, G.point(T.vMax, T.rNumeral).y + 60) - numBox.y;
+
+        var numLayout = Text.place(atlas, numItems.map(function (it) {
+            return { str: it.str, x: it.x - numBox.x, y: it.y - numBox.y };
+        }), { face: 'dial', size: numSize, align: 'centre', baseline: 'middle' });
+
+        /* Each glyph carries its own scale value, so "10" works as two. */
+        var gt = [];
+        (function () {
+            var i, j = 0;
+            for (i = 0; i < numVals.length; i++) {
+                var n = String(numVals[i]).length, c;
+                for (c = 0; c < n; c++) {
+                    gt.push(numVals[i], numVals[i] >= redV - 0.001 ? 1 : 0, 0, 0);
+                    j++;
+                }
+            }
+            while (gt.length < 11 * 4) gt.push(0, 0, 0, 0);
+        }());
+
+        layers.push({
+            id: 'arcNums', z: 16, shader: 'arcnum',
             x: numBox.x, y: numBox.y, w: numBox.w, h: numBox.h,
             uniforms: function (s) {
                 return {
-                    u_g: numLayout.g, u_quad: numLayout.p,
-                    u_count: numLayout.count, u_sharp: numLayout.sharp,
-                    u_frac: clamp01(s.rpm / S.rpmMax), u_grow: 0.30, u_glow: 0.9,
-                    u_colOff: C.faint, u_colOn: C.text
+                    u_g: numLayout.g, u_quad: numLayout.p, u_gt: gt,
+                    u_cfg: [numLayout.count, numLayout.sharp,
+                            vOf(s.rpm, S.scaleMaxRpm), G.gs(T.numeralStroke)],
+                    u_colOff: GC.secondaryWhite,
+                    u_colOn: GC.primaryWhite,
+                    u_colRed: GC.corsaRed
                 };
             }
         });
-
-        statics('rpmLabel', 14, { x: 300, y: 486, w: 240, h: 40 },
-            { face: 'labelL', size: 19, color: C.faint, tracking: 1 },
-            [{ str: 'RPM x1000', x: 320, y: 512 }]);
 
         /* --------------------------------------------- GT3 shift lights */
         if (S.shiftLights) {
             layers.push({
                 id: 'shift', z: 60, shader: 'shiftbar',
-                x: 560, y: 18, w: 800, h: 40,
+                x: 640, y: 6, w: 580, h: 34,
                 uniforms: function (s) {
                     var start = S.rpmRedline - 1800;
                     return {
                         u_frac: clamp01((s.rpm - start) / Math.max(1, S.rpmLimiter - start)),
                         u_leds: 15,
                         u_strobe: s.rpm >= S.rpmLimiter - 60 ? 1 : 0,
-                        u_c1: C.green, u_c2: C.amber, u_c3: C.danger
+                        u_c1: C.green, u_c2: C.amber, u_c3: GC.corsaRed
                     };
                 }
             });
@@ -262,192 +290,230 @@
                 x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT,
                 uniforms: function (s) {
                     return { u_on: s.limiter || 0, u_rate: S.flashRate,
-                             u_col: C.danger, u_strength: S.flashStrength };
+                             u_col: GC.corsaRed, u_strength: S.flashStrength };
                 }
             });
         }
 
-        /* ------------------------------------------------- gear and mode */
-        if (S.gearStrip) {
-            layers.push({
-                id: 'gearBand', z: 16, shader: 'gearband',
-                x: STRIP.band.x, y: STRIP.band.y, w: STRIP.band.w, h: STRIP.band.h,
-                uniforms: function () {
-                    return { u_color: [0.66, 0.72, 0.80, 0.22] };
-                }
-            });
-            /*
-             * The strip scrolls so the engaged gear sits under the big
-             * numeral, with its neighbours running out to either side - the
-             * way the reference clusters do it. Drawing it at a fixed
-             * position instead leaves the numeral sitting on top of whatever
-             * gear happens to be in the middle.
-             */
-            layers.push({
-                id: 'gearStrip', z: 18, shader: 'text',
-                x: STRIP.band.x, y: 316, w: STRIP.band.w, h: 58,
-                uniforms: function (s) {
-                    var active = names.indexOf(s.gear);
-                    if (active < 0) return null;
-                    var items = [], j;
-                    var span = Math.floor((Text.MAX_GLYPHS - 1) / 2);
-                    for (j = Math.max(0, active - span);
-                         j <= Math.min(names.length - 1, active + span); j++) {
-                        if (j === active) continue;      /* hidden by the numeral */
-                        /* The big numeral is wider than the pitch, so the
-                           strip opens a gap around it; without one it eats
-                           its own neighbours. */
-                        var n = j - active;
-                        var dx = (n < 0 ? -1 : 1) *
-                                 (STRIP.gap + (Math.abs(n) - 1) * STRIP.pitch);
-                        items.push({
-                            str: names[j],
-                            x: ARC.cx + dx - STRIP.band.x,
-                            y: STRIP.y - 316
-                        });
-                    }
-                    if (!items.length) return null;
-                    var L = Text.place(atlas, items, {
-                        face: 'label', size: 29, align: 'centre'
-                    });
-                    if (!L) return null;
-                    return {
-                        u_g: L.g, u_quad: L.p, u_count: L.count, u_sharp: L.sharp,
-                        u_color: [C.steel[0], C.steel[1], C.steel[2], 1.0],
-                        u_glowCol: C.muted, u_glow: 0, u_outline: 0, u_outCol: C.muted
-                    };
-                }
-            });
-        }
-
-        /* The big hollow numeral - the Lamborghini signature. */
-        txt('gearBig', 20, { x: 812, y: 204, w: 296, h: 266 },
-            { face: 'displayB', size: GEAR.size, align: 'centre', baseline: 'middle',
-              x: ARC.cx, y: GEAR.y, outline: 6.0, glow: 0.5,
-              color: function (s) { return s.limiter > 0.5 ? C.danger : C.accent; },
-              outCol: function (s) { return s.limiter > 0.5 ? C.danger : C.accent; } },
+        /* --------------------------------------- gear, CORSA, secondary */
+        var gearRect = G.grect(B.gear);
+        var gearSize = gearRect.h / 0.70;
+        txt('gearBig', 24,
+            { x: gearRect.x - 90, y: gearRect.y - 44, w: gearRect.w + 180, h: gearRect.h + 92 },
+            { face: 'gear', size: gearSize, align: 'centre', baseline: 'middle',
+              x: gearRect.x + gearRect.w / 2, y: gearRect.y + gearRect.h / 2,
+              outline: G.gs(3.6), glow: 0.0,
+              color: function () { return GC.corsaRed; },
+              outCol: function (s) {
+                  return s.limiter > 0.5 ? [1, 1, 1] : GC.corsaRed;
+              } },
             function (s) { return s.gear; });
 
-        txt('mode', 22, { x: 760, y: 414, w: 400, h: 40 },
-            { face: 'label', size: 23, align: 'centre', x: ARC.cx, y: MODE_Y,
-              tracking: 7, color: C.second },
-            function (s) { return s.driveMode || ''; });
+        statics('corsa', 24, { x: G.gx(B.corsa.cx) - 90, y: G.gy(B.corsa.cy) - 26, w: 180, h: 46 },
+            { face: 'label', size: G.gs(26) / 0.70, align: 'centre',
+              color: GC.corsaRed, tracking: 1.5 },
+            [{ str: S.mode, x: G.gx(B.corsa.cx), y: G.gy(B.corsa.cy) + G.gs(13) }]);
 
-        /* ------------------------------------------------------- boost */
-        /* state.js reports boost in psi or bar depending on the unit, so the
-           scale ends have to be in the same one. */
-        var bMax = imperial ? P.boostMaxPsi : P.boostMaxPsi / PSI_PER_BAR;
-        var bMin = imperial ? BOOST.minPsi : BOOST.minPsi / PSI_PER_BAR;
-        if (P.boost) {
-            statics('boostLbl', 24, { x: 560, y: 452, w: 420, h: 34 },
-                { face: 'label', size: 19, color: C.faint, tracking: 3 },
-                [{ str: 'BOOST ' + U.press, x: BOOST.x, y: BOOST.labelY }]);
-            /* A dark pad so the bar reads against the honeycomb. */
+        if (S.secondaryGlyph) {
+            statics('secondary', 24,
+                { x: G.gx(B.secondaryR.cx) - 40, y: G.gy(B.secondaryR.cy) - 30, w: 80, h: 50 },
+                { face: 'gear', size: G.gs(30) / 0.70, align: 'centre',
+                  color: GC.secondaryWhite },
+                [{ str: S.secondaryGlyph, x: G.gx(B.secondaryR.cx), y: G.gy(B.secondaryR.cy) + G.gs(15) }]);
+        }
+
+        /* ESC state, stacked, small and red. */
+        statics('esc', 24, { x: G.gx(B.escBlock.cx) - 80, y: G.gy(B.escBlock.cy) - 34, w: 160, h: 66 },
+            { face: 'label', size: G.gs(21) / 0.70, align: 'centre',
+              color: GC.corsaRed, tracking: 1 },
+            [{ str: 'ESC', x: G.gx(B.escBlock.cx), y: G.gy(B.escBlock.cy) - G.gs(3) },
+             { str: S.mode, x: G.gx(B.escBlock.cx), y: G.gy(B.escBlock.cy) + G.gs(23) }]);
+
+        /* ---------------------------------------- side instruments */
+        function instrument(id, rect, opts) {
+            var r = G.grect(rect);
+            var barTop = r.y + G.gs(68);
+            var barH = r.h - G.gs(68);
+            var barW = G.gs(26);
+            var cx = r.x + r.w / 2;
+
             layers.push({
-                id: 'boostPad', z: 23, shader: 'plate',
-                x: BOOST.x - 16, y: BOOST.y - 9, w: BOOST.w + 32, h: BOOST.h + 18,
+                id: 'icon_' + id, z: 20, shader: 'icon',
+                x: cx - G.gs(14), y: r.y, w: G.gs(28), h: G.gs(28),
                 uniforms: function () {
-                    return { u_radius: 9, u_fill: [0.020, 0.028, 0.038, 0.88],
-                             u_line: [0.30, 0.35, 0.42, 0.55], u_lineW: 1.2 };
+                    return { u_kind: opts.icon, u_col: GC.secondaryWhite };
                 }
             });
+            statics('lbl_' + id, 20,
+                { x: r.x - G.gs(30), y: r.y + G.gs(30), w: r.w + G.gs(60), h: G.gs(40) },
+                { face: 'label', size: G.gs(15) / 0.70, align: 'centre',
+                  color: GC.secondaryWhite, tracking: 0.5 },
+                [{ str: opts.l1, x: cx, y: r.y + G.gs(46) },
+                 { str: opts.l2, x: cx, y: r.y + G.gs(61) }]);
+
             layers.push({
-                id: 'boost', z: 25, shader: 'boost',
-                x: BOOST.x, y: BOOST.y, w: BOOST.w, h: BOOST.h,
+                id: 'bar_' + id, z: 21, shader: 'gauge',
+                x: cx - barW / 2, y: barTop, w: barW, h: barH,
                 uniforms: function (s) {
+                    var g = s.pods[opts.key];
                     return {
-                        u_frac: boostFrac(s.boostPsi, bMax, bMin), u_zero: BOOST.zero,
-                        u_segs: 30, u_peak: boostFrac(s.boostPeakPsi, bMax, bMin)
+                        u_frac: clamp01(g.frac), u_redFrom: opts.redFrom,
+                        u_invert: opts.invert ? 1 : 0, u_ticks: opts.ticks,
+                        u_alarm: g.alarm ? 1 : 0,
+                        u_col: GC.primaryWhite, u_red: GC.corsaRed,
+                        u_frameCol: GC.fineContour
                     };
                 }
             });
-            txt('boostVal', 26, { x: 980, y: 448, w: 180, h: 40 },
-                { face: 'display', size: 29, align: 'right',
-                  x: BOOST.x + BOOST.w, y: BOOST.labelY, color: C.text },
+
+            /* Fixed scale markings down the side of the bar. */
+            var marks = opts.marks.map(function (mk, i) {
+                return { str: mk,
+                         x: cx + barW / 2 + G.gs(16),
+                         y: barTop + barH * (i / (opts.marks.length - 1)) + G.gs(5) };
+            });
+            statics('scale_' + id, 21,
+                { x: cx, y: barTop - G.gs(10), w: r.w / 2 + G.gs(46), h: barH + G.gs(22) },
+                { face: 'label', size: G.gs(14) / 0.70, align: 'left',
+                  color: GC.secondaryWhite, alpha: 0.85 }, marks);
+
+            var valTop = Math.min(barTop + barH + G.gs(2), Panel.BOTTOM_CUT - G.gs(30));
+            txt('val_' + id, 21,
+                { x: cx - G.gs(42), y: valTop, w: G.gs(84), h: G.gs(30) },
+                { face: 'display', size: G.gs(19) / 0.70, align: 'centre',
+                  x: cx, y: valTop + G.gs(20),
+                  color: function (s) {
+                      return s.pods[opts.key].alarm ? GC.corsaRed : GC.primaryWhite;
+                  } },
+                function (s) { return s.pods[opts.key].text; });
+        }
+
+        instrument('coolant', B.coolant, {
+            icon: 1, l1: 'TEMP.', l2: 'ACQUA', key: 'coolant',
+            marks: ['130', '90', '50'], ticks: 5, redFrom: 0.78, invert: false
+        });
+        instrument('fuel', B.fuel, {
+            icon: 0, l1: 'LIVELLO', l2: 'BENZINA', key: 'fuel',
+            marks: ['100', '50', '0'], ticks: 5, redFrom: 0.14, invert: true
+        });
+
+        /* The far-left region the brief cannot resolve: our own readings. */
+        if (S.showAuxLeft) {
+            instrument('oilT', [150, 425, 245, 675], {
+                icon: 1, l1: 'TEMP.', l2: 'OLIO', key: 'oilTemp',
+                marks: ['170', '110', '50'], ticks: 5, redFrom: 0.82, invert: false
+            });
+            instrument('oilP', [262, 425, 357, 675], {
+                icon: 0, l1: 'PRESS.', l2: 'OLIO', key: 'oilPress',
+                marks: ['10', '5', '0'], ticks: 5, redFrom: 0.10, invert: true
+            });
+        }
+
+        /* ------------------------------------------- G-force widget */
+        var gf = B.gForce;
+        layers.push({
+            id: 'gforce', z: 22, shader: 'gforce',
+            x: G.gx(gf.cx - gf.w / 2), y: G.gy(gf.cy - gf.h / 2),
+            w: G.gs(gf.w), h: G.gs(gf.h),
+            uniforms: function (s) {
+                return { u_g: [s.gLat, s.gLon], u_max: 1.2, u_col: GC.primaryWhite };
+            }
+        });
+        /* Four readings around it, one per direction, from one coherent
+           lateral/longitudinal state (brief section 8). */
+        [['gR', 1, 0, 'left', gf.w * 0.42, 5, function (s) { return Math.max(s.gLat, 0); }],
+         ['gL', -1, 0, 'right', -gf.w * 0.42, 5, function (s) { return Math.max(-s.gLat, 0); }],
+         ['gU', 0, -1, 'centre', 0, -gf.h * 0.30, function (s) { return Math.max(s.gLon, 0); }],
+         ['gD', 0, 1, 'centre', 0, gf.h * 0.44, function (s) { return Math.max(-s.gLon, 0); }]
+        ].forEach(function (r) {
+            var ax = G.gx(gf.cx + r[4]), ay = G.gy(gf.cy + r[5]);
+            txt(r[0], 22, { x: ax - G.gs(46), y: ay - G.gs(20), w: G.gs(92), h: G.gs(28) },
+                { face: 'display', size: G.gs(14) / 0.70, align: r[3],
+                  x: ax, y: ay, color: GC.secondaryWhite },
+                function (s) { return r[6](s).toFixed(1); });
+        });
+
+        /* ------------------------------------------ lower-left panel */
+        var ll = G.grect(B.lowerLeft);
+        layers.push({
+            id: 'icon_range', z: 26, shader: 'icon',
+            x: ll.x, y: ll.y + G.gs(6), w: G.gs(26), h: G.gs(26),
+            uniforms: function () { return { u_kind: 0, u_col: GC.secondaryWhite }; }
+        });
+        txt('range', 26, { x: ll.x + G.gs(32), y: ll.y, w: G.gs(150), h: G.gs(40) },
+            { face: 'display', size: G.gs(26) / 0.70, align: 'left',
+              x: ll.x + G.gs(34), y: ll.y + G.gs(28), color: GC.primaryWhite },
+            function (s) { return s.rangeText; });
+        statics('rangeUnit', 26,
+            { x: ll.x + G.gs(100), y: ll.y + G.gs(6), w: G.gs(80), h: G.gs(30) },
+            { face: 'label', size: G.gs(15) / 0.70, align: 'left', color: GC.secondaryWhite },
+            [{ str: U.dist, x: ll.x + G.gs(112), y: ll.y + G.gs(28) }]);
+
+        txt('ambient', 26, { x: ll.x, y: ll.y + G.gs(44), w: G.gs(150), h: G.gs(40) },
+            { face: 'display', size: G.gs(26) / 0.70, align: 'left',
+              x: ll.x + G.gs(2), y: ll.y + G.gs(72), color: GC.primaryWhite },
+            function (s) { return s.ambientText; });
+        statics('ambientUnit', 26,
+            { x: ll.x + G.gs(60), y: ll.y + G.gs(50), w: G.gs(80), h: G.gs(30) },
+            { face: 'label', size: G.gs(15) / 0.70, align: 'left', color: GC.secondaryWhite },
+            [{ str: U.temp, x: ll.x + G.gs(74), y: ll.y + G.gs(72) }]);
+
+        txt('clock', 26, { x: ll.x + G.gs(140), y: ll.y + G.gs(42), w: G.gs(230), h: G.gs(42) },
+            { face: 'display', size: G.gs(22) / 0.70, align: 'right',
+              x: ll.x + ll.w + G.gs(26), y: ll.y + G.gs(72), color: GC.secondaryWhite },
+            function (s) { return s.clockText; });
+
+        /* ------------------------------------------------------ speed */
+        var sp = G.grect(B.speed);
+        txt('speed', 30,
+            { x: Math.max(0, sp.x - G.gs(160)), y: sp.y - 12,
+              w: sp.w + G.gs(170), h: Panel.BOTTOM_CUT - sp.y + 12 },
+            { face: 'gear', size: G.gs(79) / 0.70, align: 'right',
+              x: sp.x + sp.w - G.gs(175), y: sp.y + G.gs(92),
+              color: GC.primaryWhite },
+            function (s) { return String(Math.max(0, Math.round(s.speed))); });
+        statics('speedUnit', 30,
+            { x: sp.x + sp.w - G.gs(174), y: sp.y + G.gs(62), w: G.gs(110), h: G.gs(38) },
+            { face: 'label', size: G.gs(28) / 0.70, align: 'left',
+              color: GC.secondaryWhite, tracking: 0.5 },
+            [{ str: U.speed, x: sp.x + sp.w - G.gs(168), y: sp.y + G.gs(92) }]);
+
+        /* ------------------------------------------------------ boost */
+        if (P.boost && S.showBoost) {
+            var bx = G.gx(700), bw = G.gs(430), by = G.gy(530), bh = G.gs(26);
+            statics('boostLbl', 26, { x: bx - 20, y: by - G.gs(24), w: G.gs(200), h: G.gs(26) },
+                { face: 'label', size: G.gs(15) / 0.70, color: GC.secondaryWhite, tracking: 1.5 },
+                [{ str: 'BOOST ' + U.press, x: bx, y: by - G.gs(7) }]);
+            layers.push({
+                id: 'boost', z: 26, shader: 'boost',
+                x: bx, y: by, w: bw, h: bh,
+                uniforms: function (s) {
+                    return {
+                        u_frac: boostFrac(s.boostPsi, bMax, bMin), u_zero: BOOST_ZERO,
+                        u_segs: 26, u_peak: boostFrac(s.boostPeakPsi, bMax, bMin)
+                    };
+                }
+            });
+            txt('boostVal', 26, { x: bx + bw - G.gs(90), y: by - G.gs(26), w: G.gs(96), h: G.gs(30) },
+                { face: 'display', size: G.gs(18) / 0.70, align: 'right',
+                  x: bx + bw, y: by - G.gs(7), color: GC.primaryWhite },
                 function (s) { return s.boostPsi.toFixed(imperial ? 1 : 2); });
         }
 
-        /* ------------------------------------------------------ G meter */
-        layers.push({
-            id: 'gmeter', z: 25, shader: 'gmeter',
-            x: GM.cx - GM.size / 2, y: GM.cy - GM.size / 2, w: GM.size, h: GM.size,
-            uniforms: function (s) {
-                return { u_g: [s.gLat, s.gLon], u_peak: [s.gPeakLat, s.gPeakLon], u_max: 1.2 };
-            }
-        });
-        statics('gLbl', 25, { x: 1240, y: 556, w: 130, h: 26 },
-            { face: 'label', size: 17, align: 'centre', color: C.faint, tracking: 2 },
-            [{ str: 'G', x: GM.cx, y: 574 }]);
-
-        /* --------------------------------------------------- side pods */
-        var lblL = [], lblR = [];
-        PODS.forEach(function (pod) {
-            var unit = pod.key === 'fuel' ? '%'
-                     : pod.key === 'oilPress' ? U.press : U.temp;
-            layers.push({
-                id: 'pod_' + pod.id, z: 20, shader: 'vbar',
-                x: pod.cx - POD.w / 2, y: POD.top, w: POD.w, h: POD.h,
-                uniforms: function (s) {
-                    var v = s.pods[pod.key];
-                    return { u_frac: clamp01(v.frac), u_warn: v.warn, u_segs: 20,
-                             u_col: v.col || C.lit, u_alarm: v.alarm ? 1 : 0 };
-                }
-            });
-            (pod.cx < 960 ? lblL : lblR).push(
-                { str: pod.label, x: pod.cx, y: POD.labelY },
-                { str: unit, x: pod.cx, y: POD.unitY });
-            var vx = Math.max(0, Math.min(pod.cx - 60, Panel.PANEL_WIDTH - 120));
-            txt('podv_' + pod.id, 21,
-                { x: vx, y: POD.valueY - 30, w: 120, h: 40 },
-                { face: 'display', size: 25, align: 'centre', x: pod.cx, y: POD.valueY,
-                  color: function (s) {
-                      return s.pods[pod.key].alarm ? C.danger : C.text;
-                  } },
-                function (s) { return s.pods[pod.key].text; });
-        });
-        statics('podLblL', 21, { x: 0, y: POD.labelY - 20, w: 200, h: 56 },
-            { face: 'label', size: 18, align: 'centre', color: C.faint, tracking: 1 }, lblL);
-        statics('podLblR', 21, { x: 1720, y: POD.labelY - 20, w: 200, h: 56 },
-            { face: 'label', size: 18, align: 'centre', color: C.faint, tracking: 1 }, lblR);
-
-        /* --------------------------------------------- readouts, a row */
-        statics('botLbl', 28, { x: 270, y: 534, w: 700, h: 36 },
-            { face: 'label', size: 18, color: C.faint, tracking: 2 },
-            [{ str: 'ODOMETER ' + U.dist, x: ROW.cols[0], y: ROW.labelY },
-             { str: 'RANGE ' + U.dist, x: ROW.cols[1], y: ROW.labelY },
-             { str: 'CLOCK', x: ROW.cols[2], y: ROW.labelY },
-             { str: 'OUTSIDE ' + U.temp, x: ROW.cols[3], y: ROW.labelY }]);
-
-        [['odo', 0, 'odoText'], ['range', 1, 'rangeText'],
-         ['clock', 2, 'clockText'], ['ambient', 3, 'ambientText']
-        ].forEach(function (r) {
-            txt(r[0], 29, { x: ROW.cols[r[1]] - 10, y: ROW.valueY - 34, w: 190, h: 44 },
-                { face: 'display', size: 29, x: ROW.cols[r[1]], y: ROW.valueY, color: C.text },
-                function (s) { return s[r[2]]; });
-        });
-
-        /* ------------------------------------------------ speed, right */
-        txt('speed', 30, { x: 1396, y: 494, w: 336, h: 152 },
-            { face: 'display', size: SPEED.size, align: 'right', x: SPEED.x, y: SPEED.y,
-              color: C.text, glow: 0.18, glowCol: C.lit },
-            function (s) { return String(Math.max(0, Math.round(s.speed))); });
-        statics('speedUnit', 30, { x: SPEED.unitX - 6, y: SPEED.y - 28, w: 130, h: 40 },
-            { face: 'label', size: 25, align: 'left', color: C.muted, tracking: 3 },
-            [{ str: U.speed, x: SPEED.unitX, y: SPEED.y }]);
+        var PSI_PER_BAR = 14.503774;
+        var bMax = imperial ? P.boostMaxPsi : P.boostMaxPsi / PSI_PER_BAR;
+        var bMin = imperial ? -10 : -10 / PSI_PER_BAR;
 
         return { id: 'toro', name: 'Toro', layers: layers, profile: P,
-                 settings: S, palette: C, imperial: imperial, arc: ARC };
+                 settings: S, palette: C, guide: G, imperial: imperial,
+                 dial: { centre: DC, rOuter: rOuter, ang: ANG, redV: redV } };
     }
 
-    /*
-     * Boost is scaled piecewise: vacuum gets the first fifth of the bar and
-     * charge pressure the rest. A linear scale wastes a third of the gauge
-     * on manifold vacuum, which nobody reads while driving.
-     */
+    var BOOST_ZERO = 0.22;
     function boostFrac(v, max, min) {
-        if (v >= 0) return clamp01(BOOST.zero + (1 - BOOST.zero) * (v / max));
-        return clamp01(BOOST.zero * (1 - v / min));
+        if (v >= 0) return clamp01(BOOST_ZERO + (1 - BOOST_ZERO) * (v / max));
+        return clamp01(BOOST_ZERO * (1 - v / min));
     }
 
-    return { build: build, ARC: ARC, PODS: PODS, arcPoint: arcPoint };
+    return { build: build, Guide: Guide, vOf: vOf };
 }));

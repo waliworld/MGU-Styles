@@ -43,14 +43,26 @@
         units: 'imperial',
         accent: 'arancio',
         litColour: 'ice',
+        mode: 'CORSA',
+        secondaryGlyph: 'R',
         shiftLights: true,
+        showBoost: true,
+        showAuxLeft: true,       /* the brief's unreadable far-left region */
         revFlash: 'both',        /* off | band | edges | both */
         flashRate: 9,            /* Hz */
         flashStrength: 0.52,
-        arcShape: 1.55,
-        hexagons: 1.0,
-        hexSize: 46,
-        gearStrip: true
+        /*
+         * The dial is marked 1..10 like the car it copies. scaleMaxRpm is the
+         * engine speed that reaches 10; the brief is emphatic that the
+         * printed scale is artwork and never an engine's permitted limit, so
+         * the operating values below are kept separate.
+         */
+        scaleMaxRpm: 10000,
+        redFromScale: null,      /* null: derive from rpmRedline */
+        stipple: 1.0,
+        facets: 1.0,
+        hexagons: 0.0,           /* the Huracan field is stipple, not honeycomb */
+        hexSize: 46
     };
 
     function clampNum(v, lo, hi, fallback) {
@@ -76,25 +88,24 @@
             }
         }
 
-        var max = clampNum(settings.rpmMax, 4000, 9000, profile.rpmMax);
-        max = Math.round(max / 1000) * 1000;          /* whole thousands */
-        var redline = clampNum(settings.rpmRedline, 2000, max, profile.rpmRedline);
-        var limiter = clampNum(settings.rpmLimiter, redline, max, profile.rpmLimiter);
+        var scale = clampNum(settings.scaleMaxRpm, 4000, 12000, DEFAULTS.scaleMaxRpm);
+        var redline = clampNum(settings.rpmRedline, 2000, scale, profile.rpmRedline);
+        var limiter = clampNum(settings.rpmLimiter, redline, scale, profile.rpmLimiter);
         if (limiter < redline) limiter = redline;
 
-        s.rpmMax = max;
-        s.rpmRedline = Math.min(redline, max);
-        s.rpmLimiter = Math.min(limiter, max);
+        s.scaleMaxRpm = scale;
+        s.rpmMax = scale;                 /* the dial's top, in rpm */
+        s.rpmRedline = Math.min(redline, scale);
+        s.rpmLimiter = Math.min(limiter, scale);
+        s.redFromScale = settings.redFromScale === undefined ? null
+            : settings.redFromScale;
         /* Where the warning starts. Default: a breath before the limiter. */
         s.flashFromRpm = clampNum(settings.flashFromRpm, 1000, s.rpmLimiter,
                                   s.rpmLimiter - 150);
         s.flashRate = clampNum(s.flashRate, 1, 20, DEFAULTS.flashRate);
         s.flashStrength = clampNum(s.flashStrength, 0, 1, DEFAULTS.flashStrength);
-        /*
-         * The dial's superellipse exponent. 2 is an ellipse; the reference
-         * clusters measure near 1.55, which is what gives the long wings.
-         */
-        s.arcShape = clampNum(s.arcShape, 1.2, 2.6, DEFAULTS.arcShape);
+        s.stipple = clampNum(s.stipple, 0, 2, DEFAULTS.stipple);
+        s.facets = clampNum(s.facets, 0, 2, DEFAULTS.facets);
         s.hexagons = clampNum(s.hexagons, 0, 1.5, DEFAULTS.hexagons);
         s.hexSize = clampNum(s.hexSize, 20, 120, DEFAULTS.hexSize);
         if (['off', 'band', 'edges', 'both'].indexOf(s.revFlash) < 0) {

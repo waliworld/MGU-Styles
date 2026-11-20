@@ -18,14 +18,19 @@ var Theme = require('../theme/lambo.js');
 var Panel = require('../geometry/panel.js');
 var core = require('../shaders/core.js');
 var parts = require('../shaders/parts.js');
+var dialShaders = require('../shaders/dial.js');
 
 var FRAME_MS = 33;            /* 30 Hz: the eye's limit for a gauge needle */
 var IDLE_MS = 250;            /* while the car is not running */
 
 function shaders() {
-    var out = {}, k;
-    for (k in core) if (Object.prototype.hasOwnProperty.call(core, k)) out[k] = core[k];
-    for (k in parts) if (Object.prototype.hasOwnProperty.call(parts, k)) out[k] = parts[k];
+    var out = {}, k, i;
+    var sets = [core, parts, dialShaders];
+    for (i = 0; i < sets.length; i++) {
+        for (k in sets[i]) {
+            if (Object.prototype.hasOwnProperty.call(sets[i], k)) out[k] = sets[i][k];
+        }
+    }
     return out;
 }
 

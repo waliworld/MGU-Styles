@@ -226,61 +226,6 @@
         '}'
     ].join('\n');
 
-    /* ------------------------------------------------------------ arcnum */
-    /*
-     * The scale numerals. Each one lights as the revs pass it and swells as
-     * they sweep through, so the eye is pulled along the dial instead of
-     * having to read it. Which numeral a glyph is comes from its index, so
-     * no extra uniform array is needed - every numeral must be a single
-     * digit, which test/theme.test.js checks.
-     */
-    var arcnum = [
-        'uniform vec4 u_g[12];',
-        'uniform vec4 u_quad[12];',
-        'uniform float u_count;',
-        'uniform float u_sharp;',
-        'uniform float u_frac;',
-        'uniform float u_grow;',
-        'uniform float u_glow;',
-        'uniform vec3 u_colOff;',
-        'uniform vec3 u_colOn;',
-        '',
-        'void main() {',
-        '  vec2 p = px();',
-        '  float last = max(u_count - 1.0, 1.0);',
-        '  float cover = 0.0, halo = 0.0, accW = 0.0;',
-        '  vec3 acc = vec3(0.0);',
-        '  for (int i = 0; i < 12; i++) {',
-        '    float on = step(float(i) + 0.5, u_count);',
-        '    float ti = float(i) / last;',
-        '    float near = exp(-pow((ti - u_frac) * last * 1.15, 2.0));',
-        '    float lit = step(ti, u_frac);',
-        '    float scale = 1.0 + u_grow * near;',
-        '    vec4 r = u_quad[i];',
-        '    vec2 cq = r.xy + r.zw * 0.5;',
-        '    vec2 sz = max(r.zw * scale, vec2(1.0));',
-        '    vec2 q = (p - (cq - sz * 0.5)) / sz;',
-        '    float inR = on * step(0.0, q.x) * step(q.x, 1.0)',
-        '              * step(0.0, q.y) * step(q.y, 1.0);',
-        '    vec4 g = u_g[i];',
-        '    vec2 uv = g.xy + clamp(q, 0.0, 1.0) * g.zw;',
-        '    float raw = texture2D(u_atlas, uv).r;',
-        '    float d = (raw - 0.5) * u_sharp * scale;',
-        '    float dn = (raw - 0.5) * 2.0;',
-        '    float cv = clamp(d + 0.5, 0.0, 1.0) * inR;',
-        '    vec3 cc = mix(u_colOff, u_colOn, clamp(max(lit * 0.5, near), 0.0, 1.0));',
-        '    acc += cc * cv;',
-        '    accW += cv;',
-        '    cover = max(cover, cv);',
-        '    halo = max(halo, smoothstep(-1.0, -0.06, dn) * inR * max(lit * 0.35, near));',
-        '  }',
-        '  vec3 col = accW > 0.0 ? acc / accW : u_colOff;',
-        '  float aura = halo * (1.0 - cover) * u_glow * 0.5;',
-        '  float a = clamp(cover + aura, 0.0, 1.0);',
-        '  gl_FragColor = vec4(a > 0.0 ? (col * cover + col * aura) / a : vec3(0.0), a);',
-        '}'
-    ].join('\n');
-
     /* ---------------------------------------------------------- gearband */
     /* The lighter bar the gear letters sit on, soft at both ends. */
     var gearband = [
@@ -296,6 +241,121 @@
         '}'
     ].join('\n');
 
-    return { text: text, plate: plate, marker: marker, arcnum: arcnum, gearband: gearband, vbar: vbar, boost: boost,
+    /* ------------------------------------------------------------- gauge */
+    /*
+     * The narrow upright side instruments: a dark framed bar with sparse
+     * scale ticks and a pale level indicator inside it, with red detailing
+     * at the hot (or empty) end. Fixed markings and the moving level are
+     * drawn separately, as the brief asks.
+     */
+    var gauge = [
+        'uniform float u_frac;',
+        'uniform float u_redFrom;',   /* 0..1 up the bar */
+        'uniform float u_invert;',    /* 1: the red zone is at the bottom */
+        'uniform float u_ticks;',
+        'uniform float u_alarm;',
+        'uniform vec3 u_col;',
+        'uniform vec3 u_red;',
+        'uniform vec3 u_frameCol;',
+        'void main() {',
+        '  vec2 p = px();',
+        '  vec2 h = u_size * 0.5;',
+        '  float up = 1.0 - clamp(p.y / max(u_size.y, 1.0), 0.0, 1.0);',
+        '',
+        /* Frame and the darker track inside it. */
+        '  float outer = sdRound(p - h, h - 1.0, 3.0);',
+        '  float frame = cov(abs(outer + 1.1) - 1.1);',
+        '  float track = cov(outer + 2.6);',
+        '',
+        /* Red detailing along the hot or empty end. */
+        '  float inRed = mix(step(u_redFrom, up), step(up, u_redFrom), u_invert);',
+        '  vec3 trackCol = mix(vec3(0.055, 0.070, 0.088), u_red * 0.30, inRed);',
+        '',
+        /* The level itself: a pale column inset from the frame. */
+        '  float lvl = step(up, u_frac) * cov(sdRound(p - h, h - vec2(4.5, 4.0), 2.0));',
+        '  float beat = u_alarm * (0.5 + 0.5 * sin(u_time * 14.0));',
+        '  vec3 lvlCol = mix(u_col, u_red, inRed);',
+        '  lvlCol = mix(lvlCol, vec3(1.0), beat * 0.55);',
+        '',
+        /* Sparse ticks across the track. */
+        '  float ty = up * (u_ticks - 1.0);',
+        '  float tick = cov(abs(fract(ty + 0.5) - 0.5) * u_size.y / max(u_ticks - 1.0, 1.0) - 0.6)',
+        '             * track * step(abs(p.x - h.x), h.x - 3.0);',
+        '',
+        '  vec3 c = trackCol * track + lvlCol * lvl',
+        '         + u_frameCol * frame + vec3(0.42, 0.48, 0.56) * tick * 0.5;',
+        '  float a = clamp(track * 0.9 + lvl + frame + tick * 0.45, 0.0, 1.0);',
+        '  gl_FragColor = vec4(a > 0.0 ? c / a : vec3(0.0), a);',
+        '}'
+    ].join('\n');
+
+    /* ------------------------------------------------------------ gforce */
+    /*
+     * The small four-direction load indicator that sits under the gear: thin
+     * angular outlines and a compact centre, white rather than bright, and
+     * deliberately quieter than the dial (brief section 8).
+     */
+    var gforce = [
+        'uniform vec2 u_g;',
+        'uniform float u_max;',
+        'uniform vec3 u_col;',
+        '',
+        /* One chevron pointing along dir, lit by amount. */
+        'float chevron(vec2 p, vec2 dir, float reach, float amt) {',
+        '  vec2 t = vec2(-dir.y, dir.x);',
+        '  float f = dot(p, dir), s = abs(dot(p, t));',
+        '  float d = max(abs(f - reach) - 2.2, s - (reach - f) * 0.85);',
+        '  return cov(d) * (0.30 + 0.70 * amt);',
+        '}',
+        '',
+        'void main() {',
+        '  vec2 p = px() - u_size * 0.5;',
+        '  float R = min(u_size.x, u_size.y) * 0.50;',
+        '  vec2 g = clamp(u_g / max(u_max, 0.001), -1.0, 1.0);',
+        '',
+        '  float m = 0.0;',
+        '  m = max(m, chevron(p, vec2(1.0, 0.0), R, max(g.x, 0.0)));',
+        '  m = max(m, chevron(p, vec2(-1.0, 0.0), R, max(-g.x, 0.0)));',
+        '  m = max(m, chevron(p, vec2(0.0, -1.0), R * 0.86, max(g.y, 0.0)));',
+        '  m = max(m, chevron(p, vec2(0.0, 1.0), R * 0.86, max(-g.y, 0.0)));',
+        '',
+        /* A compact centre mark. */
+        '  float box = cov(abs(sdRound(p, vec2(R * 0.20, R * 0.18), 2.0)) - 0.9);',
+        '  float a = clamp(m + box * 0.85, 0.0, 1.0);',
+        '  gl_FragColor = vec4(u_col, a);',
+        '}'
+    ].join('\n');
+
+    /* -------------------------------------------------------------- icon */
+    /* Small outline marks drawn in the same thin technical line as the
+       labels: 0 a fuel pump, 1 a thermometer. */
+    var icon = [
+        'uniform float u_kind;',
+        'uniform vec3 u_col;',
+        'void main() {',
+        '  vec2 p = px();',
+        '  vec2 c = u_size * 0.5;',
+        '  vec2 q = p - c;',
+        '  float s = min(u_size.x, u_size.y);',
+        '  float d = 1e9;',
+        '  if (u_kind < 0.5) {',
+        /* pump: a body, a filler neck and a hose arm */
+        '    float body = abs(sdRound(q + vec2(s * 0.10, 0.0), vec2(s * 0.22, s * 0.34), s * 0.05)) - 0.9;',
+        '    float slot = abs(sdBox(q + vec2(s * 0.10, s * 0.16), vec2(s * 0.13, s * 0.09))) - 0.8;',
+        '    float arm = abs(sdSegment(q, vec2(s * 0.14, s * 0.22), vec2(s * 0.30, s * 0.22), 0.0)) - 0.9;',
+        '    float neck = abs(sdSegment(q, vec2(s * 0.30, s * 0.22), vec2(s * 0.30, -s * 0.16), 0.0)) - 0.9;',
+        '    d = min(min(body, slot), min(arm, neck));',
+        '  } else {',
+        /* thermometer: a stem with a bulb */
+        '    float stem = abs(sdRound(q - vec2(0.0, -s * 0.10), vec2(s * 0.085, s * 0.26), s * 0.08)) - 0.9;',
+        '    float bulb = abs(sdCircle(q - vec2(0.0, s * 0.26), s * 0.15)) - 0.9;',
+        '    d = min(stem, bulb);',
+        '  }',
+        '  gl_FragColor = vec4(u_col, cov(d));',
+        '}'
+    ].join('\n');
+
+    return { text: text, plate: plate, marker: marker, gearband: gearband,
+             gauge: gauge, gforce: gforce, icon: icon, vbar: vbar, boost: boost,
              gmeter: gmeter, hairline: hairline };
 }));

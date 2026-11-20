@@ -18,8 +18,9 @@ const Sim = require('../preview/sim.js');
 const atlas = require('../assets/fonts/atlas.json');
 const core = require('../src/shaders/core.js');
 const parts = require('../src/shaders/parts.js');
+const dialShaders = require('../src/shaders/dial.js');
 
-const SHADERS = Object.assign({}, core, parts);
+const SHADERS = Object.assign({}, core, parts, dialShaders);
 
 /* Records every call the driver makes, the way the real client would see it. */
 function fakeCR() {

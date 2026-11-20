@@ -27,13 +27,15 @@
 </div>
 
 <script src="../src/geometry/panel.js"></script>
-<script src="../src/geometry/superarc.js"></script>
+
 <script src="../src/shaders/prelude.js"></script>
 <script src="../src/shaders/core.js"></script>
+<script src="../src/shaders/dial.js"></script>
 <script src="../src/shaders/parts.js"></script>
 <script src="../src/engine/text.js"></script>
 <script src="../src/engine/state.js"></script>
 <script src="../src/theme/palette.js"></script>
+<script src="../src/theme/guide.js"></script>
 <script src="../src/theme/lambo.js"></script>
 <script src="./engine.js"></script>
 <script src="./sim.js"></script>
@@ -48,7 +50,7 @@
   if (params.get('strip') === 'off') document.getElementById('strip').className = 'off';
 
   var shaders = {};
-  [MGUShadersCore, MGUShadersParts].forEach(function (set) {
+  [MGUShadersCore, MGUShadersParts, MGUShadersDial].forEach(function (set) {
     for (var k in set) if (set.hasOwnProperty(k)) shaders[k] = set[k];
   });
 
@@ -65,15 +67,17 @@
     var profileId = params.get('profile') || 'x3m40i';
     var units = params.get('units') || 'imperial';
     var cfg = { units: units };
-    ['accent', 'litColour', 'revFlash'].forEach(function (k) {
+    ['accent', 'litColour', 'revFlash', 'mode'].forEach(function (k) {
       if (params.get(k)) cfg[k] = params.get(k);
     });
-    ['rpmMax', 'rpmRedline', 'rpmLimiter', 'flashFromRpm', 'flashRate',
-     'flashStrength', 'hexagons', 'hexSize'].forEach(function (k) {
+    ['scaleMaxRpm', 'rpmRedline', 'rpmLimiter', 'redFromScale', 'flashFromRpm',
+     'flashRate', 'flashStrength', 'hexagons', 'hexSize', 'stipple',
+     'facets'].forEach(function (k) {
       if (params.get(k)) cfg[k] = parseFloat(params.get(k));
     });
-    if (params.get('shiftLights') === 'off') cfg.shiftLights = false;
-    if (params.get('gearStrip') === 'off') cfg.gearStrip = false;
+    ['shiftLights', 'showBoost', 'showAuxLeft'].forEach(function (k) {
+      if (params.get(k) === 'off') cfg[k] = false;
+    });
     var engine = MGUEngine.create(document.getElementById('c'),
       { onWarn: function (m) { out.textContent += m + '\n'; } });
     engine.build(shaders, MGUPrelude);

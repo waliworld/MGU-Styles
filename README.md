@@ -30,45 +30,49 @@ from the [MGU Store](https://github.com/robertnisipeanu/mgu-store).
 
 ## The design
 
-The reference is the Huracán/Aventador cluster: one dominant sweep, a huge
-central gear, and quiet instrumentation pushed to the edges.
+The geometry and art direction come from the **Huracán CORSA reconstruction
+brief**, held as data in `src/theme/guide.js` so it can be read against the
+document line by line.
 
-- **Rev band** — a **superellipse**, `|x/rx|^k + |y/ry|^k = 1` with `k ≈ 1.55`,
-  not an ellipse. I traced the outer edge of the reference cluster and tried
-  to fit one: a quarter of the way out it sits ~40 px below where any ellipse
-  can reach, and three quarters out ~55 px below. That gap is the whole
-  difference between long wings running into the corners and a dome. The
-  sweep spans x 186 → 1734 of 1920, the way the reference fills its display.
-  Blocks are solved in real pixels against each block's own tangent and
-  normal — and against the point projected onto the curve, or they shear into
-  wedges where the normal and the radius diverge. Each is a milled block,
-  dark at the rim and bright at its inner end, with a lit edge.
+- **The dial is a circle** — radius 590, centred at (930, 660), *below the
+  screen*, swept 154.8° with the crown falling just past 5 on a 1 → 10 scale.
+  One angle function, `θ(v) = -178 + 17.2v`, drives the ticks, the contour,
+  the stipple and the numerals, so they cannot drift apart.
 
-  Position along the dial is the ordinary polar angle, one `atan` per pixel.
-  Polar angle alone spaces the blocks 2.4 : 1 (wide at the ends) and the
-  superellipse's own parameter 5 : 1 the other way; the reference spaces them
-  evenly by arc length, so `src/geometry/superarc.js` fits a pair of
-  four-term odd polynomials between the two. That brings the spacing inside
-  1.1 : 1 and costs the shader a handful of multiplies.
-- **Stepped bezel** — a hairline inside the blocks that notches inward around
-  every numeral, so each sits in its own pocket. It is the detail that makes
-  the dial look machined rather than drawn.
-- **Numerals** that light as the revs pass them and swell as the sweep goes
-  through, so the eye is pulled along the dial instead of having to read it.
-- **Gear** — a hollow numeral in arancio over a `P R N 1…8` strip that
-  *scrolls*, so the engaged gear always sits under the numeral with its
-  neighbours running out to either side, with a gap opened around it. Drawn
-  at a fixed position instead, the numeral just sits on top of whatever gear
-  happens to be in the middle. It turns red on the limiter.
-- **Honeycomb** — large filled cells with a lit rim, a plain visible pattern
-  rather than a texture you have to look for.
-- **Side pods** — leaning segment columns: oil temperature and pressure to
-  the left, coolant and fuel to the right, labelled in Italian.
-- **Boost** — scaled piecewise, vacuum compressed into the first fifth of the
-  bar so charge pressure gets the rest, with a decaying peak-hold tick.
-- **Shift lights** — fifteen LEDs filling green → amber → red across the last
-  1800 rpm, strobing at the limiter together with a full-screen edge flash
-  that leaves the middle of the cluster readable.
+  I had previously fitted a superellipse to a traced photo and was wrong:
+  that curvature was perspective in the photograph, not the dial.
+
+- **Stepped inner perimeter** — the brief's own generator, a short radial
+  shoulder at 0.12 of each interval, a plateau from 0.22 to 0.68, and back
+  down by 0.80, between radii 483 and 499. A test checks the shader's ramps
+  against that table.
+- **Hollow inclined numerals**, narrow and leaning ~11°, white up the scale
+  and red from the red sector. The slant is baked into the SDF atlas rather
+  than sheared in the shader, so the field describes the real shape and the
+  metrics come out right.
+- **The gear glyph** is a red outline with a transparent interior, leaning
+  12°, with CORSA to its left and the pale secondary R beside it.
+- **Stipple, not honeycomb** — a fine regular point field in the annulus,
+  which is what the Huracán's texture actually is at this scale. The
+  honeycomb is still there behind `hexagons` if you want the Aventador look.
+- **Side instruments** stay narrow: thermometer and pump icons, Italian
+  labelling (Temp. Acqua, Livello Benzina), fixed scale markings separate
+  from the moving level.
+
+### Where this departs from the brief, and why
+
+| | |
+|---|---|
+| Rendered as cluster-render **effect layers**, not SVG | the head unit gives us no other way to draw smoothly at 30 Hz |
+| A **progressive lit run** up the dial as the rpm indication | the brief leaves this open and warns against inventing OEM behaviour, so it is a documented choice |
+| **GT3 shift lights** and a **boost gauge** | separately asked for; the brief allows exactly that exception |
+| The **far-left region** carries oil temperature and pressure | the brief says that area is unreadable in the photograph, so it is ours to use |
+| The grid is **scaled to fit above y = 646** | the car keeps the bottom strip; the whole instrument scales as one, which is what the brief asks for |
+
+The dial is marked **1 → 10 like the car it copies**. That is artwork, not a
+rev limit: `scaleMaxRpm` says which engine speed reaches 10 (10,000 by
+default), and the red detailing lands on the *car's* redline, so on a B58 it
+marks 6,750 rather than the Lamborghini's 8.5.
 
 ## Settings
 
@@ -79,26 +83,27 @@ code has no colour or rev limit written into it.
 |---|---|---|
 | `accent` | `arancio` `giallo` `rosso` `verde` `blu` `viola` `bianco` | the gear numeral and highlights |
 | `litColour` | `ice` `white` `accent` | what the rev band turns as it lights |
-| `rpmMax` | 4000–9000, whole thousands | the end of the scale |
 | `rpmRedline` / `rpmLimiter` | rpm | clamped and kept in order, whatever is passed |
 | `revFlash` | `off` `band` `edges` `both` | flash the dial, the screen edges, both, or neither |
 | `flashFromRpm` | rpm | where the warning starts; defaults to just under the limiter |
 | `flashRate` / `flashStrength` | 1–20 Hz / 0–1 | how it flashes |
 | `shiftLights` | on/off | the GT3 strip above the dial |
 | `gearStrip` | on/off | the `P R N 1…8` band |
-| `arcShape` | 1.2–2.6 | the dial's superellipse exponent; 2 is an ellipse, 1.55 matches the reference |
-| `hexagons` / `hexSize` | 0–1.5 / 20–120 px | the honeycomb |
+| `scaleMaxRpm` | 4000–12000 | the engine speed that reaches 10 on the dial |
+| `redFromScale` | scale value | where the red detailing starts; derived from `rpmRedline` when unset |
+| `stipple` / `facets` | 0–2 | the annulus point field and the faint background facets |
+| `hexagons` / `hexSize` | 0–1.5 / 20–120 px | the honeycomb, **off by default** — the Huracán field is stipple |
+| `showAuxLeft` | on/off | oil temperature and pressure in the brief's unreadable far-left region |
+| `showBoost` | on/off | the boost gauge |
+| `mode` / `secondaryGlyph` | text | the CORSA label and the pale glyph beside the gear |
 | `units` | `imperial` `metric` | mph/°F/psi or km/h/°C/bar |
 
-The scale is marked one numeral per thousand rpm and each must be a single
-digit — the shader works out which numeral a glyph belongs to from its index
-— so the scale tops out at 9000, which no BMW inline six passes anyway.
-`test/theme.test.js` checks it.
+Each dial numeral carries its own scale value, so `10` works as two glyphs
+and lights with the rest. `test/theme.test.js` pins that, the angle function,
+the circle, and the stepped-contour table.
 
 In the preview every one of these is a query parameter:
 `preview/index.html?accent=blu&rpmMax=7000&revFlash=band&units=metric`.
-
-![Blu, with the band lit in the accent colour](docs/img/toro-blu.png)
 
 ## The one rule everything obeys
 
@@ -124,10 +129,10 @@ graphics possible at all. Text is the only asset: a single baked SDF atlas
 
 ```
 src/geometry/panel.js    panel geometry, keep-clear zones, vehicle profiles
-src/geometry/superarc.js the dial's superellipse and its arc-length remap
 src/shaders/             GLSL ES 1.00: prelude, rev band, pods, boost, text
 src/engine/text.js       SDF text layout (shared by preview and car)
 src/engine/state.js      raw vehicle signals -> what the theme draws
+src/theme/guide.js       the CORSA brief as data, and its fit to the MGU panel
 src/theme/palette.js     colour schemes and every driver setting
 src/theme/lambo.js       the layout: 38 layers
 src/car/cluster.js       the theme -> cluster-render effect layers
@@ -204,8 +209,11 @@ over BMW's strip.
   factory telltale row is drawn over that area is not confirmed; the rev band
   itself also carries the three-stage colour, so the shift cue survives
   either way. Turn them off with the `shiftLights` setting.
-- **The scale tops out at 9000 rpm** (above), and is marked in whole
-  thousands.
+- **The brief's left-hand region is a reconstruction gap.** It is obscured
+  in the photograph, so what is there is ours, not a match.
+- **No visual comparison against the brief's own reference image** has been
+  done — that photo was not supplied with the brief here. The geometry
+  follows the written specification.
 - **Boost** needs a turbocharged engine and comes from the Sport Display,
   falling back to reading the engine unit directly.
 
