@@ -64,57 +64,87 @@
     /*
      * The rev band.
      *
-     * The sweep is a wide, shallow ellipse - about twice as wide as it is
-     * tall, ending where its tangent turns vertical. That proportion is what
-     * makes the dial read as a Lamborghini arch rather than a squashed
-     * circle, and it is what the reference clusters do.
+     * The sweep is a SUPERELLIPSE, |x/rx|^k + |y/ry|^k = 1 with k below 2,
+     * not an ellipse. Measured off the reference clusters, their dial drops
+     * away from the apex far faster than any ellipse can: at the half-way
+     * point it sits ~40 px lower, and by three quarters ~55 px lower, which
+     * is what gives it the long wings reaching into the corners instead of
+     * a dome. k is `arcShape` in the settings.
      *
-     * Ticks are solved in real pixels, not in the ellipse's parameter space:
-     * for a pixel we find the one tick it could belong to, then measure
-     * against that tick's own centre, tangent and normal. Shapes stay square
-     * everywhere on the sweep while the spacing tightens towards the ends.
-     * Each is a milled block, dark at the rim and bright at its inner end,
-     * with a lit edge - the look of the machined dial it copies.
+     * Position along the dial is the ordinary polar angle, which costs one
+     * atan and spaces the blocks about as evenly as the ellipse did - the
+     * superellipse's own parameter bunches them 5:1 at the ends.
+     *
+     * Blocks are solved in real pixels against each block's own tangent and
+     * normal, so they stay square the whole way round.
      */
     var tach = [
         'uniform vec2 u_centre;',
         'uniform vec2 u_r;',         /* rx, ry */
+        'uniform float u_k;',        /* superellipse exponent */
         'uniform float u_half;',     /* half sweep, radians */
         'uniform float u_segs;',
         'uniform float u_major;',
-        'uniform vec2 u_depth;',     /* minor, major tick depth in px */
+        'uniform vec2 u_depth;',     /* minor, major block depth in px */
         'uniform float u_frac;',
         'uniform float u_redline;',
         'uniform float u_warn;',
         'uniform vec3 u_lit;',
+        'uniform vec4 u_remapP;',   /* polar angle -> arc length */
+        'uniform vec4 u_remapQ;',   /* arc length -> polar angle */
+        'uniform float u_arcLen;',
         '',
         'void main() {',
         '  vec2 p = px() - u_centre;',
-        '  vec2 pn = p / u_r;',
-        '  float rn = length(pn);',
-        '  float a = atan(pn.x, -pn.y);',
-        '  float t = (a + u_half) / (2.0 * u_half);',
-        '  float onArc = step(0.0, t) * step(t, 1.0);',
+        '  float k = u_k;',
         '',
-        /* Signed distance to the ellipse itself, first order. */
-        '  vec2 grad = vec2(p.x / (u_r.x * u_r.x), p.y / (u_r.y * u_r.y)) / max(rn, 0.0001);',
-        '  float ed = (rn - 1.0) / max(length(grad), 0.00001);',
+        /* Where the pixel sits relative to the curve, in pixels. */
+        '  float u = abs(p.x) / u_r.x, v = abs(p.y) / u_r.y;',
+        '  float un = sePow(u, k), vn = sePow(v, k);',
+        '  float S = un + vn;',
+        '  vec2 gr = vec2(un / max(u, 0.0001) * sgn(p.x) / u_r.x,',
+        '                 vn / max(v, 0.0001) * sgn(p.y) / u_r.y);',
+        '  float gl = max(length(gr), 0.000001);',
+        '  float ed = (S - 1.0) / (k * gl);',
         '',
-        /* The one tick this pixel can belong to. */
+        /*
+         * Step onto the curve along its own normal before asking where we
+         * are along it. Taking the polar angle of the pixel itself shears
+         * the blocks into wedges near the ends, where the normal and the
+         * radius point in quite different directions.
+         */
+        '  vec2 foot = p - ed * (gr / gl);',
+        '  float m = atan(foot.x, -foot.y) / u_half;',
+        '  float t = (remapOdd(u_remapP, m) + 1.0) * 0.5;',
+        /* A block's own half-width of slack, so the first and last are not
+           sliced off by the end of the sweep. */
+        '  float slack = 0.6 / u_segs;',
+        '  float onArc = step(-slack, t) * step(t, 1.0 + slack) * step(abs(m), 1.05);',
+        '',
+        /* The one block this pixel can belong to, and its frame. */
         '  float ft = t * u_segs;',
         '  float seg = clamp(floor(ft), 0.0, u_segs - 1.0);',
         '  float tc = (seg + 0.5) / u_segs;',
-        '  float ac = -u_half + tc * 2.0 * u_half;',
-        '  vec2 c = vec2(u_r.x * sin(ac), -u_r.y * cos(ac));',
-        '  vec2 nrm = normalize(vec2(sin(ac) / u_r.x, -cos(ac) / u_r.y));',
+        '  float pc = remapOdd(u_remapQ, tc * 2.0 - 1.0) * u_half;',
+        '  float sp = sin(pc), cp = cos(pc);',
+        '  float A = sePow(abs(sp) / u_r.x, k);',
+        '  float B = sePow(abs(cp) / u_r.y, k);',
+        '  float SAB = A + B;',
+        '  float rr = pow(max(SAB, 0.000001), -1.0 / k);',
+        '  vec2 c = rr * vec2(sp, -cp);',
+        /* u^k and v^k at the block centre fall out of A and B, no more pow. */
+        '  float cu = abs(c.x) / u_r.x, cv = abs(c.y) / u_r.y;',
+        '  vec2 gn = vec2((A / SAB) / max(cu, 0.0001) * sgn(c.x) / u_r.x,',
+        '                 (B / SAB) / max(cv, 0.0001) * sgn(c.y) / u_r.y);',
+        '  vec2 nrm = normalize(gn);',
         '  vec2 tg = vec2(-nrm.y, nrm.x);',
         '  vec2 d = p - c;',
         '  float along = dot(d, tg);',
         '  float radial = dot(d, nrm);',
         '',
-        /* Tick width follows the local spacing so the gaps stay even. */
-        '  float speed = length(vec2(u_r.x * cos(ac), u_r.y * sin(ac)));',
-        '  float pitchPx = speed * (2.0 * u_half / u_segs);',
+        /* Arc length is uniform in t, so the spacing is just this. */
+        '  float pitchPx = u_arcLen / u_segs;',
+        '',
         '  float isMajor = step(0.5, 1.0 - abs(mod(seg + 0.5, u_major) - 0.5) * 2.0);',
         '  float depth = mix(u_depth.x, u_depth.y, isMajor);',
         '  float halfW = pitchPx * mix(0.36, 0.42, isMajor);',
@@ -137,12 +167,9 @@
         '',
         '  vec3 col = mix(dark, hot, past);',
         '  float alpha = body;',
-        '',
-        /* The lit edge around each block. */
         '  float rim = cov(abs(dist + 1.3) - 1.3) * onArc;',
         '  vec3 rimCol = mix(vec3(0.52, 0.58, 0.67), hot * 1.25, past);',
         '',
-        /* Bloom behind the lit run, and a brighter leading edge. */
         '  float band = cov(abs(ed + u_depth.y * 0.5) - u_depth.y * 0.85) * onArc;',
         '  float litGlow = band * step(t, u_frac) * (0.07 + 0.30 * flash);',
         '  float edge = exp(-pow((t - u_frac) * u_segs * 3.2, 2.0)) * band;',
@@ -160,20 +187,26 @@
     var rail = [
         'uniform vec2 u_centre;',
         'uniform vec2 u_r;',
+        'uniform float u_k;',
         'uniform float u_half;',
         'uniform float u_frac;',
         'uniform float u_redline;',
         'uniform vec3 u_lit;',
+        'uniform vec4 u_remapP;',
         '',
         'void main() {',
         '  vec2 p = px() - u_centre;',
-        '  vec2 pn = p / u_r;',
-        '  float rn = length(pn);',
-        '  float a = atan(pn.x, -pn.y);',
-        '  float t = (a + u_half) / (2.0 * u_half);',
-        '  float onArc = step(0.0, t) * step(t, 1.0);',
-        '  vec2 grad = vec2(p.x / (u_r.x * u_r.x), p.y / (u_r.y * u_r.y)) / max(rn, 0.0001);',
-        '  float ed = (rn - 1.0) / max(length(grad), 0.00001);',
+        '  float u = abs(p.x) / u_r.x, v = abs(p.y) / u_r.y;',
+        '  float un = sePow(u, u_k), vn = sePow(v, u_k);',
+        '  float S = un + vn;',
+        '  vec2 gr = vec2(un / max(u, 0.0001) * sgn(p.x) / u_r.x,',
+        '                 vn / max(v, 0.0001) * sgn(p.y) / u_r.y);',
+        '  float gl = max(length(gr), 0.000001);',
+        '  float ed = (S - 1.0) / (u_k * gl);',
+        '  vec2 foot = p - ed * (gr / gl);',
+        '  float m = atan(foot.x, -foot.y) / u_half;',
+        '  float t = (remapOdd(u_remapP, m) + 1.0) * 0.5;',
+        '  float onArc = step(0.0, t) * step(t, 1.0) * step(abs(m), 1.0);',
         '',
         '  float line = cov(abs(ed - 9.0) - 1.3) * onArc;',
         '  float lit = step(t, u_frac);',
@@ -195,31 +228,32 @@
     var bezel = [
         'uniform vec2 u_centre;',
         'uniform vec2 u_r;',
+        'uniform float u_k;',
         'uniform float u_half;',
-        'uniform float u_steps;',    /* numeral intervals across the sweep */
-        'uniform float u_inset;',    /* how far inside the ellipse the line runs */
-        'uniform float u_notch;',    /* extra inset around each numeral */
+        'uniform float u_steps;',
+        'uniform float u_inset;',
+        'uniform float u_notch;',
         'uniform vec3 u_col;',
+        'uniform vec4 u_remapP;',
         '',
         'void main() {',
         '  vec2 p = px() - u_centre;',
-        '  vec2 pn = p / u_r;',
-        '  float rn = length(pn);',
-        '  float a = atan(pn.x, -pn.y);',
-        '  float t = (a + u_half) / (2.0 * u_half);',
-        '  float onArc = step(0.0, t) * step(t, 1.0);',
-        '  vec2 grad = vec2(p.x / (u_r.x * u_r.x), p.y / (u_r.y * u_r.y)) / max(rn, 0.0001);',
-        '  float ed = (rn - 1.0) / max(length(grad), 0.00001);',
+        '  float u = abs(p.x) / u_r.x, v = abs(p.y) / u_r.y;',
+        '  float un = sePow(u, u_k), vn = sePow(v, u_k);',
+        '  float S = un + vn;',
+        '  vec2 gr = vec2(un / max(u, 0.0001) * sgn(p.x) / u_r.x,',
+        '                 vn / max(v, 0.0001) * sgn(p.y) / u_r.y);',
+        '  float gl = max(length(gr), 0.000001);',
+        '  float ed = (S - 1.0) / (u_k * gl);',
+        '  vec2 foot = p - ed * (gr / gl);',
+        '  float m = atan(foot.x, -foot.y) / u_half;',
+        '  float t = (remapOdd(u_remapP, m) + 1.0) * 0.5;',
+        '  float onArc = step(0.0, t) * step(t, 1.0) * step(abs(m), 1.0);',
         '',
-        /* Distance to the nearest numeral, in numeral steps. */
-        '  float ft = t * u_steps;',
-        '  float d2n = abs(fract(ft + 0.5) - 0.5);',
-        /* A short chamfer rather than a square step, as on the car. */
+        '  float d2n = abs(fract(t * u_steps + 0.5) - 0.5);',
         '  float near = 1.0 - smoothstep(0.26, 0.34, d2n);',
         '  float line = -u_inset - u_notch * near;',
-        '',
-        '  float a1 = cov(abs(ed - line) - 1.1) * onArc;',
-        '  gl_FragColor = vec4(u_col, a1 * 0.9);',
+        '  gl_FragColor = vec4(u_col, cov(abs(ed - line) - 1.1) * onArc * 0.9);',
         '}'
     ].join('\n');
 

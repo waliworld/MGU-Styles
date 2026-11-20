@@ -77,6 +77,21 @@
         '}',
         '',
         /* Regular hexagon distance, flat-top, circumradius r. */
+        /* Never zero, so a normal built from it cannot collapse. */
+        'float sgn(float x) { return x < 0.0 ? -1.0 : 1.0; }',
+        /* Guarded power, for the superellipse the dial is built on. */
+        'float sePow(float x, float e) { return pow(max(x, 0.000001), e); }',
+        '',
+        /* Odd quartic-in-x^2 used to remap the dial's polar angle to and
+           from arc length (src/geometry/superarc.js). */
+        'float oddPoly4(vec4 c, float x) {',
+        '  float x2 = x * x;',
+        '  return x * (c.x + x2 * (c.y + x2 * (c.z + x2 * c.w)));',
+        '}',
+        'float remapOdd(vec4 c, float v) {',
+        '  return sgn(v) * oddPoly4(c, min(abs(v), 1.0));',
+        '}',
+        '',
         'float sdHex(vec2 p, float r) {',
         '  const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);',
         '  p = abs(p);',

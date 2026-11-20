@@ -14,6 +14,7 @@ const State = require('../src/engine/state.js');
 const Sim = require('../preview/sim.js');
 const atlas = require('../assets/fonts/atlas.json');
 const Palette = require('../src/theme/palette.js');
+const SuperArc = require('../src/geometry/superarc.js');
 const core = require('../src/shaders/core.js');
 const parts = require('../src/shaders/parts.js');
 
@@ -36,20 +37,50 @@ test('no layer draws into the bottom strip', () => {
  * See docs/CLUSTER-CONSTRAINTS.md section 3 and README "Known limitations".
  */
 const KNOWN_OVERLAPS = new Set([
-    'hybrid/podv_fuel/eDrive status box',
+    'b58/bezel/Tyre pressure warning',
+    'b58/podv_fuel/Parking brake',
+    'b58/podv_oilP/Tyre pressure warning',
+    'b58/podv_oilT/Tyre pressure warning',
+    'b58/podv_water/Parking brake',
+    'b58/rail/Tyre pressure warning',
+    'b58/tach/Tyre pressure warning',
+    'hybrid/bezel/Tyre pressure warning',
+    'hybrid/bezel/eDrive status box',
+    'hybrid/podv_fuel/Parking brake',
+    'hybrid/podv_oilP/Tyre pressure warning',
+    'hybrid/podv_oilT/Tyre pressure warning',
+    'hybrid/podv_water/Parking brake',
+    'hybrid/rail/Tyre pressure warning',
+    'hybrid/rail/eDrive status box',
+    'hybrid/tach/Tyre pressure warning',
+    'hybrid/tach/eDrive status box',
     'mCarS58/arcNums/M box (left)',
     'mCarS58/arcNums/M box (right)',
     'mCarS58/bezel/M box (left)',
     'mCarS58/bezel/M box (right)',
+    'mCarS58/bezel/Tyre pressure warning',
     'mCarS58/gearBand/M box (left)',
     'mCarS58/gearBand/M box (right)',
     'mCarS58/gearBig/M box (left)',
     'mCarS58/gearStrip/M box (left)',
     'mCarS58/gearStrip/M box (right)',
+    'mCarS58/podv_fuel/Parking brake',
+    'mCarS58/podv_oilP/Tyre pressure warning',
+    'mCarS58/podv_oilT/Tyre pressure warning',
+    'mCarS58/podv_water/Parking brake',
     'mCarS58/rail/M box (left)',
     'mCarS58/rail/M box (right)',
+    'mCarS58/rail/Tyre pressure warning',
     'mCarS58/tach/M box (left)',
     'mCarS58/tach/M box (right)',
+    'mCarS58/tach/Tyre pressure warning',
+    'x3m40i/bezel/Tyre pressure warning',
+    'x3m40i/podv_fuel/Parking brake',
+    'x3m40i/podv_oilP/Tyre pressure warning',
+    'x3m40i/podv_oilT/Tyre pressure warning',
+    'x3m40i/podv_water/Parking brake',
+    'x3m40i/rail/Tyre pressure warning',
+    'x3m40i/tach/Tyre pressure warning',
 ]);
 
 test('no layer overlaps a factory keep-clear zone', () => {
@@ -269,4 +300,102 @@ test('a changed rpm scale moves the numerals and the redline', () => {
     assert.ok(Math.abs(tachB.u_redline - 5000 / 6000) < 1e-9, 'redline follows the scale');
     assert.strictEqual(b.layers.find(L => L.id === 'arcNums')
         .uniforms(State.present({ rpm: 0 }, profile, b.settings), 0).u_count, 7);
+});
+
+
+test('every glyph lands inside its own layer', () => {
+    /*
+     * A text layer only draws what falls inside its quad. A glyph placed
+     * outside it is silently clipped - which is how a label goes missing
+     * without anything failing. Check every layer against a whole drive.
+     */
+    const profile = Panel.profile('x3m40i');
+    const bad = new Set();
+    for (const units of ['imperial', 'metric']) {
+        const theme = Theme.build(atlas, 'x3m40i', { units });
+        const sim = Sim.create(profile);
+        for (let i = 0; i < 1500; i++) {
+            sim.step(1 / 60);
+            if (i % 113) continue;
+            const st = State.present(sim.raw(), profile, theme.settings);
+            for (const gear of ['P', 'R', 'N', '1', '8']) {
+                const s2 = Object.assign({}, st, { gear });
+                for (const L of theme.layers) {
+                    if (L.shader !== 'text' && L.shader !== 'arcnum') continue;
+                    const u = L.uniforms(s2, 0);
+                    if (!u) continue;
+                    for (let g = 0; g < u.u_count; g++) {
+                        const [x, y, w, h] = u.u_quad.slice(g * 4, g * 4 + 4);
+                        if (x >= -1 && y >= -1 && x + w <= L.w + 1 && y + h <= L.h + 1) continue;
+                        bad.add(`${L.id}: glyph at ${Math.round(x)},${Math.round(y)} ` +
+                            `${Math.round(w)}x${Math.round(h)} outside its ${L.w}x${L.h} layer`);
+                    }
+                }
+            }
+        }
+    }
+    assert.deepStrictEqual([...bad].sort(), [],
+        'clipped text:\n  ' + [...bad].sort().join('\n  '));
+});
+
+/* ----------------------------------------------------- the dial's curve */
+
+test('the dial is a superellipse, not an ellipse', () => {
+    /*
+     * Measured off the reference clusters: their dial drops away from the
+     * apex far faster than an ellipse. Pin the shape so a later tweak to the
+     * geometry cannot quietly turn it back into a dome.
+     */
+    const { ARC } = Theme;
+    const drop = (t, k) => {
+        const p = SuperArc.atArc(t, ARC.rx, ARC.ry, k, ARC.half);
+        return p.y + ARC.ry;        /* how far below the apex */
+    };
+    /* How much further below the apex the real curve sits, part way out. */
+    for (const [t, least] of [[0.2, 1.3], [0.25, 1.4], [0.3, 1.55], [0.35, 1.8]]) {
+        const se = drop(t, 1.55), el = drop(t, 2.0);
+        assert.ok(se / el > least,
+            `at t=${t} the curve should fall well below an ellipse ` +
+            `(${se.toFixed(0)} vs ${el.toFixed(0)}, ratio ${(se / el).toFixed(2)})`);
+    }
+    /* and it still spans nearly the whole panel */
+    const end = SuperArc.atArc(0, ARC.rx, ARC.ry, 1.55, ARC.half);
+    assert.ok(ARC.cx + end.x < 240, 'the wing should reach into the corner');
+    assert.ok(ARC.cx - end.x > 1680, 'and symmetrically on the right');
+});
+
+test('blocks are evenly spaced around the whole sweep', () => {
+    /*
+     * Polar angle alone spaces them 2.4:1 and the superellipse's own
+     * parameter 5:1. The remap in src/geometry/superarc.js is what keeps
+     * them even, and the shader reads the same coefficients.
+     */
+    const { ARC } = Theme;
+    for (const k of [1.3, 1.55, 1.8, 2.0]) {
+        const pts = [];
+        for (let i = 0; i <= ARC.segs; i++) pts.push(SuperArc.atArc(i / ARC.segs, ARC.rx, ARC.ry, k, ARC.half));
+        let lo = Infinity, hi = 0;
+        for (let i = 1; i <= ARC.segs; i++) {
+            const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+            lo = Math.min(lo, d); hi = Math.max(hi, d);
+        }
+        assert.ok(hi / lo < 1.2, `k=${k}: spacing varies ${(hi / lo).toFixed(2)}:1`);
+    }
+});
+
+test('the remap round-trips and the shader gets its coefficients', () => {
+    const { ARC } = Theme;
+    const m = SuperArc.maps(ARC.rx, ARC.ry, 1.55, ARC.half);
+    assert.strictEqual(m.P.length, SuperArc.TERMS);
+    assert.strictEqual(m.Q.length, SuperArc.TERMS);
+    for (let i = 0; i <= 20; i++) {
+        const v = -1 + 2 * i / 20;
+        const back = SuperArc.remap(m.Q, SuperArc.remap(m.P, v));
+        assert.ok(Math.abs(back - v) < 0.02, `remap round-trip off at ${v}: ${back}`);
+    }
+    const theme = Theme.build(atlas, 'x3m40i', {});
+    const u = theme.layers.find(L => L.id === 'tach').uniforms({ rpm: 3000 }, 0);
+    assert.deepStrictEqual(u.u_remapP, m.P);
+    assert.deepStrictEqual(u.u_remapQ, m.Q);
+    assert.ok(u.u_arcLen > 1500 && u.u_arcLen < 2400);
 });

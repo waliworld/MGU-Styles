@@ -47,6 +47,7 @@
         revFlash: 'both',        /* off | band | edges | both */
         flashRate: 9,            /* Hz */
         flashStrength: 0.52,
+        arcShape: 1.55,
         hexagons: 1.0,
         hexSize: 46,
         gearStrip: true
@@ -89,6 +90,11 @@
                                   s.rpmLimiter - 150);
         s.flashRate = clampNum(s.flashRate, 1, 20, DEFAULTS.flashRate);
         s.flashStrength = clampNum(s.flashStrength, 0, 1, DEFAULTS.flashStrength);
+        /*
+         * The dial's superellipse exponent. 2 is an ellipse; the reference
+         * clusters measure near 1.55, which is what gives the long wings.
+         */
+        s.arcShape = clampNum(s.arcShape, 1.2, 2.6, DEFAULTS.arcShape);
         s.hexagons = clampNum(s.hexagons, 0, 1.5, DEFAULTS.hexagons);
         s.hexSize = clampNum(s.hexSize, 20, 120, DEFAULTS.hexSize);
         if (['off', 'band', 'edges', 'both'].indexOf(s.revFlash) < 0) {

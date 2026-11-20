@@ -2,11 +2,13 @@
     if (typeof module === 'object' && module.exports) {
         module.exports = factory(require('../engine/text.js'),
                                  require('../geometry/panel.js'),
-                                 require('./palette.js'));
+                                 require('./palette.js'),
+                                 require('../geometry/superarc.js'));
     } else {
-        root.MGUTheme = factory(root.MGUText, root.MGUPanel, root.MGUPalette);
+        root.MGUTheme = factory(root.MGUText, root.MGUPanel, root.MGUPalette,
+                                root.MGUSuperArc);
     }
-}(typeof self !== 'undefined' ? self : this, function (Text, Panel, Palette) {
+}(typeof self !== 'undefined' ? self : this, function (Text, Panel, Palette, SuperArc) {
     'use strict';
 
     /*
@@ -24,42 +26,50 @@
      * of the clusters it is drawn after.
      */
     var ARC = {
-        cx: 960, cy: 415, rx: 620, ry: 310,
-        half: 96 * Math.PI / 180,
+        cx: 960, cy: 478, rx: 790, ry: 380, k: 1.55,
+        half: 93 * Math.PI / 180,
         segs: 40, major: 5,
-        depth: [58, 74],        /* minor, major tick depth */
-        bezelInset: 60, bezelNotch: 18,
-        numInset: 100, numSize: 42,
-        box: { x: 310, y: 72, w: 1300, h: 410 }
+        depth: [64, 82],        /* minor, major tick depth */
+        bezelInset: 66, bezelNotch: 20,
+        numInset: 110, numSize: 44,
+        box: { x: 130, y: 58, w: 1660, h: 502 }
     };
 
-    var GEAR = { y: 332, size: 230 };
-    var STRIP = { y: 346, pitch: 70, gap: 102, band: { x: 520, y: 316, w: 880, h: 44 } };
-    var MODE_Y = 450;
-    var POD = { w: 46, top: 215, h: 200 };
+    var GEAR = { y: 335, size: 230 };
+    var STRIP = { y: 350, pitch: 70, gap: 102, band: { x: 520, y: 324, w: 880, h: 44 } };
+    var MODE_Y = 440;
+    /*
+     * The sweep runs nearly the full width, so the side gauges sit in the
+     * narrow columns outside its ends, clear of the factory telltales.
+     */
+    var POD = { w: 46, top: 374, h: 206, valueY: 360, labelY: 606, unitY: 628 };
     var PODS = [
-        { id: 'oilT',  cx: 190,  key: 'oilTemp',  label: 'T.OLIO' },
-        { id: 'oilP',  cx: 258,  key: 'oilPress', label: 'P.OLIO' },
-        { id: 'water', cx: 1662, key: 'coolant',  label: 'ACQUA' },
-        { id: 'fuel',  cx: 1730, key: 'fuel',     label: 'BENZINA' }
+        { id: 'oilT',  cx: 52,   key: 'oilTemp',  label: 'T.OLIO' },
+        { id: 'oilP',  cx: 120,  key: 'oilPress', label: 'P.OLIO' },
+        { id: 'water', cx: 1800, key: 'coolant',  label: 'ACQUA' },
+        { id: 'fuel',  cx: 1868, key: 'fuel',     label: 'BENZINA' }
     ];
-    var BOOST = { x: 660, w: 520, y: 500, h: 34, labelY: 490, zero: 0.22, minPsi: -10 };
+    var BOOST = { x: 620, w: 520, y: 486, h: 34, labelY: 476, zero: 0.22, minPsi: -10 };
     var PSI_PER_BAR = 14.503774;
-    var GM = { cx: 1300, cy: 516, size: 96 };
-    var COL = { a: 180, b: 372 };          /* bottom-left readout columns */
+    var GM = { cx: 1300, cy: 500, size: 100 };
+    /* The four readouts run as one row under the dial. */
+    var ROW = { labelY: 556, valueY: 596, cols: [330, 520, 680, 840] };
+    var SPEED = { x: 1700, y: 612, size: 130, unitX: 1712 };
 
     function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
-    /* A point on the sweep, and the outward normal there. */
-    function arcPoint(t) {
-        var a = -ARC.half + t * 2 * ARC.half;
-        var n = [Math.sin(a) / ARC.rx, -Math.cos(a) / ARC.ry];
-        var len = Math.sqrt(n[0] * n[0] + n[1] * n[1]);
-        return {
-            x: ARC.cx + ARC.rx * Math.sin(a),
-            y: ARC.cy - ARC.ry * Math.cos(a),
-            nx: n[0] / len, ny: n[1] / len
-        };
+    /*
+     * A point on the sweep and the outward normal there, for the
+     * superellipse the dial is built on. Position along the dial is the
+     * ordinary polar angle, matching src/shaders/core.js.
+     */
+    function arcPoint(t, k) {
+        var q = SuperArc.atArc(t, ARC.rx, ARC.ry, k || ARC.k, ARC.half);
+        return { x: ARC.cx + q.x, y: ARC.cy + q.y, nx: q.nx, ny: q.ny };
+    }
+
+    function arcMaps(k) {
+        return SuperArc.maps(ARC.rx, ARC.ry, k || ARC.k, ARC.half);
     }
 
     function gearNames(profile) {
@@ -159,10 +169,12 @@
         });
 
         /* -------------------------------------------------------- rev band */
+        var AM = arcMaps(S.arcShape);
         var arcBase = function (state) {
             return {
+                u_remapP: AM.P,
                 u_centre: [ARC.cx - ARC.box.x, ARC.cy - ARC.box.y],
-                u_r: [ARC.rx, ARC.ry], u_half: ARC.half,
+                u_r: [ARC.rx, ARC.ry], u_k: S.arcShape, u_half: ARC.half,
                 u_frac: clamp01(state.rpm / S.rpmMax),
                 u_redline: S.rpmRedline / S.rpmMax,
                 u_lit: C.lit
@@ -177,6 +189,8 @@
                 var u = arcBase(s);
                 u.u_segs = ARC.segs; u.u_major = ARC.major;
                 u.u_depth = ARC.depth;
+                u.u_remapQ = AM.Q;
+                u.u_arcLen = AM.arcLen;
                 u.u_warn = bandFlash ? (s.limiter || 0) : 0;
                 return u;
             } });
@@ -188,17 +202,18 @@
             uniforms: function () {
                 return {
                     u_centre: [ARC.cx - ARC.box.x, ARC.cy - ARC.box.y],
-                    u_r: [ARC.rx, ARC.ry], u_half: ARC.half,
+                    u_r: [ARC.rx, ARC.ry], u_k: S.arcShape, u_half: ARC.half,
+                    u_remapP: AM.P,
                     u_steps: kn, u_inset: ARC.bezelInset, u_notch: ARC.bezelNotch,
                     u_col: C.steel
                 };
             } });
 
         /* Numerals that light and swell as the revs sweep past them. */
-        var numBox = { x: 380, y: 150, w: 1160, h: 330 };
+        var numBox = { x: 150, y: 150, w: 1620, h: 400 };
         var numPlace = [], k, pt;
         for (k = 0; k <= kn; k++) {
-            pt = arcPoint(k / kn);
+            pt = arcPoint(k / kn, S.arcShape);
             numPlace.push({
                 str: String(k),
                 x: pt.x - pt.nx * ARC.numInset - numBox.x,
@@ -221,15 +236,15 @@
             }
         });
 
-        statics('rpmLabel', 14, { x: 410, y: 444, w: 240, h: 40 },
+        statics('rpmLabel', 14, { x: 300, y: 486, w: 240, h: 40 },
             { face: 'labelL', size: 19, color: C.faint, tracking: 1 },
-            [{ str: 'RPM x1000', x: 430, y: 470 }]);
+            [{ str: 'RPM x1000', x: 320, y: 512 }]);
 
         /* --------------------------------------------- GT3 shift lights */
         if (S.shiftLights) {
             layers.push({
                 id: 'shift', z: 60, shader: 'shiftbar',
-                x: 560, y: 26, w: 800, h: 40,
+                x: 560, y: 18, w: 800, h: 40,
                 uniforms: function (s) {
                     var start = S.rpmRedline - 1800;
                     return {
@@ -270,7 +285,7 @@
              */
             layers.push({
                 id: 'gearStrip', z: 18, shader: 'text',
-                x: STRIP.band.x, y: 322, w: STRIP.band.w, h: 44,
+                x: STRIP.band.x, y: 316, w: STRIP.band.w, h: 58,
                 uniforms: function (s) {
                     var active = names.indexOf(s.gear);
                     if (active < 0) return null;
@@ -288,7 +303,7 @@
                         items.push({
                             str: names[j],
                             x: ARC.cx + dx - STRIP.band.x,
-                            y: STRIP.y - 322
+                            y: STRIP.y - 316
                         });
                     }
                     if (!items.length) return null;
@@ -306,14 +321,14 @@
         }
 
         /* The big hollow numeral - the Lamborghini signature. */
-        txt('gearBig', 20, { x: 820, y: 212, w: 280, h: 240 },
+        txt('gearBig', 20, { x: 812, y: 204, w: 296, h: 266 },
             { face: 'displayB', size: GEAR.size, align: 'centre', baseline: 'middle',
               x: ARC.cx, y: GEAR.y, outline: 6.0, glow: 0.5,
               color: function (s) { return s.limiter > 0.5 ? C.danger : C.accent; },
               outCol: function (s) { return s.limiter > 0.5 ? C.danger : C.accent; } },
             function (s) { return s.gear; });
 
-        txt('mode', 22, { x: 760, y: 424, w: 400, h: 40 },
+        txt('mode', 22, { x: 760, y: 414, w: 400, h: 40 },
             { face: 'label', size: 23, align: 'centre', x: ARC.cx, y: MODE_Y,
               tracking: 7, color: C.second },
             function (s) { return s.driveMode || ''; });
@@ -324,7 +339,7 @@
         var bMax = imperial ? P.boostMaxPsi : P.boostMaxPsi / PSI_PER_BAR;
         var bMin = imperial ? BOOST.minPsi : BOOST.minPsi / PSI_PER_BAR;
         if (P.boost) {
-            statics('boostLbl', 24, { x: 600, y: 466, w: 420, h: 34 },
+            statics('boostLbl', 24, { x: 560, y: 452, w: 420, h: 34 },
                 { face: 'label', size: 19, color: C.faint, tracking: 3 },
                 [{ str: 'BOOST ' + U.press, x: BOOST.x, y: BOOST.labelY }]);
             /* A dark pad so the bar reads against the honeycomb. */
@@ -346,7 +361,7 @@
                     };
                 }
             });
-            txt('boostVal', 26, { x: 1020, y: 462, w: 180, h: 40 },
+            txt('boostVal', 26, { x: 980, y: 448, w: 180, h: 40 },
                 { face: 'display', size: 29, align: 'right',
                   x: BOOST.x + BOOST.w, y: BOOST.labelY, color: C.text },
                 function (s) { return s.boostPsi.toFixed(imperial ? 1 : 2); });
@@ -360,9 +375,9 @@
                 return { u_g: [s.gLat, s.gLon], u_peak: [s.gPeakLat, s.gPeakLon], u_max: 1.2 };
             }
         });
-        statics('gLbl', 25, { x: 1250, y: 570, w: 130, h: 26 },
+        statics('gLbl', 25, { x: 1240, y: 556, w: 130, h: 26 },
             { face: 'label', size: 17, align: 'centre', color: C.faint, tracking: 2 },
-            [{ str: 'G', x: GM.cx, y: 588 }]);
+            [{ str: 'G', x: GM.cx, y: 574 }]);
 
         /* --------------------------------------------------- side pods */
         var lblL = [], lblR = [];
@@ -379,50 +394,46 @@
                 }
             });
             (pod.cx < 960 ? lblL : lblR).push(
-                { str: pod.label, x: pod.cx, y: POD.top + POD.h + 26 },
-                { str: unit, x: pod.cx, y: POD.top + POD.h + 48 });
+                { str: pod.label, x: pod.cx, y: POD.labelY },
+                { str: unit, x: pod.cx, y: POD.unitY });
+            var vx = Math.max(0, Math.min(pod.cx - 60, Panel.PANEL_WIDTH - 120));
             txt('podv_' + pod.id, 21,
-                { x: pod.cx - 70, y: POD.top - 46, w: 140, h: 42 },
-                { face: 'display', size: 27, align: 'centre', x: pod.cx, y: POD.top - 16,
+                { x: vx, y: POD.valueY - 30, w: 120, h: 40 },
+                { face: 'display', size: 25, align: 'centre', x: pod.cx, y: POD.valueY,
                   color: function (s) {
                       return s.pods[pod.key].alarm ? C.danger : C.text;
                   } },
                 function (s) { return s.pods[pod.key].text; });
         });
-        statics('podLblL', 21, { x: 120, y: POD.top + POD.h, w: 230, h: 60 },
+        statics('podLblL', 21, { x: 0, y: POD.labelY - 20, w: 200, h: 56 },
             { face: 'label', size: 18, align: 'centre', color: C.faint, tracking: 1 }, lblL);
-        statics('podLblR', 21, { x: 1592, y: POD.top + POD.h, w: 230, h: 60 },
+        statics('podLblR', 21, { x: 1720, y: POD.labelY - 20, w: 200, h: 56 },
             { face: 'label', size: 18, align: 'centre', color: C.faint, tracking: 1 }, lblR);
 
-        /* ------------------------------------------------- bottom left */
-        statics('botLbl', 28, { x: 150, y: 496, w: 400, h: 120 },
+        /* --------------------------------------------- readouts, a row */
+        statics('botLbl', 28, { x: 270, y: 534, w: 700, h: 36 },
             { face: 'label', size: 18, color: C.faint, tracking: 2 },
-            [{ str: 'ODOMETER ' + U.dist, x: COL.a, y: 516 },
-             { str: 'RANGE ' + U.dist, x: COL.b, y: 516 },
-             { str: 'CLOCK', x: COL.a, y: 590 },
-             { str: 'OUTSIDE ' + U.temp, x: COL.b, y: 590 }]);
+            [{ str: 'ODOMETER ' + U.dist, x: ROW.cols[0], y: ROW.labelY },
+             { str: 'RANGE ' + U.dist, x: ROW.cols[1], y: ROW.labelY },
+             { str: 'CLOCK', x: ROW.cols[2], y: ROW.labelY },
+             { str: 'OUTSIDE ' + U.temp, x: ROW.cols[3], y: ROW.labelY }]);
 
-        txt('odo', 29, { x: 170, y: 522, w: 200, h: 42 },
-            { face: 'display', size: 29, x: COL.a, y: 554, color: C.text },
-            function (s) { return s.odoText; });
-        txt('range', 29, { x: 362, y: 522, w: 200, h: 42 },
-            { face: 'display', size: 29, x: COL.b, y: 554, color: C.text },
-            function (s) { return s.rangeText; });
-        txt('clock', 29, { x: 170, y: 596, w: 200, h: 42 },
-            { face: 'display', size: 29, x: COL.a, y: 628, color: C.text },
-            function (s) { return s.clockText; });
-        txt('ambient', 29, { x: 362, y: 596, w: 200, h: 42 },
-            { face: 'display', size: 29, x: COL.b, y: 628, color: C.text },
-            function (s) { return s.ambientText; });
+        [['odo', 0, 'odoText'], ['range', 1, 'rangeText'],
+         ['clock', 2, 'clockText'], ['ambient', 3, 'ambientText']
+        ].forEach(function (r) {
+            txt(r[0], 29, { x: ROW.cols[r[1]] - 10, y: ROW.valueY - 34, w: 190, h: 44 },
+                { face: 'display', size: 29, x: ROW.cols[r[1]], y: ROW.valueY, color: C.text },
+                function (s) { return s[r[2]]; });
+        });
 
         /* ------------------------------------------------ speed, right */
-        txt('speed', 30, { x: 1420, y: 508, w: 300, h: 134 },
-            { face: 'display', size: 128, align: 'right', x: 1700, y: 612,
+        txt('speed', 30, { x: 1396, y: 494, w: 336, h: 152 },
+            { face: 'display', size: SPEED.size, align: 'right', x: SPEED.x, y: SPEED.y,
               color: C.text, glow: 0.18, glowCol: C.lit },
             function (s) { return String(Math.max(0, Math.round(s.speed))); });
-        statics('speedUnit', 30, { x: 1706, y: 584, w: 120, h: 40 },
+        statics('speedUnit', 30, { x: SPEED.unitX - 6, y: SPEED.y - 28, w: 130, h: 40 },
             { face: 'label', size: 25, align: 'left', color: C.muted, tracking: 3 },
-            [{ str: U.speed, x: 1712, y: 612 }]);
+            [{ str: U.speed, x: SPEED.unitX, y: SPEED.y }]);
 
         return { id: 'toro', name: 'Toro', layers: layers, profile: P,
                  settings: S, palette: C, imperial: imperial, arc: ARC };

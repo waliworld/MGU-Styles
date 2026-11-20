@@ -33,13 +33,23 @@ from the [MGU Store](https://github.com/robertnisipeanu/mgu-store).
 The reference is the Huracán/Aventador cluster: one dominant sweep, a huge
 central gear, and quiet instrumentation pushed to the edges.
 
-- **Rev band** — a wide, shallow *ellipse*, twice as wide as it is tall,
-  ending where its tangent turns vertical. A circular dial sits in a 1920×720
-  cluster; this one spans it, which is the whole architecture of the clusters
-  it is drawn after. Ticks are solved in real pixels against each tick's own
-  tangent and normal, so they stay square while their spacing tightens
-  towards the ends. Each is a milled block, dark at the rim and bright at its
-  inner end, with a lit edge.
+- **Rev band** — a **superellipse**, `|x/rx|^k + |y/ry|^k = 1` with `k ≈ 1.55`,
+  not an ellipse. I traced the outer edge of the reference cluster and tried
+  to fit one: a quarter of the way out it sits ~40 px below where any ellipse
+  can reach, and three quarters out ~55 px below. That gap is the whole
+  difference between long wings running into the corners and a dome. The
+  sweep spans x 186 → 1734 of 1920, the way the reference fills its display.
+  Blocks are solved in real pixels against each block's own tangent and
+  normal — and against the point projected onto the curve, or they shear into
+  wedges where the normal and the radius diverge. Each is a milled block,
+  dark at the rim and bright at its inner end, with a lit edge.
+
+  Position along the dial is the ordinary polar angle, one `atan` per pixel.
+  Polar angle alone spaces the blocks 2.4 : 1 (wide at the ends) and the
+  superellipse's own parameter 5 : 1 the other way; the reference spaces them
+  evenly by arc length, so `src/geometry/superarc.js` fits a pair of
+  four-term odd polynomials between the two. That brings the spacing inside
+  1.1 : 1 and costs the shader a handful of multiplies.
 - **Stepped bezel** — a hairline inside the blocks that notches inward around
   every numeral, so each sits in its own pocket. It is the detail that makes
   the dial look machined rather than drawn.
@@ -76,6 +86,7 @@ code has no colour or rev limit written into it.
 | `flashRate` / `flashStrength` | 1–20 Hz / 0–1 | how it flashes |
 | `shiftLights` | on/off | the GT3 strip above the dial |
 | `gearStrip` | on/off | the `P R N 1…8` band |
+| `arcShape` | 1.2–2.6 | the dial's superellipse exponent; 2 is an ellipse, 1.55 matches the reference |
 | `hexagons` / `hexSize` | 0–1.5 / 20–120 px | the honeycomb |
 | `units` | `imperial` `metric` | mph/°F/psi or km/h/°C/bar |
 
@@ -113,6 +124,7 @@ graphics possible at all. Text is the only asset: a single baked SDF atlas
 
 ```
 src/geometry/panel.js    panel geometry, keep-clear zones, vehicle profiles
+src/geometry/superarc.js the dial's superellipse and its arc-length remap
 src/shaders/             GLSL ES 1.00: prelude, rev band, pods, boost, text
 src/engine/text.js       SDF text layout (shared by preview and car)
 src/engine/state.js      raw vehicle signals -> what the theme draws
