@@ -5,8 +5,10 @@
   "license": "GPL-3.0-or-later",
   "private": true,
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js && npm run compile-check",
+    "compile-check": "node tools/shot.js build/compile-check.png \"t=5&freeze=1\"",
     "shot": "node tools/shot.js build/shot.png \"t=9&freeze=1&strip=off\"",
-    "atlas": "python3 tools/bake-atlas.py"
+    "atlas": "python3 tools/bake-atlas.py",
+    "fonts": "sh tools/fetch-fonts.sh"
   }
 }

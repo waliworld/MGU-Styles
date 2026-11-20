@@ -112,5 +112,14 @@
         ''
     ].join('\n');
 
-    return { VERT: VERT, PRELUDE: PRELUDE, TEXT: TEXT };
+    /*
+     * The full fragment source for one layer. Text layers get the atlas
+     * helpers appended; everything else stays lean. The preview and the car
+     * driver both build their shaders here, so they compile the same source.
+     */
+    function compose(body) {
+        return PRELUDE + (body.indexOf('u_atlas') >= 0 ? TEXT : '') + body;
+    }
+
+    return { VERT: VERT, PRELUDE: PRELUDE, TEXT: TEXT, compose: compose };
 }));

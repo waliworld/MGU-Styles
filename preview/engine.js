@@ -63,9 +63,7 @@
             var id;
             for (id in shaders) {
                 if (!Object.prototype.hasOwnProperty.call(shaders, id)) continue;
-                var needsText = shaders[id].indexOf('u_atlas') >= 0;
-                var frag = prelude.PRELUDE + (needsText ? prelude.TEXT : '') + shaders[id];
-                progs[id] = program(gl, prelude.VERT, frag, id);
+                progs[id] = program(gl, prelude.VERT, prelude.compose(shaders[id]), id);
                 locs[id] = {};
             }
         }

@@ -130,13 +130,19 @@ def main():
         g["u"], g["v"], g["tw"], g["th"] = x, y, w, h
 
     Image.fromarray(atlas, "L").save(OUT / "atlas.png", optimize=True)
+    # The head unit takes the atlas as a raw r8 asset. Shipping the bytes
+    # gzipped means the app needs zlib and no PNG decoder.
+    import gzip
+    with gzip.GzipFile(str(OUT / "atlas.r8.gz"), "wb", compresslevel=9, mtime=0) as f:
+        f.write(atlas.tobytes())
     (OUT / "atlas.json").write_text(json.dumps(
         {"size": size, "spread": SPREAD, "emPx": RASTER // DOWN, "faces": meta},
         separators=(",", ":"), sort_keys=True))
     used = int((atlas > 0).sum()) / (size * size) * 100
-    print("atlas %dx%d  %d glyphs  %.0f%% covered  %d KB"
+    print("atlas %dx%d  %d glyphs  %.0f%% covered  png %d KB  r8.gz %d KB"
           % (size, size, len(cells), used,
-             (OUT / "atlas.png").stat().st_size // 1024))
+             (OUT / "atlas.png").stat().st_size // 1024,
+             (OUT / "atlas.r8.gz").stat().st_size // 1024))
 
 
 if __name__ == "__main__":
