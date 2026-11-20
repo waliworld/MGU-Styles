@@ -44,6 +44,9 @@
         accent: 'arancio',
         litColour: 'ice',
         mode: 'CORSA',
+        modeLabel: 'lamborghini',  /* lamborghini | bmw | fixed */
+        enabled: false,            /* off until turned on: installing never takes the cluster */
+        clock12: false,
         secondaryGlyph: 'R',
         shiftLights: true,
         showBoost: true,
@@ -121,6 +124,9 @@
         s.flashRate = clampNum(s.flashRate, 1, 20, DEFAULTS.flashRate);
         s.flashStrength = clampNum(s.flashStrength, 0, 1, DEFAULTS.flashStrength);
         if (s.background !== 'modern') s.background = 'genuine';
+        if (['lamborghini', 'bmw', 'fixed'].indexOf(s.modeLabel) < 0) s.modeLabel = 'lamborghini';
+        s.enabled = s.enabled === true || s.enabled === 'on';
+        s.clock12 = s.clock12 === true || s.clock12 === '12';
         var modern = s.background === 'modern';
         s.stipple = clampNum(s.stipple, 0, 2, modern ? 0.55 : 1.0);
         s.facets = clampNum(s.facets, 0, 2, modern ? 0.0 : 1.0);

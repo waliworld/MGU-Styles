@@ -12,6 +12,8 @@ from the [MGU Store](https://github.com/robertnisipeanu/mgu-store).
 
 ![Toro, driving](docs/img/toro-drive.png)
 
+![The rev band lighting, numerals popping as the revs pass them](docs/img/rpm-sweep.gif)
+
 > **Unofficial, and nothing to do with BMW AG or Automobili Lamborghini.**
 > Changing what your cluster shows can distract you and may affect your
 > warranty. The car's own warning lights and its bottom strip are never
@@ -24,9 +26,11 @@ from the [MGU Store](https://github.com/robertnisipeanu/mgu-store).
 | | |
 |---|---|
 | Target car | 2023 **X3 M40i** (G01, B58, ZF 8HP) — the car it is developed against |
+| Also profiled | other B58 cars, S58 M cars, plug-in hybrids (see Known limitations) |
 | Units | imperial (mph, °F, psi); metric available |
 | Head unit | iDrive 7 (ID7). iDrive 8 is planned — `cluster-render` already supports it |
-| Tried on a car | **not yet.** Everything below is verified in the preview and by tests |
+| Package | **ready to install** from the MGU Store as **Toro Cluster** (`mgustyles_toro`) |
+| Tried on a car | **not yet** — the built package has been run end to end against a simulated car (below). The in-car checklist is **[docs/IN-CAR-TEST.md](docs/IN-CAR-TEST.md)** |
 
 ## The design
 
@@ -35,7 +39,8 @@ brief**, held as data in `src/theme/guide.js` so it can be read against the
 document line by line.
 
 - **The dial is a circle** — radius 590, centred at (930, 660), *below the
-  screen*, swept 154.8° with the crown falling just past 5 on a 1 → 10 scale.
+  screen*, swept 154.8° with the crown falling just past 5 on the brief's 1 → 10 scale
+  (the sweep is kept when the scale is shortened to 8).
   One angle function, `θ(v) = -178 + 17.2v`, drives the ticks, the contour,
   the stipple and the numerals, so they cannot drift apart.
 
@@ -54,7 +59,7 @@ document line by line.
   12°, with CORSA to its left and the pale secondary R beside it.
 - **Stipple, not honeycomb** — a fine regular point field in the annulus,
   which is what the Huracán's texture actually is at this scale. The
-  honeycomb is still there behind `hexagons` if you want the Aventador look.
+  honeycomb is the **modern** background option.
 - **Side instruments** stay narrow: thermometer and pump icons, Italian
   labelling (Temp. Acqua, Livello Benzina), fixed scale markings separate
   from the moving level.
@@ -69,41 +74,62 @@ document line by line.
 | The **far-left region** carries oil temperature and pressure | the brief says that area is unreadable in the photograph, so it is ours to use |
 | The grid is **scaled to fit above y = 646** | the car keeps the bottom strip; the whole instrument scales as one, which is what the brief asks for |
 
-The dial is marked **1 → 10 like the car it copies**. That is artwork, not a
-rev limit: `scaleMaxRpm` says which engine speed reaches 10 (10,000 by
-default), and the red detailing lands on the *car's* redline, so on a B58 it
-marks 6,750 rather than the Lamborghini's 8.5.
+### How the revs read
+
+The dial runs **0 → 8** by default, because a B58 or S58 stops at 7,000:
+the brief's sweep and proportions are kept, only the scale is shorter.
+`Rev scale` in the iDrive settings sets the top (6,000 – 10,000; 10,000
+gives the Lamborghini's own 1 → 10).
+
+As the revs climb:
+
+- **the band lights** — the stipple fills in the lit colour up to the
+  current rpm, with a red needle at the leading edge;
+- **each numeral pops** as the needle reaches it — it grows by up to 40 %
+  and turns the accent colour, then settles back to white once passed;
+  numerals in the red sector pop red;
+- **the GT3 shift lights** fill green → yellow → red;
+- **on the limiter** the shift lights go solid, the screen edges flash and
+  the dial strobes, at the rate and strength you choose.
+
+![On the limiter: flashing edges, full shift lights, the 7 popping red](docs/img/toro-limiter.png)
+
+### Two backgrounds
+
+`Background` keeps the **genuine** Huracán look (stipple annulus, faint
+facets) or switches to **modern**: a light, translucent honeycomb with
+bevelled 3D cells and a few accent-lit hexagons.
+
+![Modern 3D honeycomb background](docs/img/toro-modern.png)
 
 ## Settings
 
-Everything a driver can change lives in `src/theme/palette.js`; the layout
-code has no colour or rev limit written into it.
+On the car these are in the app's **Settings** screen on iDrive; changes apply
+to the cluster within half a second.
 
-| Setting | Values | |
-|---|---|---|
-| `accent` | `arancio` `giallo` `rosso` `verde` `blu` `viola` `bianco` | the gear numeral and highlights |
-| `litColour` | `ice` `white` `accent` | what the rev band turns as it lights |
-| `rpmRedline` / `rpmLimiter` | rpm | clamped and kept in order, whatever is passed |
-| `revFlash` | `off` `band` `edges` `both` | flash the dial, the screen edges, both, or neither |
-| `flashFromRpm` | rpm | where the warning starts; defaults to just under the limiter |
-| `flashRate` / `flashStrength` | 1–20 Hz / 0–1 | how it flashes |
-| `shiftLights` | on/off | the GT3 strip above the dial |
-| `gearStrip` | on/off | the `P R N 1…8` band |
-| `scaleMaxRpm` | 4000–12000 | the engine speed that reaches 10 on the dial |
-| `redFromScale` | scale value | where the red detailing starts; derived from `rpmRedline` when unset |
-| `stipple` / `facets` | 0–2 | the annulus point field and the faint background facets |
-| `hexagons` / `hexSize` | 0–1.5 / 20–120 px | the honeycomb, **off by default** — the Huracán field is stipple |
-| `showAuxLeft` | on/off | oil temperature and pressure in the brief's unreadable far-left region |
-| `showBoost` | on/off | the boost gauge |
-| `mode` / `secondaryGlyph` | text | the CORSA label and the pale glyph beside the gear |
-| `units` | `imperial` `metric` | mph/°F/psi or km/h/°C/bar |
+| Setting | Values |
+|---|---|
+| Show on cluster | on / off (off = BMW's original cluster) |
+| Car | X3 M40i (B58) · other B58 · M car (S58) · plug-in hybrid — sets the default redline, limiter and gear count |
+| Background | Genuine Huracán (stipple) · Modern 3D honeycomb |
+| Accent | arancio · giallo · rosso · verde · blu · viola · bianco |
+| Rev band fill | full fill and needle · subtle · off |
+| Mode label | Strada / Sport / Corsa · BMW's own names · always CORSA |
+| Rev scale | 0–6,000 … 0–10,000 (default 0–8,000) |
+| Redline | from the car, or 5,500 – 8,000 rpm |
+| **Rev limiter** | from the car, or 6,000 – 9,000 rpm — where the limiter flash and the last shift light sit |
+| Rev-limit flash | dial and screen edges · dial only · edges only · off |
+| Shift lights | on / off |
+| Boost gauge | on / off |
+| Oil pods (far left) | on / off |
+| Units | mph, °F, psi · km/h, °C, bar |
+| Clock | 24-hour · 12-hour |
 
-Each dial numeral carries its own scale value, so `10` works as two glyphs
-and lights with the rest. `test/theme.test.js` pins that, the angle function,
-the circle, and the stepped-contour table.
-
-In the preview every one of these is a query parameter:
-`preview/index.html?accent=blu&rpmMax=7000&revFlash=band&units=metric`.
+The redline and limiter are clamped and kept in order whatever is chosen.
+The preview takes more (`flashFromRpm`, `flashRate`, `flashStrength`,
+`hexagons`, `hexSize`, `stipple`, `litColour`…) as query parameters, e.g.
+`preview/index.html?background=modern&accent=blu&rpmLimiter=6500`; all of
+them live in `src/theme/palette.js`.
 
 ## The one rule everything obeys
 
@@ -134,12 +160,15 @@ src/engine/text.js       SDF text layout (shared by preview and car)
 src/engine/state.js      raw vehicle signals -> what the theme draws
 src/theme/guide.js       the CORSA brief as data, and its fit to the MGU panel
 src/theme/palette.js     colour schemes and every driver setting
-src/theme/lambo.js       the layout: 38 layers
+src/theme/lambo.js       the layout: 49 layers
 src/car/cluster.js       the theme -> cluster-render effect layers
 src/car/vehicle.js       BMW SOME/IP signals -> raw readings
 src/car/main.js          the service: signals in, uniforms out
+app/                     the iDrive app shell (entry, manifest, icon)
+apps/mgustyles_toro/     the staged package the Store builds (generated)
+kit/                     the MGU App Kit runtime and builder (MIT, vendored)
 preview/                 WebGL harness + a vehicle simulator
-tools/                   font fetch, atlas baker, screenshotter
+tools/                   staging, car simulator, atlas baker, screenshotter
 test/                    the constraints and the protocol, enforced
 ```
 
@@ -152,8 +181,10 @@ that changed**: a repeated state costs nothing, and thirty seconds of hard
 driving at 30 Hz measures under 120 KB/s against the 5500 KB/s the whole
 head unit shares.
 
-It takes the cluster off and hands it back to BMW whenever the engine speed
-goes stale, so nothing is ever drawn over a sleeping cluster.
+It follows the car's own state (`VehicleCondition`): it draws only in drive
+readiness and hands the cluster back to BMW at key-off, so nothing is ever
+drawn over a sleeping cluster. Every callback is guarded, because an app
+that crashes on the head unit can be uninstalled by the platform.
 
 The preview runs **WebGL 1 on purpose** — that is GLSL ES 1.00, the dialect
 the head unit's glslang compiles. A shader that works in the preview is the
@@ -161,45 +192,54 @@ shader that ships.
 
 ## Installing on the car
 
-`cluster-render` is the renderer; the Store installs it as a dependency.
-The pieces in this repo that the head unit runs are `src/car/` plus
-`assets/fonts/atlas.r8.gz` (the atlas as raw bytes, so the app needs `zlib`
-and no PNG decoder).
+1. The head unit needs root and the **MGU Store**.
+2. Add this repository as a source in the Store. It reads
+   [`mgu-repo.json`](mgu-repo.json), which points at the ready-staged app in
+   `apps/mgustyles_toro/` and builds it with the kit in `kit/`.
+3. Install **Toro Cluster**. The Store pulls in `cluster-render` (≥ 0.6.9)
+   and `mgu-deploy` as dependencies.
+4. Open Toro Cluster on iDrive and press **Show on cluster**. It starts
+   with the car from then on; **BMW original** hands the cluster back.
 
-**Still to do before it can be installed:** the OAP app shell — the iDrive
-screen, `package.json`/`mgu-app.json` manifest with
-`"mguHmi": ["ID7"]` and the signal list from `src/car/vehicle.js`, an app id
-of our own, and the `mgu-repo.json` that lets the Store build it from this
-repo tree. That shell needs BMW's oap-sdk, which the head unit supplies and
-which is not redistributable, and it cannot be meaningfully verified without
-a car. See
-[mgu-store's publishing rules](https://github.com/robertnisipeanu/mgu-store/blob/main/docs/PUBLISHING.md).
+It draws only when the car is in drive readiness and `cluster-render` is
+running, and gives the cluster back at key-off. Follow
+**[docs/IN-CAR-TEST.md](docs/IN-CAR-TEST.md)** for the first drive.
 
 ## Running it
 
 ```sh
-npm test                       # 24 tests, then compiles every shader on a GPU
-npm run shot                   # render a frame to build/shot.png
-npm run fonts && npm run atlas # re-bake the SDF atlas from the OFL fonts
+npm test          # unit tests, package staging check, then every shader compiled on a GPU
+npm run car-sim   # build the real package and run it against a simulated car
+npm run shot      # render a frame to build/shot.png
+npm run fonts && npm run atlas   # re-bake the SDF atlas from the OFL fonts
 ```
 
-`npm test` ends by rendering the cluster in headless Chromium, so a shader
-that would not compile fails the suite rather than the car.
+**`npm run car-sim`** is the closest thing to the car this repo can offer.
+It builds the package with the kit's own builder, stands in for BMW's
+oap-sdk, the native SOME/IP binding and cluster-render's socket, and runs
+the built `app.js` unmodified through park → key-on → a pull to the
+limiter → key-off. It fails if the app draws before the car is on, does not
+draw while driving, or does not hand the cluster back. It then redraws
+exactly what crossed the socket in WebGL 1 (`build/car-sim/car-*.png`) and
+fails if any shader does not compile.
 
-For a live preview, serve the repo root and open
-`preview/index.html`. Query options: `t=` seconds into the drive, `freeze=1`,
-`rpm=`, `speed=`, `units=metric`, `profile=`, `strip=off` to hide the guide
-over BMW's strip.
+After changing anything in `src/` or `app/`, run `node tools/stage-app.js`
+to refresh `apps/mgustyles_toro/`; `npm test` fails if you forget.
+
+For a live preview, serve the repo root and open `preview/index.html`
+(`t=` seconds into the drive, `freeze=1`, `units=metric`, `profile=`,
+`strip=off`).
 
 ## Known limitations
 
-- **Not yet run on a car**, and the OAP app shell is not written yet (above).
-  The signal decoders use the field names, invalid markers and scalings that
-  other projects read on real cars, but nothing here has been seen in a
-  vehicle.
-- **Oil pressure and the G meter have no source wired up yet.** The DIDs and
-  the reader hooks are in `src/car/vehicle.js`; until something feeds them,
-  those readouts show dashes rather than a number we cannot stand behind.
+- **Not yet run on a car.** The signal decoders use the field names,
+  invalid markers and scalings other projects read on real cars, and the
+  package runs end to end in simulation, but nothing here has been seen in
+  a vehicle. Signals that do not arrive show dashes.
+- **Oil pressure has no source wired up yet.** The reader hook is in
+  `src/car/vehicle.js`; until something feeds it, it shows dashes. The G
+  meter reads the car's lateral/longitudinal acceleration (CDS2); its sign
+  convention needs checking in the car.
 - **M cars and hybrids.** Some KOMBIs draw extra boxes over a panel layer
   (M cars at `793,289` and `1223,328`; hybrids an eDrive box at `1770,170`).
   The layout is drawn for the X3 M40i, which has neither, so on those cars
@@ -229,7 +269,8 @@ This project is built on what others worked out, mostly on their own cars:
   measurements behind the bottom-strip rule, the cut glass corners, the
   telltale positions and the reserved-uniform trap.
 - **[ALMSTRA/idv7lol](https://github.com/ALMSTRA/idv7lol)** — the `y=646` cut,
-  the 48-vector shader budget, and the boost DIDs.
+  the 48-vector shader budget, the boost DIDs, and the **MGU App Kit**
+  (MIT) vendored in `kit/` that runs and packages the app.
 - **[ZEKAI-Design/ID7-Cluster-Themes](https://github.com/ZEKAI-Design/ID7-Cluster-Themes)**,
   **[NamelsMissing/mgu-apps](https://github.com/NamelsMissing/mgu-apps)**,
   **[cauliflowermossgrape/idrive7-apps](https://github.com/cauliflowermossgrape/idrive7-apps)**

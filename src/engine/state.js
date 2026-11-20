@@ -24,6 +24,21 @@
         return s;
     }
 
+    /*
+     * BMW's driving modes as the Lamborghini names its own: Strada for the
+     * road, Sport, and Corsa for the track. 'bmw' shows BMW's own name;
+     * 'fixed' always shows the mode setting's text.
+     */
+    var LAMBO = { COMFORT: 'STRADA', ECO_PRO: 'STRADA', ADAPTIVE: 'STRADA',
+                  SPORT: 'SPORT', SPORT_PLUS: 'CORSA', TRACK: 'CORSA' };
+    var BMW = { COMFORT: 'COMFORT', ECO_PRO: 'ECO PRO', ADAPTIVE: 'ADAPTIVE',
+                SPORT: 'SPORT', SPORT_PLUS: 'SPORT+', TRACK: 'TRACK' };
+    function modeLabelOf(mode, style, fallback) {
+        if (style === 'fixed' || !mode) return fallback;
+        var t = style === 'bmw' ? BMW : LAMBO;
+        return t[mode] || fallback;
+    }
+
     /* A reading that has gone stale shows dashes rather than a stale number. */
     function has(v) { return typeof v === 'number' && isFinite(v); }
 
@@ -116,6 +131,7 @@
             speed: speed,
             gear: raw.gear || 'P',
             driveMode: raw.driveMode || '',
+            modeLabel: modeLabelOf(raw.driveMode, opts.modeLabel, opts.mode || 'CORSA'),
             limiter: limiter,
             boostPsi: boost,
             boostPeakPsi: boostPeak,
@@ -130,5 +146,6 @@
         };
     }
 
-    return { present: present, MI_PER_KM: MI_PER_KM, PSI_PER_BAR: PSI_PER_BAR };
+    return { present: present, modeLabelOf: modeLabelOf,
+             MI_PER_KM: MI_PER_KM, PSI_PER_BAR: PSI_PER_BAR };
 }));

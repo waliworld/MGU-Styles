@@ -1,0 +1,386 @@
+{
+  "id": "mgustyles_toro",
+  "title": "Toro Cluster",
+  "vendor": "MGU-Styles",
+  "version": "0.1.0",
+  "loggingId": "TORO",
+  "description": "A Lamborghini Huracan-style instrument cluster drawn over the whole iDrive 7 cluster. Off until you turn it on; BMW's warnings and bottom strip always stay BMW's.",
+  "autostart": true,
+  "startType": "autostart",
+  "iconGlyph": "gauge",
+  "mguHmi": [
+    "ID7"
+  ],
+  "requires": {
+    "cluster-render": "0.6.9",
+    "mgu-deploy": "0.8.27"
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "Toro Cluster",
+      "buttons": [
+        [
+          "BTN_SHOW",
+          "Show on cluster"
+        ],
+        [
+          "BTN_HIDE",
+          "BMW original"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "signals": {},
+  "settings": [
+    {
+      "key": "enabled",
+      "label": "Show Toro on the cluster",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "profile",
+      "label": "Car",
+      "type": "choice",
+      "default": "x3m40i",
+      "options": [
+        [
+          "x3m40i",
+          "X3 M40i (B58)"
+        ],
+        [
+          "b58",
+          "Other B58 (340i, 540i, X5 40i)"
+        ],
+        [
+          "mCarS58",
+          "M car (S58)"
+        ],
+        [
+          "hybrid",
+          "Plug-in hybrid"
+        ]
+      ]
+    },
+    {
+      "key": "background",
+      "label": "Look / Background",
+      "type": "choice",
+      "default": "genuine",
+      "options": [
+        [
+          "genuine",
+          "Genuine Huracan (stipple)"
+        ],
+        [
+          "modern",
+          "Modern 3D honeycomb"
+        ]
+      ]
+    },
+    {
+      "key": "accent",
+      "label": "Look / Accent colour",
+      "type": "choice",
+      "default": "arancio",
+      "options": [
+        [
+          "arancio",
+          "Arancio"
+        ],
+        [
+          "giallo",
+          "Giallo"
+        ],
+        [
+          "rosso",
+          "Rosso"
+        ],
+        [
+          "verde",
+          "Verde"
+        ],
+        [
+          "blu",
+          "Blu"
+        ],
+        [
+          "viola",
+          "Viola"
+        ],
+        [
+          "bianco",
+          "Bianco"
+        ]
+      ]
+    },
+    {
+      "key": "dialFill",
+      "label": "Look / Rev band",
+      "type": "choice",
+      "default": "1",
+      "options": [
+        [
+          "1",
+          "Full fill and needle"
+        ],
+        [
+          "0.5",
+          "Subtle"
+        ],
+        [
+          "0",
+          "Off (ticks and numerals only)"
+        ]
+      ]
+    },
+    {
+      "key": "modeLabel",
+      "label": "Look / Mode name",
+      "type": "choice",
+      "default": "lamborghini",
+      "options": [
+        [
+          "lamborghini",
+          "Strada / Sport / Corsa"
+        ],
+        [
+          "bmw",
+          "BMW's own names"
+        ],
+        [
+          "fixed",
+          "Always CORSA"
+        ]
+      ]
+    },
+    {
+      "key": "scaleMaxRpm",
+      "label": "Revs / Dial scale",
+      "type": "choice",
+      "default": "8000",
+      "options": [
+        [
+          "6000",
+          "0 - 6,000"
+        ],
+        [
+          "7000",
+          "0 - 7,000"
+        ],
+        [
+          "8000",
+          "0 - 8,000"
+        ],
+        [
+          "9000",
+          "0 - 9,000"
+        ],
+        [
+          "10000",
+          "0 - 10,000 (Lamborghini)"
+        ]
+      ]
+    },
+    {
+      "key": "rpmRedline",
+      "label": "Revs / Redline",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "From the car"
+        ],
+        [
+          "5500",
+          "5,500"
+        ],
+        [
+          "5750",
+          "5,750"
+        ],
+        [
+          "6000",
+          "6,000"
+        ],
+        [
+          "6250",
+          "6,250"
+        ],
+        [
+          "6500",
+          "6,500"
+        ],
+        [
+          "6750",
+          "6,750"
+        ],
+        [
+          "7000",
+          "7,000"
+        ],
+        [
+          "7250",
+          "7,250"
+        ],
+        [
+          "7500",
+          "7,500"
+        ],
+        [
+          "7750",
+          "7,750"
+        ],
+        [
+          "8000",
+          "8,000"
+        ]
+      ]
+    },
+    {
+      "key": "rpmLimiter",
+      "label": "Revs / Limiter",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "From the car"
+        ],
+        [
+          "6000",
+          "6,000"
+        ],
+        [
+          "6250",
+          "6,250"
+        ],
+        [
+          "6500",
+          "6,500"
+        ],
+        [
+          "6750",
+          "6,750"
+        ],
+        [
+          "7000",
+          "7,000"
+        ],
+        [
+          "7250",
+          "7,250"
+        ],
+        [
+          "7500",
+          "7,500"
+        ],
+        [
+          "7750",
+          "7,750"
+        ],
+        [
+          "8000",
+          "8,000"
+        ],
+        [
+          "8250",
+          "8,250"
+        ],
+        [
+          "8500",
+          "8,500"
+        ],
+        [
+          "8750",
+          "8,750"
+        ],
+        [
+          "9000",
+          "9,000"
+        ]
+      ]
+    },
+    {
+      "key": "revFlash",
+      "label": "Revs / Limiter flash",
+      "type": "choice",
+      "default": "both",
+      "options": [
+        [
+          "both",
+          "Dial and screen edges"
+        ],
+        [
+          "band",
+          "Dial only"
+        ],
+        [
+          "edges",
+          "Screen edges only"
+        ],
+        [
+          "off",
+          "Off"
+        ]
+      ]
+    },
+    {
+      "key": "shiftLights",
+      "label": "Revs / GT3 shift lights",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "showBoost",
+      "label": "Gauges / Boost",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "showAuxLeft",
+      "label": "Gauges / Oil temperature and pressure",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "units",
+      "label": "Units",
+      "type": "choice",
+      "default": "imperial",
+      "options": [
+        [
+          "imperial",
+          "mph, F, psi"
+        ],
+        [
+          "metric",
+          "km/h, C, bar"
+        ]
+      ]
+    },
+    {
+      "key": "clock12",
+      "label": "Clock",
+      "type": "choice",
+      "default": "24",
+      "options": [
+        [
+          "24",
+          "24-hour"
+        ],
+        [
+          "12",
+          "12-hour"
+        ]
+      ]
+    }
+  ]
+}

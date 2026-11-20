@@ -2,10 +2,11 @@
   "name": "mgu-styles",
   "version": "0.1.0",
   "description": "Toro - a Lamborghini-style instrument cluster for BMW iDrive 7 (MGU)",
-  "license": "GPL-3.0-or-later",
+  "license": "UNLICENSED",
   "private": true,
   "scripts": {
-    "test": "node --test test/*.test.js && npm run compile-check",
+    "test": "node --test test/*.test.js && node tools/stage-app.js --check && npm run compile-check",
+    "car-sim": "node tools/car-sim.js && node tools/car-sim-replay.js",
     "compile-check": "node tools/shot.js build/compile-check.png \"t=5&freeze=1\"",
     "shot": "node tools/shot.js build/shot.png \"t=9&freeze=1&strip=off\"",
     "atlas": "python3 tools/bake-atlas.py",

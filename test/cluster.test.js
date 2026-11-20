@@ -64,6 +64,7 @@ test('every layer goes on the panel target and inside the drawable area', () => 
     d.ready();
     for (const e of cr.calls.effect) {
         assert.strictEqual(e.target, 'panel');
+        for (const k of ['x', 'y', 'w', 'h']) assert.ok(Number.isInteger(e[k]), 'layer ' + k + ' is a whole pixel');
         assert.ok(e.y + e.h <= Panel.BOTTOM_CUT, 'a layer reaches into the bottom strip');
         assert.strictEqual(e.contend, false, 'we never take the slot by force');
         assert.strictEqual(e.guide_hold, false, "BMW's turn box stays");

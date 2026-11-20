@@ -80,8 +80,14 @@ function create(opts) {
         });
         if (!atlasRef) { log.warn('cluster: the glyph atlas was refused'); return; }
 
+        function pixelRect(T) {
+            var x0 = Math.floor(T.x), y0 = Math.floor(T.y);
+            return Object.assign({}, T, { x: x0, y: y0,
+                w: Math.ceil(T.x + T.w) - x0, h: Math.ceil(T.y + T.h) - y0 });
+        }
         for (var i = 0; i < ordered.length; i++) {
-            var L = ordered[i];
+            /* whole pixels on the wire: the renderer's rectangles are integers */
+            var L = pixelRect(ordered[i]);
             var body = opts.shaders[L.shader];
             if (!body) { log.warn('cluster: no shader "' + L.shader + '"'); continue; }
 

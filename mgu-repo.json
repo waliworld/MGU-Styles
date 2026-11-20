@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "components": [
+    {
+      "id": "mgustyles_toro",
+      "kind": "app",
+      "path": "apps/mgustyles_toro",
+      "title": "Toro Cluster",
+      "description": "Lamborghini Huracan-style cluster over the whole iDrive 7 instrument cluster. Off until you turn it on.",
+      "mguHmi": [
+        "ID7"
+      ],
+      "requires": {
+        "cluster-render": "0.6.9",
+        "mgu-deploy": "0.8.27"
+      },
+      "build": {
+        "python": "kit/tools/build.py",
+        "args": [
+          "mgustyles_toro"
+        ],
+        "sdk": "oap-sdk",
+        "shared": [
+          "kit",
+          "oap-sdk"
+        ],
+        "output": "dist/mgustyles_toro@{version}.tgz",
+        "network": []
+      }
+    }
+  ]
+}

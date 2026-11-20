@@ -329,10 +329,11 @@
               } },
             function (s) { return s.gear; });
 
-        statics('corsa', 24, { x: G.gx(B.corsa.cx) - 90, y: G.gy(B.corsa.cy) - 26, w: 180, h: 46 },
+        txt('corsa', 24, { x: G.gx(B.corsa.cx) - 100, y: G.gy(B.corsa.cy) - 28, w: 200, h: 50 },
             { face: 'label', size: G.gs(26) / 0.70, align: 'centre',
+              x: G.gx(B.corsa.cx), y: G.gy(B.corsa.cy) + G.gs(13),
               color: GC.corsaRed, tracking: 1.5 },
-            [{ str: S.mode, x: G.gx(B.corsa.cx), y: G.gy(B.corsa.cy) + G.gs(13) }]);
+            function (s) { return s.modeLabel || S.mode; });
 
         if (S.secondaryGlyph) {
             statics('secondary', 24,
@@ -343,11 +344,15 @@
         }
 
         /* ESC state, stacked, small and red. */
-        statics('esc', 24, { x: G.gx(B.escBlock.cx) - 80, y: G.gy(B.escBlock.cy) - 34, w: 160, h: 66 },
+        statics('esc', 24, { x: G.gx(B.escBlock.cx) - 60, y: G.gy(B.escBlock.cy) - 34, w: 120, h: 40 },
             { face: 'label', size: G.gs(21) / 0.70, align: 'centre',
               color: GC.corsaRed, tracking: 1 },
-            [{ str: 'ESC', x: G.gx(B.escBlock.cx), y: G.gy(B.escBlock.cy) - G.gs(3) },
-             { str: S.mode, x: G.gx(B.escBlock.cx), y: G.gy(B.escBlock.cy) + G.gs(23) }]);
+            [{ str: 'ESC', x: G.gx(B.escBlock.cx), y: G.gy(B.escBlock.cy) - G.gs(3) }]);
+        txt('escMode', 24, { x: G.gx(B.escBlock.cx) - 90, y: G.gy(B.escBlock.cy) - 4, w: 180, h: 40 },
+            { face: 'label', size: G.gs(21) / 0.70, align: 'centre',
+              x: G.gx(B.escBlock.cx), y: G.gy(B.escBlock.cy) + G.gs(23),
+              color: GC.corsaRed, tracking: 1 },
+            function (s) { return s.modeLabel || S.mode; });
 
         /* ---------------------------------------- side instruments */
         function instrument(id, rect, opts) {
