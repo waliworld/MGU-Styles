@@ -51,8 +51,11 @@
         var speed = has(raw.speedKmh) ? raw.speedKmh : 0;
         if (imperial) speed *= MI_PER_KM;
 
-        /* The limiter: ramps in over the last 150 rpm so it never snaps on. */
-        var limiter = clamp01((rpm - (profile.rpmLimiter - 150)) / 150);
+        /* The rev-limit warning, ramped in so it never snaps on. Where it
+           starts and ends is a setting (src/theme/palette.js). */
+        var limAt = opts.rpmLimiter || profile.rpmLimiter;
+        var limFrom = opts.flashFromRpm || (limAt - 150);
+        var limiter = clamp01((rpm - limFrom) / Math.max(1, limAt - limFrom));
 
         var boost = has(raw.boostBar) ? raw.boostBar : 0;
         var boostPeak = has(raw.boostPeakBar) ? raw.boostPeakBar : 0;

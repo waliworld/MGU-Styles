@@ -106,7 +106,7 @@
         '  float lit = step(t, u_frac);',
         '  float hot = step(u_warn, t);',
         '  vec3 on = mix(u_col, vec3(1.0, 0.16, 0.10), hot);',
-        '  vec3 off = mix(vec3(0.085, 0.105, 0.130), vec3(0.20, 0.065, 0.055), hot);',
+        '  vec3 off = mix(vec3(0.130, 0.155, 0.190), vec3(0.26, 0.085, 0.072), hot);',
         '  float beat = u_alarm * (0.5 + 0.5 * sin(u_time * 14.0));',
         '  on = mix(on, vec3(1.0), beat * 0.6);',
         '  vec3 col = mix(off, on, lit);',
@@ -147,7 +147,7 @@
         '  float heat = smoothstep(u_zero, 1.0, t);',
         '  vec3 on = mix(vec3(1.0, 0.56, 0.10), vec3(1.0, 0.16, 0.08), heat * heat);',
         '  on = mix(on, vec3(0.30, 0.62, 1.0), vac);',
-        '  vec3 off = vec3(0.075, 0.095, 0.120);',
+        '  vec3 off = vec3(0.145, 0.170, 0.205);',
         '  vec3 col = mix(off, on, lit);',
         '',
         /* Zero mark, and the peak-hold tick. */
@@ -226,6 +226,76 @@
         '}'
     ].join('\n');
 
-    return { text: text, plate: plate, marker: marker, vbar: vbar, boost: boost,
+    /* ------------------------------------------------------------ arcnum */
+    /*
+     * The scale numerals. Each one lights as the revs pass it and swells as
+     * they sweep through, so the eye is pulled along the dial instead of
+     * having to read it. Which numeral a glyph is comes from its index, so
+     * no extra uniform array is needed - every numeral must be a single
+     * digit, which test/theme.test.js checks.
+     */
+    var arcnum = [
+        'uniform vec4 u_g[12];',
+        'uniform vec4 u_quad[12];',
+        'uniform float u_count;',
+        'uniform float u_sharp;',
+        'uniform float u_frac;',
+        'uniform float u_grow;',
+        'uniform float u_glow;',
+        'uniform vec3 u_colOff;',
+        'uniform vec3 u_colOn;',
+        '',
+        'void main() {',
+        '  vec2 p = px();',
+        '  float last = max(u_count - 1.0, 1.0);',
+        '  float cover = 0.0, halo = 0.0, accW = 0.0;',
+        '  vec3 acc = vec3(0.0);',
+        '  for (int i = 0; i < 12; i++) {',
+        '    float on = step(float(i) + 0.5, u_count);',
+        '    float ti = float(i) / last;',
+        '    float near = exp(-pow((ti - u_frac) * last * 1.15, 2.0));',
+        '    float lit = step(ti, u_frac);',
+        '    float scale = 1.0 + u_grow * near;',
+        '    vec4 r = u_quad[i];',
+        '    vec2 cq = r.xy + r.zw * 0.5;',
+        '    vec2 sz = max(r.zw * scale, vec2(1.0));',
+        '    vec2 q = (p - (cq - sz * 0.5)) / sz;',
+        '    float inR = on * step(0.0, q.x) * step(q.x, 1.0)',
+        '              * step(0.0, q.y) * step(q.y, 1.0);',
+        '    vec4 g = u_g[i];',
+        '    vec2 uv = g.xy + clamp(q, 0.0, 1.0) * g.zw;',
+        '    float raw = texture2D(u_atlas, uv).r;',
+        '    float d = (raw - 0.5) * u_sharp * scale;',
+        '    float dn = (raw - 0.5) * 2.0;',
+        '    float cv = clamp(d + 0.5, 0.0, 1.0) * inR;',
+        '    vec3 cc = mix(u_colOff, u_colOn, clamp(max(lit * 0.5, near), 0.0, 1.0));',
+        '    acc += cc * cv;',
+        '    accW += cv;',
+        '    cover = max(cover, cv);',
+        '    halo = max(halo, smoothstep(-1.0, -0.06, dn) * inR * max(lit * 0.35, near));',
+        '  }',
+        '  vec3 col = accW > 0.0 ? acc / accW : u_colOff;',
+        '  float aura = halo * (1.0 - cover) * u_glow * 0.5;',
+        '  float a = clamp(cover + aura, 0.0, 1.0);',
+        '  gl_FragColor = vec4(a > 0.0 ? (col * cover + col * aura) / a : vec3(0.0), a);',
+        '}'
+    ].join('\n');
+
+    /* ---------------------------------------------------------- gearband */
+    /* The lighter bar the gear letters sit on, soft at both ends. */
+    var gearband = [
+        'uniform vec4 u_color;',
+        'void main() {',
+        '  vec2 p = px();',
+        '  float t = p.x / max(u_size.x, 1.0);',
+        '  float y = p.y / max(u_size.y, 1.0);',
+        '  float fade = smoothstep(0.0, 0.16, t) * smoothstep(1.0, 0.84, t);',
+        '  float bar = smoothstep(0.0, 0.10, y) * smoothstep(1.0, 0.90, y);',
+        '  float a = u_color.a * fade * bar;',
+        '  gl_FragColor = vec4(u_color.rgb * (1.12 - 0.42 * y), a);',
+        '}'
+    ].join('\n');
+
+    return { text: text, plate: plate, marker: marker, arcnum: arcnum, gearband: gearband, vbar: vbar, boost: boost,
              gmeter: gmeter, hairline: hairline };
 }));

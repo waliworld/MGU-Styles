@@ -33,13 +33,25 @@ from the [MGU Store](https://github.com/robertnisipeanu/mgu-store).
 The reference is the Huracán/Aventador cluster: one dominant sweep, a huge
 central gear, and quiet instrumentation pushed to the edges.
 
-- **Rev band** — an *ellipse*, not a circle. A 1920×720 cluster is nearly
-  three times wider than it is tall, and a circular dial sits in that space
-  instead of filling it. Ticks are solved in real pixels against each tick's
-  own tangent and normal, so they stay square while their spacing tightens
-  towards the ends, exactly as on the car it is drawn after.
-- **Gear** — a hollow numeral in arancio, over a `P R N 1…8` strip with a
-  marker under the engaged gear. It turns red on the limiter.
+- **Rev band** — a wide, shallow *ellipse*, twice as wide as it is tall,
+  ending where its tangent turns vertical. A circular dial sits in a 1920×720
+  cluster; this one spans it, which is the whole architecture of the clusters
+  it is drawn after. Ticks are solved in real pixels against each tick's own
+  tangent and normal, so they stay square while their spacing tightens
+  towards the ends. Each is a milled block, dark at the rim and bright at its
+  inner end, with a lit edge.
+- **Stepped bezel** — a hairline inside the blocks that notches inward around
+  every numeral, so each sits in its own pocket. It is the detail that makes
+  the dial look machined rather than drawn.
+- **Numerals** that light as the revs pass them and swell as the sweep goes
+  through, so the eye is pulled along the dial instead of having to read it.
+- **Gear** — a hollow numeral in arancio over a `P R N 1…8` strip that
+  *scrolls*, so the engaged gear always sits under the numeral with its
+  neighbours running out to either side, with a gap opened around it. Drawn
+  at a fixed position instead, the numeral just sits on top of whatever gear
+  happens to be in the middle. It turns red on the limiter.
+- **Honeycomb** — large filled cells with a lit rim, a plain visible pattern
+  rather than a texture you have to look for.
 - **Side pods** — leaning segment columns: oil temperature and pressure to
   the left, coolant and fuel to the right, labelled in Italian.
 - **Boost** — scaled piecewise, vacuum compressed into the first fifth of the
@@ -47,6 +59,35 @@ central gear, and quiet instrumentation pushed to the edges.
 - **Shift lights** — fifteen LEDs filling green → amber → red across the last
   1800 rpm, strobing at the limiter together with a full-screen edge flash
   that leaves the middle of the cluster readable.
+
+## Settings
+
+Everything a driver can change lives in `src/theme/palette.js`; the layout
+code has no colour or rev limit written into it.
+
+| Setting | Values | |
+|---|---|---|
+| `accent` | `arancio` `giallo` `rosso` `verde` `blu` `viola` `bianco` | the gear numeral and highlights |
+| `litColour` | `ice` `white` `accent` | what the rev band turns as it lights |
+| `rpmMax` | 4000–9000, whole thousands | the end of the scale |
+| `rpmRedline` / `rpmLimiter` | rpm | clamped and kept in order, whatever is passed |
+| `revFlash` | `off` `band` `edges` `both` | flash the dial, the screen edges, both, or neither |
+| `flashFromRpm` | rpm | where the warning starts; defaults to just under the limiter |
+| `flashRate` / `flashStrength` | 1–20 Hz / 0–1 | how it flashes |
+| `shiftLights` | on/off | the GT3 strip above the dial |
+| `gearStrip` | on/off | the `P R N 1…8` band |
+| `hexagons` / `hexSize` | 0–1.5 / 20–120 px | the honeycomb |
+| `units` | `imperial` `metric` | mph/°F/psi or km/h/°C/bar |
+
+The scale is marked one numeral per thousand rpm and each must be a single
+digit — the shader works out which numeral a glyph belongs to from its index
+— so the scale tops out at 9000, which no BMW inline six passes anyway.
+`test/theme.test.js` checks it.
+
+In the preview every one of these is a query parameter:
+`preview/index.html?accent=blu&rpmMax=7000&revFlash=band&units=metric`.
+
+![Blu, with the band lit in the accent colour](docs/img/toro-blu.png)
 
 ## The one rule everything obeys
 
@@ -75,6 +116,7 @@ src/geometry/panel.js    panel geometry, keep-clear zones, vehicle profiles
 src/shaders/             GLSL ES 1.00: prelude, rev band, pods, boost, text
 src/engine/text.js       SDF text layout (shared by preview and car)
 src/engine/state.js      raw vehicle signals -> what the theme draws
+src/theme/palette.js     colour schemes and every driver setting
 src/theme/lambo.js       the layout: 38 layers
 src/car/cluster.js       the theme -> cluster-render effect layers
 src/car/vehicle.js       BMW SOME/IP signals -> raw readings
@@ -150,6 +192,8 @@ over BMW's strip.
   factory telltale row is drawn over that area is not confirmed; the rev band
   itself also carries the three-stage colour, so the shift cue survives
   either way. Turn them off with the `shiftLights` setting.
+- **The scale tops out at 9000 rpm** (above), and is marked in whole
+  thousands.
 - **Boost** needs a turbocharged engine and comes from the Sport Display,
   falling back to reading the engine unit directly.
 

@@ -13,6 +13,7 @@ const Text = require('../src/engine/text.js');
 const State = require('../src/engine/state.js');
 const Sim = require('../preview/sim.js');
 const atlas = require('../assets/fonts/atlas.json');
+const Palette = require('../src/theme/palette.js');
 const core = require('../src/shaders/core.js');
 const parts = require('../src/shaders/parts.js');
 
@@ -38,9 +39,13 @@ const KNOWN_OVERLAPS = new Set([
     'hybrid/podv_fuel/eDrive status box',
     'mCarS58/arcNums/M box (left)',
     'mCarS58/arcNums/M box (right)',
+    'mCarS58/bezel/M box (left)',
+    'mCarS58/bezel/M box (right)',
+    'mCarS58/gearBand/M box (left)',
+    'mCarS58/gearBand/M box (right)',
     'mCarS58/gearBig/M box (left)',
     'mCarS58/gearStrip/M box (left)',
-    'mCarS58/gearStripOn/M box (left)',
+    'mCarS58/gearStrip/M box (right)',
     'mCarS58/rail/M box (left)',
     'mCarS58/rail/M box (right)',
     'mCarS58/tach/M box (left)',
@@ -146,4 +151,122 @@ test('imperial and metric both present cleanly', () => {
     assert.strictEqual(imp.pods.coolant.text, '194');
     assert.strictEqual(met.pods.coolant.text, '90');
     assert.ok(imp.boostPsi > 14 && imp.boostPsi < 15);
+});
+
+
+/* ------------------------------------------------- settings and scale */
+
+test('the scale numerals are always single digits', () => {
+    /* src/shaders/parts.js arcnum works out which numeral a glyph belongs
+       to from its index, which only holds while each numeral is one glyph. */
+    for (const rpmMax of [4000, 6000, 7000, 8000, 9000, 99999]) {
+        const S = Palette.resolve({ rpmMax }, Panel.profile('x3m40i'));
+        assert.ok(S.rpmMax <= 9000, `rpmMax ${S.rpmMax} would need a two-digit numeral`);
+        assert.strictEqual(S.rpmMax % 1000, 0, 'the scale is marked in whole thousands');
+    }
+});
+
+test('rev limits stay ordered however they are set', () => {
+    const p = Panel.profile('x3m40i');
+    const cases = [
+        { rpmMax: 7000, rpmRedline: 9000, rpmLimiter: 9000 },
+        { rpmRedline: 100, rpmLimiter: 50 },
+        { rpmLimiter: 2000, rpmRedline: 6500 },
+        { rpmMax: 'nonsense', rpmRedline: null }
+    ];
+    for (const c of cases) {
+        const S = Palette.resolve(c, p);
+        assert.ok(S.rpmRedline <= S.rpmMax, JSON.stringify(c));
+        assert.ok(S.rpmLimiter <= S.rpmMax, JSON.stringify(c));
+        assert.ok(S.rpmLimiter >= S.rpmRedline, JSON.stringify(c));
+        assert.ok(S.flashFromRpm <= S.rpmLimiter, JSON.stringify(c));
+    }
+});
+
+test('every colour scheme builds a complete theme', () => {
+    for (const accent of Object.keys(Palette.SCHEMES)) {
+        for (const litColour of Object.keys(Palette.LIT)) {
+            const t = Theme.build(atlas, 'x3m40i', { accent, litColour });
+            assert.ok(t.layers.length > 30, accent);
+            for (const c of [t.palette.accent, t.palette.lit, t.palette.second]) {
+                assert.ok(Array.isArray(c) && c.length === 3, `${accent}/${litColour}`);
+                for (const v of c) assert.ok(v >= 0 && v <= 1);
+            }
+        }
+    }
+});
+
+test('the rev-limit flash can be turned off and shaped', () => {
+    const has = (t, id) => t.layers.some(L => L.id === id);
+    assert.ok(has(Theme.build(atlas, 'x3m40i', { revFlash: 'both' }), 'flash'));
+    assert.ok(has(Theme.build(atlas, 'x3m40i', { revFlash: 'edges' }), 'flash'));
+    assert.ok(!has(Theme.build(atlas, 'x3m40i', { revFlash: 'band' }), 'flash'));
+    assert.ok(!has(Theme.build(atlas, 'x3m40i', { revFlash: 'off' }), 'flash'));
+    /* band-only still flashes the dial itself */
+    const band = Theme.build(atlas, 'x3m40i', { revFlash: 'band' });
+    const tach = band.layers.find(L => L.id === 'tach');
+    const st = State.present({ rpm: 7000 }, Panel.profile('x3m40i'), band.settings);
+    assert.ok(tach.uniforms(st, 0).u_warn > 0.5, 'the band should be flashing');
+    const off = Theme.build(atlas, 'x3m40i', { revFlash: 'off' });
+    assert.strictEqual(off.layers.find(L => L.id === 'tach')
+        .uniforms(State.present({ rpm: 7000 }, Panel.profile('x3m40i'), off.settings), 0).u_warn, 0);
+});
+
+test('shift lights and the gear strip can be turned off', () => {
+    const noShift = Theme.build(atlas, 'x3m40i', { shiftLights: false });
+    assert.ok(!noShift.layers.some(L => L.id === 'shift'));
+    const noStrip = Theme.build(atlas, 'x3m40i', { gearStrip: false });
+    assert.ok(!noStrip.layers.some(L => L.id === 'gearStrip'));
+    assert.ok(!noStrip.layers.some(L => L.id === 'gearBand'));
+});
+
+test('the gear strip scrolls and never draws the engaged gear', () => {
+    const theme = Theme.build(atlas, 'x3m40i', {});
+    const strip = theme.layers.find(L => L.id === 'gearStrip');
+    const profile = Panel.profile('x3m40i');
+    const names = ['P', 'R', 'N', '1', '2', '3', '4', '5', '6', '7', '8'];
+    const digits = atlas.faces.label.glyphs;
+
+    for (const gear of names) {
+        const st = State.present({ rpm: 1500 }, profile, theme.settings);
+        st.gear = gear;
+        const u = strip.uniforms(st, 0);
+        assert.ok(u, `no strip for ${gear}`);
+        assert.ok(u.u_count <= Text.MAX_GLYPHS, `${gear}: ${u.u_count} glyphs`);
+
+        /* The engaged gear sits under the big numeral, so it is not drawn;
+           everything else is placed relative to it. */
+        const centre = Theme.ARC.cx - strip.x;
+        for (let i = 0; i < u.u_count; i++) {
+            const gx = u.u_quad[i * 4] + u.u_quad[i * 4 + 2] / 2;
+            assert.ok(Math.abs(gx - centre) > 70,
+                `${gear}: a glyph sits under the big numeral at ${gx}`);
+        }
+    }
+});
+
+test('the numerals react to the revs', () => {
+    const theme = Theme.build(atlas, 'x3m40i', {});
+    const nums = theme.layers.find(L => L.id === 'arcNums');
+    const profile = Panel.profile('x3m40i');
+    const lo = nums.uniforms(State.present({ rpm: 800 }, profile, theme.settings), 0);
+    const hi = nums.uniforms(State.present({ rpm: 6400 }, profile, theme.settings), 0);
+    assert.ok(hi.u_frac > lo.u_frac, 'the sweep position follows the revs');
+    assert.ok(lo.u_grow > 0, 'numerals grow as the sweep passes them');
+    assert.strictEqual(lo.u_count, 9, '0 to 8 for an 8000 rpm scale');
+});
+
+test('a changed rpm scale moves the numerals and the redline', () => {
+    const a = Theme.build(atlas, 'x3m40i', { rpmMax: 8000, rpmRedline: 6750 });
+    const b = Theme.build(atlas, 'x3m40i', { rpmMax: 6000, rpmRedline: 5000 });
+    const profile = Panel.profile('x3m40i');
+    const tachA = a.layers.find(L => L.id === 'tach')
+        .uniforms(State.present({ rpm: 3000 }, profile, a.settings), 0);
+    const tachB = b.layers.find(L => L.id === 'tach')
+        .uniforms(State.present({ rpm: 3000 }, profile, b.settings), 0);
+    assert.ok(tachB.u_frac > tachA.u_frac, 'the same revs sit further round a shorter scale');
+    assert.ok(Math.abs(tachA.u_redline - 6750 / 8000) < 1e-9, 'redline follows the scale');
+    assert.ok(Math.abs(tachB.u_redline - 5000 / 6000) < 1e-9, 'redline follows the scale');
+    assert.strictEqual(b.layers.find(L => L.id === 'arcNums')
+        .uniforms(State.present({ rpm: 0 }, profile, b.settings), 0).u_count, 7);
 });

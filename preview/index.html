@@ -32,6 +32,7 @@
 <script src="../src/shaders/parts.js"></script>
 <script src="../src/engine/text.js"></script>
 <script src="../src/engine/state.js"></script>
+<script src="../src/theme/palette.js"></script>
 <script src="../src/theme/lambo.js"></script>
 <script src="./engine.js"></script>
 <script src="./sim.js"></script>
@@ -62,13 +63,23 @@
   .then(function (a) {
     var profileId = params.get('profile') || 'x3m40i';
     var units = params.get('units') || 'imperial';
+    var cfg = { units: units };
+    ['accent', 'litColour', 'revFlash'].forEach(function (k) {
+      if (params.get(k)) cfg[k] = params.get(k);
+    });
+    ['rpmMax', 'rpmRedline', 'rpmLimiter', 'flashFromRpm', 'flashRate',
+     'flashStrength', 'hexagons', 'hexSize'].forEach(function (k) {
+      if (params.get(k)) cfg[k] = parseFloat(params.get(k));
+    });
+    if (params.get('shiftLights') === 'off') cfg.shiftLights = false;
+    if (params.get('gearStrip') === 'off') cfg.gearStrip = false;
     var engine = MGUEngine.create(document.getElementById('c'),
       { onWarn: function (m) { out.textContent += m + '\n'; } });
     engine.build(shaders, MGUPrelude);
     engine.setAtlas(a.img);
 
     var profile = MGUPanel.profile(profileId);
-    var theme = MGUTheme.build(a.atlas, profileId, { units: units });
+    var theme = MGUTheme.build(a.atlas, profileId, cfg);
     var sim = MGUSim.create(profile);
 
     /* A fixed point in the drive, so a screenshot is repeatable. */
@@ -77,7 +88,7 @@
     var elapsed = 0;
 
     function draw(time) {
-      var st = MGUState.present(sim.raw(), profile, { units: units });
+      var st = MGUState.present(sim.raw(), profile, theme.settings);
       engine.render(theme, st, time, 720, MGUPanel.BOTTOM_CUT);
       window.__state = st;
     }
