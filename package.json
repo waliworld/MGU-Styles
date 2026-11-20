@@ -1,0 +1,12 @@
+{
+  "name": "mgu-styles",
+  "version": "0.1.0",
+  "description": "Toro - a Lamborghini-style instrument cluster for BMW iDrive 7 (MGU)",
+  "license": "GPL-3.0-or-later",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/",
+    "shot": "node tools/shot.js build/shot.png \"t=9&freeze=1&strip=off\"",
+    "atlas": "python3 tools/bake-atlas.py"
+  }
+}

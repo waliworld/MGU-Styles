@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Toro cluster preview</title>
+<style>
+  html, body { margin: 0; background: #07090c; color: #9aa6b2;
+               font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+  #wrap { position: relative; width: 1920px; height: 720px; }
+  canvas { display: block; width: 1920px; height: 720px; background: #000; }
+  /* The strip the car keeps for itself. Shown only as a guide. */
+  #strip { position: absolute; left: 0; top: 646px; width: 1920px; height: 74px;
+           box-sizing: border-box; border-top: 1px dashed rgba(255,120,60,.55);
+           background: repeating-linear-gradient(45deg, rgba(255,120,60,.06) 0 10px,
+                       transparent 10px 20px); color: rgba(255,150,90,.75);
+           font: 12px ui-monospace, monospace; padding: 6px 12px; pointer-events: none; }
+  #strip.off { display: none; }
+  #err { position: absolute; left: 0; top: 0; padding: 16px; color: #ff6b6b;
+         white-space: pre-wrap; font: 12px ui-monospace, monospace; max-width: 1860px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="1920" height="720"></canvas>
+  <div id="strip">BMW keeps this strip &mdash; gear, drive mode, ranges. Nothing of ours draws below y=646.</div>
+  <div id="err"></div>
+</div>
+
+<script src="../src/geometry/panel.js"></script>
+<script src="../src/shaders/prelude.js"></script>
+<script src="../src/shaders/core.js"></script>
+<script src="../src/shaders/parts.js"></script>
+<script src="../src/engine/text.js"></script>
+<script src="../src/engine/state.js"></script>
+<script src="../src/theme/lambo.js"></script>
+<script src="./engine.js"></script>
+<script src="./sim.js"></script>
+<script>
+(function () {
+  'use strict';
+  var out = document.getElementById('err');
+  function fail(e) { out.textContent = String(e && e.stack || e); }
+  window.__ready = false; window.__error = null;
+
+  var params = new URLSearchParams(location.search);
+  if (params.get('strip') === 'off') document.getElementById('strip').className = 'off';
+
+  var shaders = {};
+  [MGUShadersCore, MGUShadersParts].forEach(function (set) {
+    for (var k in set) if (set.hasOwnProperty(k)) shaders[k] = set[k];
+  });
+
+  fetch('../assets/fonts/atlas.json').then(function (r) { return r.json(); })
+  .then(function (atlas) {
+    return new Promise(function (res, rej) {
+      var img = new Image();
+      img.onload = function () { res({ atlas: atlas, img: img }); };
+      img.onerror = function () { rej(new Error('atlas.png did not load')); };
+      img.src = '../assets/fonts/atlas.png';
+    });
+  })
+  .then(function (a) {
+    var profileId = params.get('profile') || 'x3m40i';
+    var units = params.get('units') || 'imperial';
+    var engine = MGUEngine.create(document.getElementById('c'),
+      { onWarn: function (m) { out.textContent += m + '\n'; } });
+    engine.build(shaders, MGUPrelude);
+    engine.setAtlas(a.img);
+
+    var profile = MGUPanel.profile(profileId);
+    var theme = MGUTheme.build(a.atlas, profileId, { units: units });
+    var sim = MGUSim.create(profile);
+
+    /* A fixed point in the drive, so a screenshot is repeatable. */
+    var seek = parseFloat(params.get('t'));
+    var frozen = params.get('freeze') === '1';
+    var elapsed = 0;
+
+    function draw(time) {
+      var st = MGUState.present(sim.raw(), profile, { units: units });
+      engine.render(theme, st, time, 720, MGUPanel.BOTTOM_CUT);
+      window.__state = st;
+    }
+
+    if (isFinite(seek)) { for (var i = 0; i < Math.round(seek * 60); i++) sim.step(1 / 60); }
+    if (params.get('rpm')) sim.poke({ rpm: parseFloat(params.get('rpm')) });
+    if (params.get('speed')) sim.poke({ speedKmh: parseFloat(params.get('speed')) });
+
+    draw(isFinite(seek) ? seek : 0);
+    window.__ready = true;
+
+    if (!frozen) {
+      var last = performance.now();
+      (function loop(now) {
+        var dt = Math.min(0.05, (now - last) / 1000); last = now;
+        elapsed += dt;
+        sim.step(dt);
+        draw(elapsed);
+        requestAnimationFrame(loop);
+      })(last);
+    }
+  })
+  .catch(function (e) { window.__error = String(e && e.stack || e); fail(e); });
+})();
+</script>
+</body>
+</html>
