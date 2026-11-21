@@ -57,9 +57,9 @@ document line by line.
   metrics come out right.
 - **The gear glyph** is a red outline with a transparent interior, leaning
   12°, with CORSA to its left and the pale secondary R beside it.
-- **Stipple, not honeycomb** — a fine regular point field in the annulus,
+- **Stipple in the band** — a fine regular point field in the annulus,
   which is what the Huracán's texture actually is at this scale. The
-  honeycomb is the **modern** background option.
+  hexagon lattice is the **modern** background option.
 - **Side instruments** stay narrow: thermometer and pump icons, Italian
   labelling (Temp. Acqua, Livello Benzina), fixed scale markings separate
   from the moving level.
@@ -97,10 +97,12 @@ As the revs climb:
 ### Two backgrounds
 
 `Background` keeps the **genuine** Huracán look (stipple annulus, faint
-facets) or switches to **modern**: a light, translucent honeycomb with
-bevelled 3D cells and a few accent-lit hexagons.
+facets) or switches to **modern**: the Lamborghini hexagon lattice — thin
+silver lines on the left and right only, glowing nodes at some of the
+joints, faint faceted glass inside each cell, and a black centre so the dial
+stays clean. It fades out behind the side pods to keep them readable.
 
-![Modern 3D honeycomb background](docs/img/toro-modern.png)
+![Modern hexagon lattice background](docs/img/toro-modern.png)
 
 ## Settings
 
@@ -111,7 +113,7 @@ to the cluster within half a second.
 |---|---|
 | Show on cluster | on / off (off = BMW's original cluster) |
 | Car | X3 M40i (B58) · other B58 · M car (S58) · plug-in hybrid — sets the default redline, limiter and gear count |
-| Background | Genuine Huracán (stipple) · Modern 3D honeycomb |
+| Background | Genuine Huracán (stipple) · Modern hex lattice |
 | Accent | arancio · giallo · rosso · verde · blu · viola · bianco |
 | Rev band fill | full fill and needle · subtle · off |
 | Mode label | Strada / Sport / Corsa · BMW's own names · always CORSA |

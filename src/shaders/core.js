@@ -70,35 +70,46 @@
         '  float facet = cov(f - 0.7) * exp(-dot(q, q) / 150000.0);',
         '  col += u_line * facet * u_facets * 0.055;',
         '',
-        /* modern: raised hexagon plates */
+        /* modern: the Lamborghini side lattice - thin silver hexagon lines,
+           pointy-top, on the left and right only, lit nodes at the joints,
+           faint faceted glass inside each cell; the centre stays black. */
         '  if (u_hex > 0.001) {',
-        '    vec4 hc = hexCell(p - vec2(0.0, 8.0), u_hexSize);',
+        /* both sides, fading in from the centre and out towards the far edge */
+        '    float side = abs(n.x - 0.5);',
+        '    float mask = smoothstep(0.19, 0.34, side) * (1.0 - 0.35 * smoothstep(0.42, 0.50, side));',
+        '    mask *= 1.0 - 0.62 * smoothstep(0.50, 0.66, n.y);',   /* quiet behind the pods */
+        /* mirror so both sides share one lattice, anchored at the screen edge */
+        '    vec2 m = vec2(side * u_size.x, p.y);',
+        '    float s = u_hexSize;',                     /* flat-to-flat width */
+        '    float R = s * 0.57735;',                   /* centre to corner */
+        /* hexCell tiles flat-top cells; work in swapped axes to get pointy-top */
+        '    vec4 hc = hexCell(m.yx + vec2(R * 0.5, 0.0), s);',
         '    vec2 g = hc.xy;',
-        '    float d = sdHex(g, u_hexSize * 0.50);',      /* < 0 inside the plate */
-        '    float plate = cov(d + 2.0);',
-        '    float gap = 1.0 - cov(d + 0.5);',
-        /* bevel: the band just inside the edge, shaded by which way it faces */
-        '    float bevel = smoothstep(-9.0, -1.5, d) * plate;',
-        '    vec2 nrm = normalize(g + vec2(0.0001));',
-        '    float facing = dot(nrm, normalize(vec2(-0.55, -0.83)));',   /* light from upper left */
-        '    float sheen = 1.0 - clamp(length(g + vec2(u_hexSize * 0.18, u_hexSize * 0.22))',
-        '                              / (u_hexSize * 0.95), 0.0, 1.0);',
-        '    float h = hash21(hc.zw);',
-        '    float near = 0.35 + 0.65 * exp(-pow((n.x - 0.5) / 0.60, 2.0)) * exp(-pow((n.y - 0.45) / 0.85, 2.0));',
-        '',
-        '    vec3 face = vec3(0.026, 0.034, 0.045) * plate * (0.80 + 0.20 * h)',
-        '              + vec3(0.032, 0.040, 0.052) * sheen * sheen * plate;',
-        '    vec3 hi = vec3(0.110, 0.130, 0.160) * bevel * max(facing, 0.0);',
-        '    vec3 lo = -vec3(0.022, 0.026, 0.032) * bevel * max(-facing, 0.0);',
-        '    vec3 groove = -vec3(0.012, 0.014, 0.018) * gap;',
-        '',
-        /* a fixed handful of cells lit in the accent, brightest at the rim */
-        '    float lit = step(0.962, h);',
-        '    float glow = lit * (smoothstep(-12.0, -1.0, d) * plate * 0.55',
-        '                        + exp(-max(d + 1.0, 0.0) / 5.0) * 0.30 * (1.0 - plate));',
-        '',
-        '    col += (face + hi + lo + groove) * u_hex * near;',
-        '    col += u_accent * glow * 0.16 * u_hex * near;',
+        '    vec2 a = abs(g);',
+        '    float hd = max(a.y, dot(a, vec2(0.8660254, 0.5)));',
+        '    float edge = s * 0.5 - hd;',               /* px to the nearest line */
+        '    float line = cov(edge - 0.6) * 0.9 + exp(-edge / 2.2) * 0.25;',
+        /* nodes: the two corners of this quadrant, then pick some to light */
+        '    vec2 c1 = vec2(R, 0.0), c2 = vec2(R * 0.5, s * 0.5);',
+        '    float d1 = length(a - c1), d2 = length(a - c2);',
+        '    vec2 corner = (d1 < d2 ? c1 : c2) * sign(g + vec2(1e-4));',
+        '    float dn = min(d1, d2);',
+        '    vec2 world = (m.yx + vec2(R * 0.5, 0.0)) - g + corner;',
+        '    float on = step(0.68, hash21(floor(world / (R * 0.5) + 0.5)));',
+        '    float ring = cov(abs(dn - 9.0) - 0.9) * 0.80;',
+        '    float core = cov(dn - 3.4) * 0.95 + cov(dn - 8.2) * 0.20;',
+        '    float halo = exp(-dn / 12.0) * 0.32;',
+        '    float node = on * max(max(ring, core), halo) * (1.0 - smoothstep(0.52, 0.60, n.y));',
+        /* faceted glass: six triangles per cell, each catching the light differently */
+        '    float ang = atan(g.x, g.y);',
+        '    float sector = floor((ang + 3.14159265) / 1.0471976);',
+        '    float shade = 0.5 + 0.5 * sin(sector * 2.3 + hash21(hc.zw) * 6.2831);',
+        '    float glass = 0.010 + 0.055 * shade * shade;',
+        '    vec3 silver = vec3(0.78, 0.80, 0.84);',
+        '    col = mix(col, vec3(0.0), 0.6 * mask * u_hex);',   /* black behind the lattice */
+        '    col += vec3(glass) * mask * u_hex;',
+        '    col += silver * line * (0.30 + 0.25 * exp(-dn / 40.0)) * mask * u_hex;',
+        '    col += mix(silver, vec3(1.0), 0.5) * node * 0.85 * mask * u_hex;',
         '  }',
         '',
         /* The glass is cut on a diagonal at the top corners: a hard edge. */

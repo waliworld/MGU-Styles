@@ -67,8 +67,9 @@
         redFromScale: null,      /* null: derive from rpmRedline */
         /*
          * genuine: the Huracan's own field, fine stipple and faint facets.
-         * modern:  bevelled hexagon cells in light opaque touches, with a
-         *          few accent-lit cells - the Lamborghini showroom look.
+         * modern:  the Lamborghini side lattice - thin silver hexagon lines
+         *          left and right, lit nodes, faceted glass, black centre.
+         *          hexSize is the cell's flat-to-flat width in pixels.
          */
         background: 'genuine',
         /* How strongly the dial's band fills with light up to the revs, with
@@ -78,7 +79,7 @@
         stipple: null,           /* null: follow the background */
         facets: null,
         hexagons: null,
-        hexSize: 46
+        hexSize: 150
     };
 
     function clampNum(v, lo, hi, fallback) {
@@ -134,7 +135,7 @@
         s.hexagons = clampNum(s.hexagons, 0, 1.5, modern ? 1.0 : 0.0);
         s.showZeroNumeral = s.showZeroNumeral === true;
         s.dialFill = clampNum(s.dialFill, 0, 1.5, DEFAULTS.dialFill);
-        s.hexSize = clampNum(s.hexSize, 20, 120, DEFAULTS.hexSize);
+        s.hexSize = clampNum(s.hexSize, 40, 200, DEFAULTS.hexSize);
         if (['off', 'band', 'edges', 'both'].indexOf(s.revFlash) < 0) {
             s.revFlash = DEFAULTS.revFlash;
         }
