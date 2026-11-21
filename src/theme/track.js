@@ -23,13 +23,13 @@
      * The guide's 1920x720 grid is fitted uniformly so that everything ends
      * above y = 646 and the centre window falls wholly inside BMW's map
      * window (416,120 1088x480), where the hosted pictures land, and the
-     * speed scale stays clear of BMW's tyre-pressure telltale (x < 136):
-     *
-     *   panel = (134.4, 40) + design * 0.86
-     *   window (440..1480, 108..586) -> panel (513..1407, 133..544)
+     * speed scale stays clear of BMW's tyre-pressure telltale (x < 136).
+     * Every coordinate below is a panel pixel; the gauges' own geometry is
+     * in src/theme/mgeom.js, traced off the photograph.
      */
 
-    var FIT = { tx: 134.4, ty: 40, s: 0.86 };
+    /* the layout is in panel pixels: mgeom.js is already fitted */
+    var FIT = { tx: 0, ty: 0, s: 1 };
     function X(v) { return FIT.tx + v * FIT.s; }
     function Y(v) { return FIT.ty + v * FIT.s; }
     function D(v) { return v * FIT.s; }
@@ -133,7 +133,7 @@
                 }
             });
         }
-        gauge('speedGauge', 'mgaugeL', box(40, 128, 452, 600), function (s) {
+        gauge('speedGauge', 'mgaugeL', box(166, 54, 706, 600), function (s) {
             var fuel = s.pods && s.pods.fuel;
             return {
                 u_val: M.speedFrac(s.speed, units), u_rail: K.blue, u_hi: K.blueHi, u_fringe: K.amber,
@@ -144,7 +144,7 @@
         /* the red run from the redline, and an amber mark the shift before it */
         var redFrac = Math.min(1, S.rpmRedline / S.scaleMaxRpm);
         var shiftFrac = Math.min(redFrac, Math.max(0, (S.rpmRedline - 400) / S.scaleMaxRpm));
-        gauge('revGauge', 'mgaugeR', box(1468, 112, 1880, 600), function (s) {
+        gauge('revGauge', 'mgaugeR', box(1214, 54, 1754, 600), function (s) {
             var c = oilC(s);
             return {
                 u_val: Math.max(0, Math.min(1, (s.rpm || 0) / S.scaleMaxRpm)),
@@ -167,10 +167,10 @@
         var rpmVals = [], k;
         for (k = 0; k <= N; k++) rpmVals.push(k);
         var rpmItems = scaleItems('right', rpmVals, 22, 'left');
-        var NUM = D(21 / CAP);
-        statics('speedScale', 20, box(2, 86, 236, 615),
+        var NUM = 25 / CAP;
+        statics('speedScale', 20, box(140, 30, 392, 628),
             { face: 'mnum', size: NUM, align: 'right', baseline: 'middle', color: blueTint }, speedItems);
-        statics('rpmScale', 20, box(1690, 100, 1880, 615),
+        statics('rpmScale', 20, box(1528, 30, 1766, 628),
             { face: 'mnum', size: NUM, align: 'left', baseline: 'middle', color: roseTint }, rpmItems);
 
         /* the numeral nearest the marker, brightened (guide section 2) */
@@ -188,63 +188,64 @@
                 }
             });
         }
-        activeNumeral('speedScaleOn', box(2, 86, 236, 615), speedItems, function (s) { return M.speedFrac(s.speed, units); });
-        activeNumeral('rpmScaleOn', box(1690, 100, 1880, 615), rpmItems,
+        activeNumeral('speedScaleOn', box(140, 30, 392, 628), speedItems, function (s) { return M.speedFrac(s.speed, units); });
+        activeNumeral('rpmScaleOn', box(1528, 30, 1766, 628), rpmItems,
             function (s) { return Math.max(0, Math.min(1, (s.rpm || 0) / S.scaleMaxRpm)); });
 
-        statics('speedTitle', 20, box(196, 104, 364, 150),
-            { face: 'labelL', size: D(19 / CAP), align: 'centre', color: K.secondary },
-            [{ str: imperial ? 'mph' : 'km/h', x: X(280), y: Y(138) }]);
-        statics('rpmTitle', 20, box(1470, 96, 1700, 136),
-            { face: 'labelL', size: D(19 / CAP), align: 'right', color: roseTint },
-            [{ str: '1/min x 1000', x: X(1688), y: Y(128) }]);
+        statics('speedTitle', 20, box(320, 42, 470, 80),
+            { face: 'labelL', size: 15 / CAP, align: 'centre', color: K.secondary },
+            [{ str: imperial ? 'mph' : 'km/h', x: 393, y: 70 }]);
+        statics('rpmTitle', 20, box(1380, 42, 1600, 80),
+            { face: 'labelL', size: 15 / CAP, align: 'right', color: roseTint },
+            [{ str: '1/min x 1000', x: 1586, y: 70 }]);
 
         /* ------------------------------------------------- speed and gear */
-        txt('speed', 30, box(120, 270, 392, 392),
-            { face: 'mnum', size: D(94 / CAP), align: 'right', x: X(372), y: Y(378), color: K.digits },
+        txt('speed', 30, box(300, 238, 600, 348),
+            { face: 'mnum', size: 66 / CAP, align: 'right', x: 580, y: 328, color: K.digits },
             function (s) { return String(Math.round(Math.max(0, s.speed || 0))); });
-        statics('speedUnit', 30, box(270, 386, 396, 432),
-            { face: 'labelL', size: D(26 / CAP), align: 'right', color: K.blueHi },
-            [{ str: imperial ? 'mph' : 'km/h', x: X(372), y: Y(416) }]);
-        txt('gear', 30, box(1540, 280, 1764, 400),
-            { face: 'mnum', size: D(88 / CAP), align: 'centre', x: X(1652), y: Y(388), color: K.digits },
+        statics('speedUnit', 30, box(470, 332, 600, 374),
+            { face: 'labelL', size: 19 / CAP, align: 'right', color: K.blueHi },
+            [{ str: imperial ? 'mph' : 'km/h', x: 580, y: 362 }]);
+        /* kept narrow so it stays clear of the M cars' KOMBI box at 1223-1394 */
+        txt('gear', 30, box(1400, 254, 1566, 364),
+            { face: 'mnum', size: 66 / CAP, align: 'centre', x: 1480, y: 344, color: K.digits },
             function (s) { return s.gear || 'P'; });
 
         /* ------------------------------------- fuel and oil bar labels */
-        var SEC = D(18 / CAP);
-        statics('fuelLabels', 30, box(270, 406, 352, 594),
+        var SEC = 16 / CAP;
+        statics('fuelLabels', 30, box(422, 384, 510, 572),
             { face: 'label', size: SEC, align: 'left', baseline: 'middle', color: K.secondary },
-            [{ str: '1', x: X(276), y: Y(424) }, { str: '1/2', x: X(276), y: Y(500) },
-             { str: '0', x: X(276), y: Y(570) }]);
-        statics('oilLabels', 30, box(1540, 406, 1642, 594),
+            [{ str: '1', x: 430, y: 404 }, { str: '1/2', x: 430, y: 478 },
+             { str: '0', x: 430, y: 552 }]);
+        statics('oilLabels', 30, box(1404, 384, 1500, 572),
             { face: 'label', size: SEC, align: 'right', baseline: 'middle', color: K.secondary },
-            imperial ? [{ str: '300', x: X(1636), y: Y(424) }, { str: '°F', x: X(1636), y: Y(462) },
-                        { str: '210', x: X(1636), y: Y(500) }, { str: '120', x: X(1636), y: Y(570) }]
-                     : [{ str: '150', x: X(1636), y: Y(424) }, { str: '°C', x: X(1636), y: Y(462) },
-                        { str: '100', x: X(1636), y: Y(500) }, { str: '50', x: X(1636), y: Y(570) }]);
+            imperial ? [{ str: '300', x: 1490, y: 404 }, { str: '°F', x: 1490, y: 438 },
+                        { str: '210', x: 1490, y: 478 }, { str: '120', x: 1490, y: 552 }]
+                     : [{ str: '150', x: 1490, y: 404 }, { str: '°C', x: 1490, y: 438 },
+                        { str: '100', x: 1490, y: 478 }, { str: '50', x: 1490, y: 552 }]);
 
         /* the M mark beside the badge stripes, and the readiness word */
-        statics('badgeM', 30, box(150, 586, 230, 626),
-            { face: 'mnum', size: D(26 / CAP), align: 'left', baseline: 'middle', color: K.digits },
-            [{ str: 'M', x: X(162), y: Y(606) }]);
-        txt('ready', 30, box(1520, 586, 1660, 626),
-            { face: 'label', size: D(20 / CAP), align: 'right', x: X(1652), y: Y(614),
+        statics('badgeM', 30, box(80, 586, 150, 628),
+            { face: 'mnum', size: 20 / CAP, align: 'left', baseline: 'middle', color: K.digits },
+            [{ str: 'M', x: 92, y: 607 }]);
+        txt('ready', 30, box(1400, 582, 1540, 622),
+            { face: 'label', size: 17 / CAP, align: 'right', x: 1530, y: 606,
               color: K.secondary },
             function (s) { return (s.rpm || 0) > 0 ? 'READY' : null; });
 
         /* --------------------------------------------- lower status rail */
-        var FOOT = 668;
-        txt('clock', 30, box(90, 636, 280, 680),
-            { face: 'display', size: D(28 / CAP), align: 'left', x: X(104), y: Y(FOOT), color: K.digits },
+        var FOOT = 622;
+        txt('clock', 30, box(140, 590, 330, 636),
+            { face: 'display', size: 24 / CAP, align: 'left', x: 152, y: FOOT, color: K.digits },
             function (s) { return s.clockText; });
-        txt('range', 30, box(300, 636, 520, 680),
-            { face: 'label', size: D(28 / CAP), align: 'left', x: X(316), y: Y(FOOT), color: K.digits },
+        txt('range', 30, box(410, 590, 630, 636),
+            { face: 'label', size: 24 / CAP, align: 'left', x: 422, y: FOOT, color: K.digits },
             function (s) { return (s.rangeText === '--' ? '--' : s.rangeText) + (imperial ? ' MI' : ' KM'); });
-        txt('mode', 30, box(860, 636, 1060, 676),
-            { face: 'label', size: D(24 / CAP), align: 'centre', x: X(960), y: Y(664), color: K.digits },
+        txt('mode', 30, box(840, 592, 1080, 632),
+            { face: 'label', size: 21 / CAP, align: 'centre', x: 960, y: 618, color: K.digits },
             function (s) { return s.modeLabel || null; });
-        txt('ambient', 30, box(1630, 630, 1856, 686),
-            { face: 'label', size: D(28 / CAP), align: 'right', x: X(1840), y: Y(FOOT), color: K.digits },
+        txt('ambient', 30, box(1640, 590, 1880, 636),
+            { face: 'label', size: 24 / CAP, align: 'right', x: 1866, y: FOOT, color: K.digits },
             function (s) {
                 if (s.ambientText === '--') return '--';
                 var t = s.ambientText;
@@ -253,7 +254,7 @@
 
         /* ---------------------------------------- the centre, next turn */
         function turn(s) { var c = centreOf(s); return c.mode === 'turn' ? turnOf(c.maneuver) : null; }
-        var arrow = box(895, 229, 1025, 359);
+        var arrow = box(895, 196, 1025, 326);
         layers.push({
             id: 'turnArrow', z: 26, shader: 'tturn',
             x: arrow.x, y: arrow.y, w: arrow.w, h: arrow.h,
@@ -263,11 +264,11 @@
                 return { u_kind: t.kind, u_angle: t.angle, u_col: K.digits, u_ring: K.secondary };
             }
         });
-        txt('turnDist', 27, box(740, 356, 1180, 440),
-            { face: 'labelL', size: D(51 / CAP * 0.82), align: 'centre', x: X(960), y: Y(421), color: K.digits },
+        txt('turnDist', 27, box(740, 330, 1180, 410),
+            { face: 'labelL', size: 42 / CAP, align: 'centre', x: 960, y: 392, color: K.digits },
             function (s) { return turn(s) ? (centreOf(s).maneuver.text || null) : null; });
-        txt('turnSay', 27, box(760, 440, 1160, 480),
-            { face: 'label', size: D(26 / CAP), align: 'centre', x: X(960), y: Y(468), color: K.blueHi },
+        txt('turnSay', 27, box(760, 412, 1160, 456),
+            { face: 'label', size: 23 / CAP, align: 'centre', x: 960, y: 444, color: K.blueHi },
             function (s) { var t = turn(s); return t ? t.say : null; });
 
         /* ---------------------------------------------- the limiter flash */

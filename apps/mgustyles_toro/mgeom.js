@@ -12,25 +12,23 @@
      * a tick, its label and the rail's lit run can never disagree.
      */
 
+    /*
+     * Traced off the reference photograph and fitted to the panel. The
+     * gauges stand 487 px tall of the 646 we may draw in: in the
+     * photograph they take about 70 per cent of the screen's height,
+     * where the guide's own table would give 56, which is what made the
+     * first attempt look small and empty. The caps run on towards the
+     * centre and stop just short of the aperture. The two sides are
+     * mirrored (the car's right rail has a short vertical shoulder; the
+     * mirror reads the same at this size).
+     *   photograph -> panel:  x = 209 + (px - 672) * 0.685
+     *                         y =  88 + (py - 1106) * 0.685
+     */
     var RAILS = {
-        /* from minimum to maximum, as the guide gives them */
-        left: {
-            /* the caps run on towards the centre, as in the photograph, and
-               stop clear of the centre aperture (x 440) */
-            rail: [[430, 571], [226, 571], [177, 537], [105, 380], [86, 326], [104, 281], [177, 153], [430, 153]],
-            hair: [[352, 551], [233, 551], [193, 524], [124, 373], [105, 327], [124, 288], [190, 173], [344, 173]],
-            inside: 1,          /* which side of the path, travelling it, faces the centre */
-            vertex: 4           /* where the width steps from the low to the high limb */
-        },
-        right: {
-            rail: [[1490, 572], [1708, 572], [1751, 540], [1820, 407], [1820, 342], [1806, 306], [1732, 145], [1490, 145]],
-            hair: [[1568, 552], [1699, 552], [1736, 523], [1800, 402], [1800, 347], [1787, 313], [1719, 165], [1593, 165]],
-            inside: -1,
-            /* the width changes at the top of the long diagonal, before the
-               vertical shoulder: offsetting across the shoulder would cross */
-            vertex: 3
-        }
+        left: { rail: [[680, 575], [376, 575], [317, 536], [232, 353], [209, 290], [230, 238], [317, 88], [680, 88]], inside: 1, vertex: 4 },
+        right: { rail: [[1240, 575], [1544, 575], [1603, 536], [1688, 353], [1711, 290], [1690, 238], [1603, 88], [1240, 88]], inside: -1, vertex: 4 }
     };
+
     /* The scale runs between these vertices; the horizontal ends are caps
        outside the range (guide section 2). */
     var RANGE = [1, 6];
@@ -42,10 +40,10 @@
      *   band's inner line    7 px          ->   4        units
      *   rail to band gap    35 px          ->  21        units
      */
-    var RAIL_W = [7.6, 13.5];   /* low limb, high limb (guide: 11-15 at the top) */
-    var BAND_W = [22, 42];
-    var HAIR_W = 1.5;           /* 1.25-1.75 */
-    var MARKER = [19, 3.5];     /* across the rail, along it */
+    var RAIL_W = [8.9, 15.8];   /* low limb, high limb */
+    var BAND_W = [25, 49];
+    var HAIR_W = 2.4;
+    var MARKER = [24, 4.5];     /* across the rail, along it */
 
     /*
      * The secondary bars are vertical, inside the chevron's lower half, with
@@ -53,11 +51,13 @@
      * y 420-580, labels to its right).
      */
     var BARS = {
-        fuel: { x: 246, w: 20, y0: 576, y1: 420, segs: 5, glyph: [228, 566] },
-        oil: { x: 1654, w: 20, y0: 576, y1: 420, segs: 5, glyph: [1690, 566] }
+        fuel: { x: 395, w: 24, y0: 556, y1: 400, segs: 5, glyph: [368, 545] },
+        oil: { x: 1501, w: 24, y0: 556, y1: 400, segs: 5, glyph: [1552, 545] }
     };
 
-    var CENTRE = { x0: 440, y0: 108, x1: 1480, y1: 586, chamfer: 24, feather: 40 };
+    /* The aperture sits between the caps, and inside the rect where
+       waze-on-cluster and Turn View draw (416,120 1088x480). */
+    var CENTRE = { x0: 596, y0: 124, x1: 1324, y1: 544, chamfer: 24, feather: 40 };
 
     function measure(pts) {
         var cum = [0], i;
@@ -73,7 +73,7 @@
      * by the gap and by the gap plus the band's width, mitred at each
      * corner so the corners stay sharp, as they are on the car.
      */
-    var GAP = 22;               /* rail edge to the band */
+    var GAP = 24;               /* rail edge to the band */
 
     function offsetPath(pts, offs, inside) {
         /* lines, as point + unit direction, moved inward by offs[i] */

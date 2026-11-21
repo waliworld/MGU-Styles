@@ -225,59 +225,65 @@
         '  float aw = aaw();',
         '  vec3 col = u_outside;',
         /* a shallow graphite lift behind each group of figures - no edges */
-        '  col = mix(col, u_recess, 0.85 * exp(-pow(length((q - vec2(250.0, 360.0)) / vec2(190.0, 215.0)), 2.2)));',
-        '  col = mix(col, u_recess, 0.85 * exp(-pow(length((q - vec2(1660.0, 360.0)) / vec2(175.0, 215.0)), 2.2)));',
-        '  col += vec3(0.016, 0.022, 0.032) * exp(-pow(length((q - vec2(262.0, 352.0)) / vec2(120.0, 78.0)), 2.0));',
-        '  col += vec3(0.016, 0.022, 0.032) * exp(-pow(length((q - vec2(1652.0, 360.0)) / vec2(100.0, 78.0)), 2.0));',
+        '  col = mix(col, u_recess, 0.85 * exp(-pow(length((q - vec2(430.0, 330.0)) / vec2(250.0, 250.0)), 2.2)));',
+        '  col = mix(col, u_recess, 0.85 * exp(-pow(length((q - vec2(1490.0, 330.0)) / vec2(250.0, 250.0)), 2.2)));',
+        '  col += vec3(0.016, 0.022, 0.032) * exp(-pow(length((q - vec2(470.0, 300.0)) / vec2(150.0, 95.0)), 2.0));',
+        '  col += vec3(0.016, 0.022, 0.032) * exp(-pow(length((q - vec2(1470.0, 310.0)) / vec2(130.0, 95.0)), 2.0));',
         '',
         /* the centre */
         '  float dc = sdCham(q, vec2(' + f(C.x0) + ', ' + f(C.y0) + '), vec2(' + f(C.x1) + ', ' + f(C.y1) + '), ' + f(C.chamfer) + ');',
         '  float inC = covW(dc, aw);',
-        /* The centre at rest: angular planes slanting across it, bright at
-           the top and falling away below, as the car draws them. They go
-           with the matte, so the map replaces them as the window opens. */
-        '  float u = (q.x - 960.0) + (q.y - 347.0) * 0.42;',
-        '  float v = clamp((q.y - 108.0) / 478.0, 0.0, 1.0);',
-        '  float fade = (1.0 - 0.58 * v) * (1.0 - 0.40 * smoothstep(240.0, 640.0, u));',
-        '  vec3 mat = u_matte;',
-        '  mat = mix(mat, u_blue * 0.60, 0.95 * slab(u, -560.0, -150.0) * fade);',
-        '  mat = mix(mat, u_blue * 0.46, 0.95 * slab(u, -150.0, 210.0) * fade);',
-        '  mat = mix(mat, u_blue * 0.30, 0.95 * slab(u, 210.0, 620.0) * fade);',
-        /* the crisp edges between the planes */
-        '  mat += u_blue * 0.16 * fade * (covW(abs(u + 150.0) - 1.8, aw) + covW(abs(u - 210.0) - 1.8, aw));',
-        /* a shallower second set, crossing the first */
-        '  float w2 = (q.x - 960.0) - (q.y - 347.0) * 1.35;',
-        '  mat = mix(mat, u_blue * 0.52, 0.42 * slab(w2, -320.0, 170.0) * fade);',
-        '  mat = mix(mat, u_red * 0.30, 0.30 * slab(w2, 170.0, 260.0) * fade);',
-        '  col = over(col, mat, inC);',
+        /*
+         * The angular planes the car draws across the instrument area. They
+         * run on behind the gauges, as in the photograph, and are strongest
+         * inside the aperture, where they go with the matte - so the map
+         * replaces them as the window opens.
+         */
+        '  float u = (q.x - 960.0) + (q.y - 334.0) * 0.42;',
+        '  float v = clamp((q.y - 90.0) / 490.0, 0.0, 1.0);',
+        '  float fade = (1.0 - 0.52 * v) * (1.0 - 0.34 * smoothstep(200.0, 700.0, u))',
+        '            * (1.0 - smoothstep(560.0, 745.0, abs(q.x - 960.0)))',
+        '            * (1.0 - smoothstep(230.0, 320.0, abs(q.y - 334.0)));',
+        /* measured off the photograph: the planes darken towards the left */
+        '  vec3 pl = vec3(0.0);',
+        '  pl += u_blue * 0.09 * slab(u, -760.0, -190.0);',
+        '  pl += u_blue * 0.26 * slab(u, -190.0, 200.0);',
+        '  pl += u_blue * 0.42 * slab(u, 200.0, 760.0);',
+        '  pl += u_blue * 0.10 * (covW(abs(u + 190.0) - 2.0, aw) + covW(abs(u - 200.0) - 2.0, aw)',
+        '                       + covW(abs(u + 760.0) - 2.0, aw) + covW(abs(u - 760.0) - 2.0, aw));',
+        '  float w2 = (q.x - 960.0) - (q.y - 334.0) * 1.35;',
+        '  pl += u_blue * 0.10 * slab(w2, -300.0, 140.0);',
+        '  pl += u_red * 0.10 * slab(w2, 140.0, 250.0);',
+        '  pl += u_blue * 0.09 * covW(abs(w2 + 420.0) - 2.0, aw);',
+        '  pl *= fade;',
+        /* one field across the whole instrument area, so the aperture has no
+           edge of its own until the map opens inside it */
+        '  col += pl;',
+        '  col = over(col, col + u_matte * 0.55, inC * 0.40);',
         '',
-        /* restrained top and bottom accents, fading towards the middle */
-        '  float topL = covW(abs(q.y - 153.0) - 1.0, aw) * step(336.0, q.x) * (1.0 - smoothstep(336.0, 760.0, q.x));',
-        '  float topR = covW(abs(q.y - 145.0) - 1.0, aw) * step(q.x, 1588.0) * smoothstep(1160.0, 1588.0, q.x);',
-        '  col = over(col, u_blue, topL * 0.85 * (1.0 - inC * u_open));',
-        '  col = over(col, u_red, topR * 0.85 * (1.0 - inC * u_open));',
-        '  float botY = 606.0;',
-        '  float botL = covW(abs(q.y - botY) - 3.0, aw) * smoothstep(300.0, 340.0, q.x) * (1.0 - smoothstep(420.0, 900.0, q.x));',
-        '  float botR = covW(abs(q.y - botY) - 3.0, aw) * (1.0 - smoothstep(1555.0, 1595.0, q.x)) * smoothstep(1020.0, 1500.0, q.x);',
-        '  col = over(col, mix(u_blue * 0.55, u_blue, smoothstep(900.0, 300.0, q.x)), botL);',
-        '  col = over(col, mix(u_red * 0.55, u_red, smoothstep(1020.0, 1620.0, q.x)), botR);',
-        '  float rule = covW(abs(q.y - botY) - 0.6, aw) * step(900.0, q.x) * step(q.x, 1020.0);',
-        '  col = over(col, u_rule, rule);',
+        /* the restrained bar under each gauge, fading towards the middle */
+        '  float botY = 592.0;',
+        '  float botL = covW(abs(q.y - botY) - 2.5, aw) * smoothstep(205.0, 245.0, q.x) * (1.0 - smoothstep(430.0, 880.0, q.x));',
+        '  float botR = covW(abs(q.y - botY) - 2.5, aw) * (1.0 - smoothstep(1675.0, 1715.0, q.x)) * smoothstep(1040.0, 1490.0, q.x);',
+        '  col = over(col, mix(u_blue * 0.5, u_blue, smoothstep(880.0, 240.0, q.x)), botL);',
+        '  col = over(col, mix(u_red * 0.5, u_red, smoothstep(1040.0, 1680.0, q.x)), botR);',
+        '  float rule = covW(abs(q.y - botY) - 0.6, aw) * step(880.0, q.x) * step(q.x, 1040.0);',
+        '  col = over(col, u_rule, rule * 0.8);',
         '',
         /* the drive-mode lozenge: angular ends, blue */
-        '  vec2 lz = q - vec2(960.0, 654.0);',
-        '  float lzd = max(abs(lz.y) - 19.0, abs(lz.x) + (lz.y + 19.0) * 0.45 - 118.0);',
+        '  vec2 lz = q - vec2(960.0, 611.0);',
+        '  float lzd = max(abs(lz.y) - 17.0, abs(lz.x) + (lz.y + 17.0) * 0.45 - 106.0);',
         '  float lzIn = covW(lzd, aw) * u_lozenge;',
         '  col = over(col, mix(u_blue * 0.30, u_blue * 0.55, smoothstep(19.0, -19.0, lz.y)), lzIn);',
         '  col = over(col, u_blueHi, covW(abs(lzd) - 0.8, aw) * u_lozenge * 0.9);',
         '',
         /* the badge: three slanted stripes, the M letter sits beside them */
-        '  vec2 bq = q - vec2(150.0, 606.0);',
+        '  vec2 bq = q - vec2(68.0, 607.0);',
         '  float bu = bq.x + bq.y * 0.42;',
-        '  float inB = covW(abs(bq.y) - 9.0, aw) * u_badge;',
-        '  col = over(col, u_blueHi * 0.85, inB * slab(bu, -40.0, -26.0));',
-        '  col = over(col, u_blue * 0.75, inB * slab(bu, -24.0, -10.0));',
-        '  col = over(col, u_red, inB * slab(bu, -8.0, 6.0));',
+        '  float inB = covW(abs(bq.y) - 8.0, aw) * u_badge;',
+        '  col = over(col, u_blueHi * 0.85, inB * slab(bu, -24.0, -14.0));',
+        '  col = over(col, u_blue * 0.75, inB * slab(bu, -13.0, -3.0));',
+        '  col = over(col, u_red, inB * slab(bu, -2.0, 8.0));',
         '',
         '  float reveal = smoothstep(0.0, ' + f(C.feather) + ', -dc);',
         '  float alpha = 1.0 - u_open * reveal;',

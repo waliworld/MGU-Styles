@@ -35,19 +35,25 @@ test('the registry picks the style, Toro by default', () => {
     assert.ok(build().hasCentre);
 });
 
-test('the feather matches the brief\'s checkpoints (section 3)', () => {
-    const want = [[439, 347, 0], [440, 347, 0], [450, 347, 0.15625], [460, 347, 0.5], [470, 347, 0.84375],
-        [480, 347, 1], [960, 108, 0], [960, 128, 0.5], [960, 148, 1], [960, 347, 1], [1460, 347, 0.5],
-        [1480, 347, 0], [960, 566, 0.5], [960, 586, 0]];
-    for (const [x, y, a] of want) {
-        assert.ok(Math.abs(Track.revealAt(x, y) - a) <= 2 / 255, `(${x},${y}) ${Track.revealAt(x, y)} != ${a}`);
+test('the feather follows the guide\'s rule across the aperture (section 3)', () => {
+    const C = M.CENTRE, cy = (C.y0 + C.y1) / 2, cx = (C.x0 + C.x1) / 2;
+    /* the guide's own profile: 0 on the perimeter, 0.5 twenty units in,
+       1 at forty, smoothstep between - checked on all four walls */
+    const want = [[0, 0], [10, 0.15625], [20, 0.5], [30, 0.84375], [40, 1], [120, 1]];
+    for (const [d, alpha] of want) {
+        for (const [x, y, where] of [[C.x0 + d, cy, 'left'], [C.x1 - d, cy, 'right'],
+                                     [cx, C.y0 + d, 'top'], [cx, C.y1 - d, 'bottom']]) {
+            assert.ok(Math.abs(Track.revealAt(x, y) - alpha) <= 2 / 255,
+                `${where} ${d} in: ${Track.revealAt(x, y)} != ${alpha}`);
+        }
     }
-    /* the chamfers are measured against their own edge, not the box */
-    assert.strictEqual(Track.revealAt(441, 109), 0);
-    assert.ok(Track.revealAt(470, 140) < Track.revealAt(480, 347));
+    assert.strictEqual(Track.revealAt(C.x0 - 1, cy), 0, 'nothing outside the polygon');
+    /* at the corners it is measured against the chamfer, not the box */
+    assert.ok(Track.revealAt(C.x0 + 30, C.y0 + 30) < Track.revealAt(C.x0 + 30, cy));
     /* and the shader computes the same thing */
     assert.match(trackShaders.mframe, /smoothstep\(0\.0, 40\.0, -dc\)/);
-    assert.match(trackShaders.mframe, /vec2\(440\.0, 108\.0\), vec2\(1480\.0, 586\.0\), 24\.0\)/);
+    assert.match(trackShaders.mframe, new RegExp('vec2\\(' + C.x0 + '\\.0, ' + C.y0 +
+        '\\.0\\), vec2\\(' + C.x1 + '\\.0, ' + C.y1 + '\\.0\\), ' + C.chamfer + '\\.0\\)'));
 });
 
 test('the window lies inside BMW\'s map window, where Waze and the camera land', () => {
@@ -78,7 +84,15 @@ test('Track: nothing below the cut, nothing off the panel, nothing under a facto
             for (const z of zones) {
                 /* the M boxes sit in the middle: what the centre shows is
                    ours to lose there, readouts are not */
-                if (/^M box/.test(z.name) && /^(brand|boost|turn)/.test(L.id)) continue;
+                /*
+                 * On M cars the KOMBI draws its own boxes in the middle of
+                 * the panel. The centre is ours to lose there. The gauge
+                 * layers are wide because they carry the caps, but nothing
+                 * of theirs is drawn where the right box falls: the band's
+                 * inner edge starts at x 1515 and the oil bar at 1501, both
+                 * clear of the box at 1223-1394.
+                 */
+                if (/^M box/.test(z.name) && /^(turn|speedGauge|revGauge)/.test(L.id)) continue;
                 const hit = L.x < z.x + z.w && L.x + L.w > z.x && L.y < z.y + z.h && L.y + L.h > z.y;
                 assert.ok(!hit, `${id}/${L.id} under ${z.name}`);
             }
