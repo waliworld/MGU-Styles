@@ -8,11 +8,12 @@ between on iDrive:
   (genuine Huracán, modern hex lattice, Revuelto). Plus two things the
   factory car never had, a **boost gauge** and **GT3 three-stage shift
   lights with a limiter flash**.
-- **M**, after BMW M's iDrive 8 cluster, drawn on the iDrive 7 panel: a
-  blue speed chevron on the left and a red rev chevron on the right that
-  light from the bottom, big white figures, and a centre that shows the
-  **Waze map**, **Turn View's front camera** or a turn card, faded into the
-  frame.
+- **M**, BMW M's iDrive 8 **M View** rebuilt on the iDrive 7 panel from a
+  photograph of the real thing, line for line: the blue speed dial and the
+  red rev dial as angular rails with a level marker, the dark-blue plates
+  behind them, both speeds, fuel and oil as leaning strips, and a centre
+  that can show the **Waze map**, **Turn View's front camera** or a turn
+  card between the dials.
 
 It runs on a rooted head unit through
 [`cluster-render`](https://github.com/robertnisipeanu/idrive-apps), installed
@@ -38,7 +39,8 @@ from the [MGU Store](https://github.com/robertnisipeanu/mgu-store).
 | Units | imperial (mph, °F, psi); metric available |
 | Head unit | iDrive 7 (ID7). iDrive 8 is planned — `cluster-render` already supports it |
 | Package | **ready to install** from the MGU Store as **MGU Styles** (`mgustyles_toro`) |
-| Tried on a car | **not yet** — the built package has been run end to end against a simulated car (below). The in-car checklist is **[docs/IN-CAR-TEST.md](docs/IN-CAR-TEST.md)** |
+| Releases | **Beta 2** (0.5.0, `main`): the M style rebuilt to its reference. **Beta 1** (0.4.0) is kept on the branch `beta-1`. See [CHANGELOG.md](CHANGELOG.md) |
+| On a car | Beta 1 has been installed on the target car by its owner, and what came back shaped the iDrive page and Toro's gauges. **Beta 2's M style has not been on a car yet**: it has been run in the preview and end to end against a simulated car (below). The in-car checklist is **[docs/IN-CAR-TEST.md](docs/IN-CAR-TEST.md)** |
 
 ## The design
 
@@ -120,49 +122,86 @@ facets) or switches to:
 
 ![Revuelto background](docs/img/toro-revuelto.png)
 
-## M — the iDrive 8 M style
+## M — BMW M View, from a reference frame
 
-Built to the **M iDrive 8 cluster guide**
-([docs/M-IDRIVE8-BRIEF.md](docs/M-IDRIVE8-BRIEF.md)) and its photographs:
-the guide's rail paths, colours and anchors, fitted onto the iDrive 7
-panel. It is drawn to look like the factory M cluster, badge and all; the figures
-are Saira Semi Condensed (SIL OFL) and the fuel pump and oil can are drawn
-in the shader. **Unofficial, and nothing to do with BMW AG** — see the
-notice at the top.
+Rebuilt in Beta 2 from one photograph of an M3's iDrive 8 **M View**
+([docs/ref/m-view-reference.jpg](docs/ref/m-view-reference.jpg)) and the
+guide written for it ([docs/ref/M-VIEW-SPEC.md](docs/ref/M-VIEW-SPEC.md)).
+Every line was measured off that frame and is kept in the frame's own
+1726 × 612 coordinates (`src/theme/mgeom.js`), then carried to the panel by
+one uniform fit — so the photograph, the numbers and the shaders read
+straight across. How each was taken, the control points and what is still
+off are in **[docs/ref/MEASUREMENTS.md](docs/ref/MEASUREMENTS.md)**.
+
+It is a reference-matched reconstruction for the owner's own car.
+**Unofficial, and nothing to do with BMW AG** — see the notice at the top.
 In settings and the code it is the style `track`.
 
 ![M, driving](docs/img/track.png)
 
-Each gauge is built the way the photographs show, measured off them:
-a **bright chevron rail** on the guide's path, tapering from 13.5 units on
-the upper limb to 7.6 on the lower; a gap; then the **value band**, a wide
-ribbon parallel to the rail (42 units above the vertex, 22 below) that is
-a deep tint when unlit and fills bright from the bottom; and a **thin
-bright line** along its inner edge. The band's edges are mitred offsets of
-the chevron, so its corners stay sharp. Scale numerals and short ticks sit
-outside the rail, and the numeral at the marker turns white.
+**How close it is.** The photograph above, the render below, in the
+photograph's own state (0 km/h, P, 12:04 pm, 207 km, 4WD, +12.5 °C):
 
-- **Speed (left):** blue, 0–200 mph (0–330 km/h) — evenly spaced labels
-  with the top steps wider, as on the car. Big speed figure with its unit,
-  and fuel as a vertical five-segment bar with 1 / ½ / 0 beside it.
-- **Revs (right):** red, 0–8 (your rev scale), with a red run in the gap
-  from your redline and an amber shift mark before it; the rail and band
-  flash white on the limiter. Big gear figure, oil temperature as the
-  mirrored vertical bar.
-- **Lower rail:** clock and range left, BMW's drive-mode name in an
-  angular lozenge in the middle, outside temperature right.
-- **Centre:** one chamfered window, feathered over 40 design units exactly
-  as the guide's checkpoint table says (`test/track.test.js`); it opens
-  over 180 ms and closes over 110 ms, and nothing outside it ever moves or
-  fades. At rest it shows the angular navy planes the car draws there; the
-  map or camera replaces them as the window opens.
+![The reference photograph and the render](docs/img/m-compare.jpg)
+
+| Measure (`npm run m-compare`) | Beta 1 | Beta 2 |
+|---|---:|---:|
+| Mean colour difference, 0 – 255 | 29.8 | 8.5 |
+| The photograph's edges with one of ours within 2 px | 26.0 % | 98.7 % |
+| Our edges with one of the photograph's within 2 px | 34.0 % | 98.1 % |
+| Control points within 2 px (143 measured) | — | 137, mean 0.72 px |
+
+The remainder is the photograph itself (grain, moiré in the plates, glow,
+and 1 – 3 px of lean in a hand-held shot of a curved display) and the
+handful of things listed in the measurements.
+
+What it draws, all from live data:
+
+- **Speed (left, blue)** and **revs (right, red)**: an outer rim, a dark
+  channel and a fine inner contour, mirror images of each other. The scale
+  is linear in *height*: a level white marker rides up the dial, the band
+  below it fills, and the two numerals either side of the value turn white.
+  0 – 330 km/h or 0 – 200 mph, uneven above the fifth numeral as on the
+  car; 0 – 8 for the revs, with a red field from your redline and an amber
+  one before it. On the limiter the red band flashes.
+- **Both speeds**, the main one flush right over its unit and the other
+  unit's below it, and the **gear** on the right.
+- **Fuel** and **oil temperature** as leaning four-segment strips lit from
+  the foot (oil marked 50 – 150 °C or 120 – 300 °F, its line red where hot
+  and blue where cold).
+- **The plates and the two fine centre lines**, cyan and red, behind it all.
+- **Footer**: the M mark, clock (am / pm in the 12-hour clock), range,
+  the four-pane panel with **4WD** (or 2WD, the driving mode, or nothing —
+  a setting, since the car does not report its drive), outside temperature.
+- **Lettering**: the squared figures are drawn for this, from the
+  photograph's own strokes (`tools/mglyphs.py`), as are the fuel pump, oil
+  can and M mark; the small words are Inter Tight, the nearest open match.
+
+Three things it deliberately does **not** do:
+
+- **It never imitates a warning lamp.** The photograph shows the parking
+  brake, side lights, seat belt, LIMIT and the car seen from above. Those
+  are the car's own, and the cluster keeps drawing its real ones over any
+  theme, so here they exist only in the reference fixture
+  (`preview/index.html?fixture=m`, used for the comparison) — never on the
+  road.
+- **It never invents a reading.** No fuel level, clock, range or
+  temperature is shown until the car has sent one, and a reading that goes
+  missing goes dark.
+- **The clock is the car's.** The head unit runs on UTC, so the time comes
+  from the instrument cluster's own display time and turns over with it.
+
+**The centre.** The black field between the two groups of plates is a
+window (`M.WINDOW` in `src/theme/mgeom.js`): the picture fades in 7 units
+inside the plates' edges over 22, the cyan and red lines stay over it, and
+no figure stands in it. It opens over 180 ms and closes over 110 ms.
 
 | Centre shows | What you see |
 |---|---|
 | **Waze map** | the phone's map from *Maps on cluster* — and the turn card when no map is up |
 | **Turn View camera** | the front camera from IterioDev's *Turn View* |
 | **Turn card only** | our own arrow, distance and instruction for the next turn |
-| **Nothing** | the angular centre graphic alone |
+| **Nothing** | the M View as the photograph has it |
 
 ![M with the Waze map in the centre (a stand-in map in the preview)](docs/img/track-waze.png)
 
@@ -179,8 +218,8 @@ does all of it.
   Its service normally draws on the KOMBI's map slot, under BMW's gauges.
   While M is on the cluster with *Waze map* chosen, we ask its control
   socket to draw on the **panel** instead — the same scene we draw in, at
-  z 0 in BMW's map window (416,120 1088×480) — and our frame at z 1 cuts
-  the feathered window over it. The window sits wholly inside that map
+  z 0 in BMW's map window (416,120 1088×480) — and our back glass at z 1
+  has the feathered window in it. The window sits wholly inside that map
   window. Whenever we stop wanting it (key-off, another style, *BMW
   original*, the app closing) we put the map back on its own slot, but only
   if we moved it; that is remembered across restarts. This is the approach
@@ -208,9 +247,9 @@ to the cluster within half a second.
 | Setting | Values |
 |---|---|
 | Show on cluster | on / off (off = BMW's original cluster) |
-| Style | Toro (Lamborghini Huracán) · M (iDrive 8 style) |
+| Style | Toro (Lamborghini Huracán) · M (BMW M View, iDrive 8) |
 | M: centre shows | Waze map · Turn View camera · turn card only · nothing |
-| M: colours | night · day (the guide's two palettes) |
+| M: footer panel shows | 4WD · 2WD · the driving mode · nothing |
 | Car | X3 M40i (B58) · other B58 · M car (S58) · plug-in hybrid — sets the default redline, limiter and gear count |
 | Toro: background | Genuine Huracán (stipple) · Modern hex lattice · Revuelto |
 | Accent | arancio · giallo · rosso · verde · blu · viola · bianco |
@@ -232,7 +271,7 @@ to the cluster within half a second.
 | Rev number at the needle | outline · bold, filled in colour |
 | Oil gauges (far left) | on / off — temperature and pressure (turbo pressure until BeeM-Flash supplies oil pressure) |
 | Units | mph, °F, psi · km/h, °C, bar |
-| Clock | 24-hour · 12-hour |
+| M: clock | 24-hour · 12-hour (with am / pm) |
 
 The redline and limiter are clamped and kept in order whatever is chosen.
 
@@ -254,10 +293,13 @@ the Store now pulls in with the app.
 The preview takes more (`flashFromRpm`, `flashRate`, `flashStrength`,
 `hexagons`, `hexSize`, `stipple`, `litColour`…) as query parameters, e.g.
 `preview/index.html?background=modern&accent=blu&rpmLimiter=6500`; all of
-them live in `src/theme/palette.js`. For M: `style=track`, `drive=SPORT`
-shows the lozenge, and
-`show=map|camera|magenta` puts a stand-in picture under the window,
-`turn=left|right|bear|sharp|uturn|roundabout|keep|dest` shows the turn card.
+them live in `src/theme/palette.js`. For M: `style=track`;
+`fixture=m` is the reference photograph's exact state, lamps and all;
+`mPanel=4wd|2wd|mode|off` (with `drive=SPORT` to name a mode);
+`clock12=on`; `show=map|camera|magenta` puts a stand-in picture under the
+window; `turn=left|right|bear|sharp|uturn|roundabout|keep|dest` shows the
+turn card; `art=native` draws the artboard 1:1 instead of fitted to the
+panel.
 
 ## The one rule everything obeys
 
@@ -279,7 +321,7 @@ Everything that moves is a **GLSL effect layer**. The renderer shares one
 about one frame a second. Effect layers upload *nothing* per frame; animation
 comes from `u_time` and a handful of uniforms, which is what makes smooth
 graphics possible at all. Text is the only asset: a single baked SDF atlas
-(1024², 116 KB) that stays crisp from a 17 px label to the 225 px gear.
+(1024², about 190 KB) that stays crisp from a 17 px label to the 225 px gear.
 
 ```
 src/geometry/panel.js    panel geometry, keep-clear zones, vehicle profiles
@@ -289,9 +331,9 @@ src/engine/state.js      raw vehicle signals -> what the theme draws
 src/theme/guide.js       the CORSA brief as data, and its fit to the MGU panel
 src/theme/palette.js     colour schemes and every driver setting
 src/theme/lambo.js       Toro: 49 layers
-src/theme/track.js       M: the guide's layout, fit and feather
-src/theme/mgeom.js       M: the guide's rail paths and scales, shared with the shaders
-src/shaders/mcluster.js  M: rails, frame and turn arrow, paths written into the GLSL
+src/theme/track.js       M: the layout, colours and what each layer shows
+src/theme/mgeom.js       M: every measured line, in the reference frame's own coordinates
+src/shaders/mcluster.js  M: dials, plates, strips, footer and window, written from mgeom
 src/theme/index.js       the styles, picked by settings.style
 src/car/cluster.js       the theme -> cluster-render effect layers
 src/car/centre.js        M's centre: Waze and Turn View, asked for, never held
@@ -301,7 +343,9 @@ app/                     the iDrive app shell (entry, manifest, icon)
 apps/mgustyles_toro/     the staged package the Store builds (generated)
 kit/                     the MGU App Kit runtime and builder (MIT, vendored)
 preview/                 WebGL harness + a vehicle simulator
-tools/                   staging, car simulator, atlas baker, screenshotter
+tools/                   staging, car simulator, atlas baker (and M's drawn figures),
+                         screenshotter, M's comparison with its reference
+docs/ref/                M's reference frame, its guide and the measurements
 test/                    the constraints and the protocol, enforced
 ```
 
@@ -357,8 +401,15 @@ running, and gives the cluster back at key-off. Follow
 npm test          # unit tests, package staging check, then every shader compiled on a GPU
 npm run car-sim   # build the real package and run it against a simulated car
 npm run shot      # render a frame to build/shot.png
+npm run m-compare # M against its reference photograph, into build/m-compare/ (needs Python)
 npm run fonts && npm run atlas   # re-bake the SDF atlas from the OFL fonts
 ```
+
+**Toro is held still.** `sh tools/toro-regress.sh <checkout> <outdir>`
+renders eight fixed Toro frames from a checkout and
+`python3 tools/img-same.py <a> <b>` compares two sets pixel for pixel;
+Beta 2 was checked that way against a checkout of `beta-1` (all eight
+identical).
 
 **`npm run car-sim`** is the closest thing to the car this repo can offer.
 It builds the package with the kit's own builder, stands in for BMW's
@@ -384,10 +435,15 @@ For a live preview, serve the repo root and open `preview/index.html`
 
 ## Known limitations
 
-- **Not yet run on a car.** The signal decoders use the field names,
-  invalid markers and scalings other projects read on real cars, and the
-  package runs end to end in simulation, but nothing here has been seen in
-  a vehicle. Signals that do not arrive show dashes.
+- **Beta 2's M style has not been on a car.** It runs end to end in
+  simulation; the signal decoders use the field names, invalid markers and
+  scalings other projects read on real cars. Signals that do not arrive
+  show nothing rather than a guess. Still to be seen in the car: the clock
+  (it needs the cluster's `statusShowTimeDate`; until that arrives M shows
+  no clock), and how the car's own telltales sit over the layout.
+- **M's 4WD / 2WD is a setting, not a reading.** The car does not report
+  its drive state to the head unit; choose what the panel says, or have it
+  show the driving mode, or nothing.
 - **Oil pressure has no source wired up yet.** The reader hook is in
   `src/car/vehicle.js`; until something feeds it, it shows dashes. The G
   meter reads the car's lateral/longitudinal acceleration (CDS2); its sign
@@ -423,8 +479,9 @@ For a live preview, serve the repo root and open `preview/index.html`
 - **The turn card has a distance but no street name.** Turn View's tool
   reports the maneuver and its formatted distance only. Waze sends no turns
   to the car (Turn View's notes), so with Waze the card stays empty.
-- **On M cars** the KOMBI's M boxes fall inside M's centre; readouts
-  stay clear of them, what the centre shows may be covered.
+- **On M cars** the KOMBI's M boxes fall on M's plates and centre lines;
+  every reading stays clear of them (`test/track.test.js`), what is behind
+  may be covered.
 
 ## Credits
 
@@ -451,5 +508,7 @@ This project is built on what others worked out, mostly on their own cars:
   **[cauliflowermossgrape/idrive7-apps](https://github.com/cauliflowermossgrape/idrive7-apps)**
   — app structure, signal catalogues and layout practice.
 
-Fonts: **Saira** (incl. Semi Condensed), **Chakra Petch**, **Michroma** and **Barlow Condensed**, SIL OFL 1.1, baked into
-`assets/fonts/`. Licences in `assets/fonts/OFL.txt`.
+Fonts: **Saira** (incl. Semi Condensed), **Chakra Petch**, **Michroma**,
+**Barlow Condensed**, **Barlow Semi Condensed** and **Inter Tight**, SIL OFL
+1.1, baked into `assets/fonts/`. Licences in `assets/fonts/OFL.txt`. M's
+figures and symbols are drawn in this repository (`tools/mglyphs.py`).

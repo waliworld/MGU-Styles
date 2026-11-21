@@ -41,25 +41,36 @@ watching the cluster.
 | 15 | Key off | Toro disappears and BMW's cluster returns, every time |
 | 16 | Next start | Toro returns on its own (it starts with the car) |
 
-## M style (iDrive 8 M look)
+## M style (BMW M View) — rebuilt in Beta 2
 
-Settings → Style → M. For the centre, *Maps on cluster* and/or *Turn View*
-must be installed. Nothing has to be set on the cluster for Waze; Turn
-View's camera needs **Instrument cluster > Central display area** on **Map
-view** (Turn View's own requirement).
+Settings → Style → M, or step to it with **Design** on the app's page.
+For the centre, *Maps on cluster* and/or *Turn View* must be installed.
+Nothing has to be set on the cluster for Waze; Turn View's camera needs
+**Instrument cluster > Central display area** on **Map view** (Turn View's
+own requirement).
+
+Beta 2's M has not been on a car yet. A photo of the whole cluster, parked,
+is the most useful thing to send back: it can be compared with the
+reference frame the same way the preview is.
 
 | # | Check | Expect |
 |---|---|---|
-| M1 | Parked, engine running, centre *Nothing* | Blue chevron left, red chevron right, big speed and gear, the quiet centre. Nothing of BMW's gauges shows anywhere |
-| M2 | Bottom strip and telltales | As items 4–5 above: all of BMW's visible; the tyre-pressure light, when lit, is clear of the speed numbers |
-| M3 | Rev gently in P | The red rail lights from the bottom with a white marker; the number at the marker turns white |
-| M4 | Phone connected, Waze navigating, press **Waze on cluster** | Status row says *Waze map showing* within a few seconds; the map fills the centre and fades softly into its walls. **Note anything of BMW's showing through inside the window** |
-| M5 | Look at the window's edges and four corners | An even fade all round, no hard line, no map outside the frame |
-| M6 | Press **Waze on cluster** again | The window closes quickly. Speed, gear and the rails never flicker |
-| M7 | Key off with the Waze map showing, then start again | At key-off BMW's cluster returns and Waze has its usual place back |
-| M8 | Centre → *Turn View camera* (front camera car, Map view set) | Turn View switches on by itself; the camera fills the window. Leaving the setting switches it off again. **Note anything of BMW's drawn over the camera** |
-| M9 | A route in BMW Maps or CarPlay, centre *Turn card only* | Arrow, distance and instruction (TURN LEFT, EXIT 2…) as a turn comes up; gone when the route ends |
-| M10 | Drive modes | The lozenge shows BMW's name for the mode |
+| M1 | Parked, engine running, centre *Nothing* | The M View as in `docs/ref/m-view-reference.jpg`: blue speed dial left, red rev dial right, the dark-blue plates, the cyan and red lines through the middle, big `0` and `P`. Nothing of BMW's gauges shows anywhere |
+| M2 | Bottom strip and telltales | As items 4–5 above: all of BMW's visible. The tyre-pressure light, when lit, sits left of the speed scale and covers none of its numbers; the parking-brake light is well right of the rev scale |
+| M3 | What is *not* there | No parking-brake, seat-belt, lights or LIMIT symbol of ours anywhere: those are the car's and only the car draws them. **If the car's own lamps land on top of something of ours, note which and where** |
+| M4 | Rev gently in P | The white marker rises up the red dial, the band under it fills red, and the two numbers either side of the marker turn white. Near your redline a pale strip shows inside the rim |
+| M5 | Drive: speed | The marker rises up the blue dial the same way; the big figure is your speed, the smaller one under it the other unit (mph ↔ km/h); both agree with BMW's head-up display |
+| M6 | Fuel and oil strips | Fuel lit from the foot to the tank level (half a tank: two segments). Oil temperature rises from the foot as the engine warms; its marks are 120 / 210 / 300 °F (50 / 100 / 150 °C) |
+| M7 | Footer | The clock shows **the car's own time**, turning over with the head unit's status-bar clock; range and outside temperature match BMW's. **If the clock is missing, say so**: it needs a signal from the cluster that has not been seen on this car yet (no clock is shown rather than a wrong one) |
+| M8 | Settings → M: footer panel shows | 4WD, 2WD, the driving mode (BMW's name, changing as you switch modes), or no panel |
+| M9 | Phone connected, Waze navigating, press **Waze** | Status row says *Waze map showing* within a few seconds; the map fills the black field between the plates and fades softly towards them, the two fine lines still over it. **Note anything of BMW's showing through inside the window** |
+| M10 | Look at the window's edges | An even fade all round, no hard line, no map on a plate or behind a figure |
+| M11 | Press **Waze** again | The window closes quickly. Speed, gear and the dials never flicker |
+| M12 | Key off with the Waze map showing, then start again | At key-off BMW's cluster returns and Waze has its usual place back |
+| M13 | Centre → *Turn View camera* (front camera car, Map view set) | Turn View switches on by itself; the camera fills the window. Leaving the setting switches it off again. **Note anything of BMW's drawn over the camera** |
+| M14 | A route in BMW Maps or CarPlay, centre *Turn card only* | Arrow, distance and instruction (TURN LEFT, EXIT 2…) between the plates as a turn comes up; gone when the route ends |
+| M15 | Rev limiter, parked | The red band flashes (and the screen edges, if chosen); nothing else moves |
+| M16 | Holiday theme on, in M | Snow down both sides outside the dials, the tree right of the rev scale; no number is snowed on |
 
 ## New in 0.3
 
