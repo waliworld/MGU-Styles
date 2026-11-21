@@ -287,6 +287,9 @@
 
         var C = M.CENTRE;
         return { id: 'track', name: 'M', layers: layers, profile: P, settings: S,
+                 /* the holiday dressing: snow outside the rails, the tree
+                    right of the rev scale (src/theme/overlays.js) */
+                 places: { snow: [[0, 0, 250, 646], [1670, 0, 250, 646]], tree: [1772, 328, 140, 176] },
                  palette: K, imperial: imperial, hasCentre: true, fit: FIT,
                  window: { x: X(C.x0), y: Y(C.y0), w: D(C.x1 - C.x0), h: D(C.y1 - C.y0) } };
     }

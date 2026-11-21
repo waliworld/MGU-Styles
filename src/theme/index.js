@@ -1,10 +1,10 @@
 (function (root, factory) {
     if (typeof module === 'object' && module.exports) {
-        module.exports = factory(require('./lambo.js'), require('./track.js'));
+        module.exports = factory(require('./lambo.js'), require('./track.js'), require('./overlays.js'));
     } else {
-        root.MGUThemes = factory(root.MGUTheme, root.MGUTrack);
+        root.MGUThemes = factory(root.MGUTheme, root.MGUTrack, root.MGUOverlays);
     }
-}(typeof self !== 'undefined' ? self : this, function (Toro, Track) {
+}(typeof self !== 'undefined' ? self : this, function (Toro, Track, Overlays) {
     'use strict';
 
     /*
@@ -20,7 +20,9 @@
     }
 
     function build(atlas, profileId, settings) {
-        return THEMES[idOf(settings)].build(atlas, profileId, settings);
+        var theme = THEMES[idOf(settings)].build(atlas, profileId, settings);
+        /* the holiday dressing and the start-up message, over either style */
+        return Overlays.add(theme, atlas, theme.settings, theme.settings.colours);
     }
 
     return { build: build, idOf: idOf, THEMES: THEMES };

@@ -174,7 +174,7 @@ function drive(t) {
   if (t < 4000) return { rpm: 0, kmh: 0, gear: 3 };
   if (t < 5000) return { rpm: 760, kmh: 0, gear: 3 };
   const u = Math.min(1, (t - 5000) / 1800);
-  const rpm = t < 7600 ? 1600 + u * 5390 : 5200;           /* to 6990 by 6.8 s, held to 7.6 s */
+  const rpm = t < 7600 ? 1600 + u * 5450 : 5200;           /* to 7050 (on the limiter) by 6.8 s, held to 7.6 s */
   return { rpm, kmh: 35 + u * 55, gear: 5 + Math.min(3, Math.floor((t - 5000) / 900)) };
 }
 exports.value = (iface, field, t) => {

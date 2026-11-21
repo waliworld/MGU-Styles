@@ -74,7 +74,7 @@ test('the second left dial follows whichever pressure it has', () => {
     const oil = State.present({ boostBar: 1.2, oilPressBar: 4.2 }, p, {});
     assert.strictEqual(oil.auxIsOil, true);
     assert.strictEqual(oil.pods.auxPress.text, String(Math.round(4.2 * 14.503774)));
-    assert.ok(oil.pods.auxPress.frac > 0.5 && oil.pods.auxPress.frac < 0.55);
+    assert.ok(oil.pods.auxPress.frac > 0.42 && oil.pods.auxPress.frac < 0.45);   /* 61 psi of 140 */
 });
 
 test('the dial label switches with it, and only one is ever shown', () => {

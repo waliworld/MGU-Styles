@@ -58,12 +58,15 @@
             var L = Text.place(atlas, local, base);
             chunk = []; used = 0;
             if (!L) return;
-            var al = base.alpha === undefined ? 1 : base.alpha;
             layers.push({
                 id: id + (n ? '_' + n : ''), z: z, shader: 'text',
                 x: box.x, y: box.y, w: box.w, h: box.h,
                 uniforms: function (state) {
                     if (base.show && !base.show(state)) return null;
+                    /* alpha may be a function too: the start-up message fades */
+                    var al = typeof base.alpha === 'function' ? base.alpha(state)
+                        : base.alpha === undefined ? 1 : base.alpha;
+                    if (!(al > 0.004)) return null;
                     /* resolved per frame: a colour may follow the accent */
                     var col = (typeof base.color === 'function' ? base.color(state) : base.color)
                         || C.muted;

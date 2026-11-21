@@ -2,7 +2,7 @@
   "id": "mgustyles_toro",
   "title": "MGU Styles",
   "vendor": "MGU-Styles",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "loggingId": "TORO",
   "description": "Custom instrument clusters drawn over the whole iDrive 7 cluster: Toro, after the Lamborghini Huracan, and M, after BMW M's iDrive 8 cluster, with the Waze map or Turn View's camera in its centre. Everything is set up here; off until you turn it on; BMW's warnings and bottom strip always stay BMW's.",
   "autostart": true,
@@ -13,7 +13,8 @@
   ],
   "requires": {
     "cluster-render": "0.6.9",
-    "mgu-deploy": "0.8.27"
+    "mgu-deploy": "0.8.27",
+    "mgu-render": "0.6.11"
   },
   "screens": [
     {
@@ -23,15 +24,15 @@
       "buttons": [
         [
           "BTN_SHOW",
-          "Show on cluster"
+          "Cluster on / off"
         ],
         [
-          "BTN_HIDE",
-          "BMW original"
+          "BTN_DESIGN",
+          "Design"
         ],
         [
           "BTN_WAZE",
-          "Waze on cluster: on / off"
+          "Waze"
         ],
         [
           "BTN_SETTINGS",
@@ -85,6 +86,12 @@
       "label": "Show on the cluster",
       "type": "bool",
       "default": false
+    },
+    {
+      "key": "autoStart",
+      "label": "Start at every startup",
+      "type": "bool",
+      "default": true
     },
     {
       "key": "style",
@@ -319,6 +326,22 @@
         [
           "ambient",
           "Match the interior light"
+        ]
+      ]
+    },
+    {
+      "key": "accentScope",
+      "label": "Toro / Colour applies to",
+      "type": "choice",
+      "default": "highlights",
+      "options": [
+        [
+          "highlights",
+          "Lights and highlights"
+        ],
+        [
+          "full",
+          "Everything, gear and labels too"
         ]
       ]
     },
@@ -655,10 +678,52 @@
       ]
     },
     {
-      "key": "shiftLights",
-      "label": "Revs / GT3 shift lights",
-      "type": "bool",
-      "default": true
+      "key": "shiftStyle",
+      "label": "Revs / Shift lights",
+      "type": "choice",
+      "default": "toro",
+      "options": [
+        [
+          "toro",
+          "Lamborghini, bursts at the limit"
+        ],
+        [
+          "gt3",
+          "GT3 LEDs"
+        ],
+        [
+          "blade",
+          "Single blade"
+        ],
+        [
+          "off",
+          "Off"
+        ]
+      ]
+    },
+    {
+      "key": "shake",
+      "label": "Revs / Shake the screen at the limiter",
+      "type": "choice",
+      "default": "medium",
+      "options": [
+        [
+          "medium",
+          "Medium"
+        ],
+        [
+          "hard",
+          "Hard"
+        ],
+        [
+          "light",
+          "Light"
+        ],
+        [
+          "off",
+          "Off"
+        ]
+      ]
     },
     {
       "key": "showBoost",
@@ -671,6 +736,74 @@
       "label": "Gauges / Oil temperature and pressure",
       "type": "bool",
       "default": true
+    },
+    {
+      "key": "holiday",
+      "label": "Holiday theme: snow and a Christmas tree",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "intro",
+      "label": "For my beautiful wife, Nicole Wali, I love you (at start-up)",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "introMessage",
+      "label": "Start-up message: words",
+      "type": "choice",
+      "default": "nicole",
+      "options": [
+        [
+          "nicole",
+          "For my beautiful wife, Nicole Wali, I love you"
+        ],
+        [
+          "welcome",
+          "Welcome back"
+        ],
+        [
+          "drive",
+          "Drive safe and come home soon"
+        ],
+        [
+          "buongiorno",
+          "Buongiorno"
+        ],
+        [
+          "andiamo",
+          "Andiamo"
+        ],
+        [
+          "custom",
+          "Your own: mgu-styles-message.txt on a USB stick"
+        ]
+      ]
+    },
+    {
+      "key": "introSeconds",
+      "label": "Start-up message: how long",
+      "type": "choice",
+      "default": "10",
+      "options": [
+        [
+          "6",
+          "6 seconds"
+        ],
+        [
+          "10",
+          "10 seconds"
+        ],
+        [
+          "15",
+          "15 seconds"
+        ],
+        [
+          "20",
+          "20 seconds"
+        ]
+      ]
     },
     {
       "key": "units",

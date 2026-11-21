@@ -1,4 +1,4 @@
-The SDF atlas in this folder (atlas.png / atlas.json) is baked from three
+The SDF atlas in this folder (atlas.png / atlas.json) is baked from four
 typefaces, all under the SIL Open Font License, Version 1.1:
 
   Saira            Copyright 2016 The Saira Project Authors
@@ -7,6 +7,8 @@ typefaces, all under the SIL Open Font License, Version 1.1:
                    https://github.com/jpt/barlow
   Chakra Petch     Copyright 2018 The Chakra Petch Project Authors
                    https://github.com/m4rc1e/Chakra-Petch
+  Michroma         Copyright 2011 The Michroma Project Authors
+                   https://github.com/googlefonts/Michroma-font
 
 The baked atlas is a derivative of those fonts and is distributed under the
 same licence, reproduced in full below.

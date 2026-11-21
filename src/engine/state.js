@@ -106,7 +106,7 @@
         /* The second left dial: oil pressure when something can supply it. */
         var auxIsOil = has(oilP);
         var auxPress = auxIsOil
-            ? pod(oilP / 8, 2, rpm > 1200 && oilP < 1.0,
+            ? pod(imperial ? oilP * PSI_PER_BAR / 140 : oilP / 10, 2, rpm > 1200 && oilP < 1.0,
                   imperial ? String(Math.round(oilP * PSI_PER_BAR)) : oilP.toFixed(1), LIT)
             : pod(boost / (imperial ? 25 : 25 / PSI_PER_BAR), 2, 0,
                   boost.toFixed(imperial ? 1 : 2), LIT);

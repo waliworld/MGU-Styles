@@ -42,6 +42,7 @@
 <script src="../src/theme/textlayers.js"></script>
 <script src="../src/theme/lambo.js"></script>
 <script src="../src/theme/track.js"></script>
+<script src="../src/theme/overlays.js"></script>
 <script src="../src/theme/index.js"></script>
 <script src="./engine.js"></script>
 <script src="./sim.js"></script>
@@ -74,15 +75,16 @@
     var units = params.get('units') || 'imperial';
     var cfg = { units: units };
     ['accent', 'accentScope', 'litColour', 'revFlash', 'flashStyle', 'flashColour',
-     'mode', 'background', 'style', 'centre', 'trackPalette'].forEach(function (k) {
+     'mode', 'background', 'style', 'centre', 'trackPalette', 'shiftStyle', 'shake',
+     'introText'].forEach(function (k) {
       if (params.get(k)) cfg[k] = params.get(k);
     });
     ['scaleMaxRpm', 'rpmRedline', 'rpmLimiter', 'redFromScale', 'flashFromRpm',
      'flashRate', 'flashStrength', 'hexagons', 'hexSize', 'stipple',
-     'facets'].forEach(function (k) {
+     'facets', 'introSeconds'].forEach(function (k) {
       if (params.get(k)) cfg[k] = parseFloat(params.get(k));
     });
-    ['shiftLights', 'showBoost', 'showAuxLeft', 'showZeroNumeral'].forEach(function (k) {
+    ['shiftLights', 'showBoost', 'showAuxLeft', 'showZeroNumeral', 'holiday', 'intro'].forEach(function (k) {
       if (params.get(k) === 'off') cfg[k] = false;
       if (params.get(k) === 'on') cfg[k] = true;
     });
@@ -119,6 +121,8 @@
     function draw(time) {
       var st = MGUState.present(sim.raw(), profile, theme.settings);
       if (centre) st.centre = centre;
+      /* since=S: seconds since the cluster came up (the start-up message) */
+      st.sinceOn = params.get('since') !== null ? parseFloat(params.get('since')) : time;
       if (params.get('drive')) st.modeLabel = params.get('drive');
       /* ambient=RRGGBB stands in for the car's interior light */
       if (amb && theme.setAccent) theme.setAccent(amb);

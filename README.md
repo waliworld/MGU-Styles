@@ -220,13 +220,34 @@ to the cluster within half a second.
 | Redline | from the car, or 5,500 – 8,000 rpm |
 | **Rev limiter** | from the car, or 6,000 – 9,000 rpm — where the limiter flash and the last shift light sit |
 | Rev-limit flash | dial and screen edges · dial only · edges only · off |
-| Shift lights | on / off |
+| Shift lights | Lamborghini (blades closing on a hex core, bursts at the limit) · GT3 LEDs · single blade · off |
+| Shake at the limiter | medium · hard · light · off — the whole cluster jolts in step with the bursts, played by the renderer itself |
+| Colour applies to | lights and highlights · everything, gear and labels too |
+| Holiday theme | crystal snow down both sides and a Christmas tree in a clean corner |
+| Start-up message | on / off: *For my beautiful wife, Nicole Wali, I love you* (or other words, below), 6–20 s, then a slow fade into the cluster |
+| Start at every startup | on: comes up with the car every time · off: each start begins with BMW's own, **Cluster on / off** brings it up for that drive |
 | Boost gauge | on / off |
-| Oil pods (far left) | on / off |
+| Oil gauges (far left) | on / off — temperature and pressure (turbo pressure until BeeM-Flash supplies oil pressure) |
 | Units | mph, °F, psi · km/h, °C, bar |
 | Clock | 24-hour · 12-hour |
 
 The redline and limiter are clamped and kept in order whatever is chosen.
+
+**Your own start-up words.** iDrive settings can offer choices but no
+keyboard, so the message has five ready-made sets of words and *Your own*.
+For your own, put a plain text file named `mgu-styles-message.txt` at the
+top of a USB stick, plug it in, and choose *Your own* (or change any
+setting) — MGU Styles reads it and keeps a copy, so the stick can come out
+again. Up to about 90 characters; letters, figures and `. , ' ! ? & - : +`
+show, in the wide capitals the cluster uses. Where the head unit mounts
+USB sticks has not been confirmed on the car yet (`/media`, `/run/media`
+and `/mnt` are searched); if it is not found, the default words show.
+
+**The iDrive page** steps through the four designs (Toro genuine, modern
+hex lattice, Revuelto, M) with the ◀ ▶ arrows beside the sketch on the
+touchscreen, or **Design** in the bar with the controller. It fills the
+whole screen when the Store's renderer (`mgu-render`) is installed, which
+the Store now pulls in with the app.
 The preview takes more (`flashFromRpm`, `flashRate`, `flashStrength`,
 `hexagons`, `hexSize`, `stipple`, `litColour`…) as query parameters, e.g.
 `preview/index.html?background=modern&accent=blu&rpmLimiter=6500`; all of
@@ -305,10 +326,12 @@ shader that ships.
 2. Add this repository as a source in the Store. It reads
    [`mgu-repo.json`](mgu-repo.json), which points at the ready-staged app in
    `apps/mgustyles_toro/` and builds it with the kit in `kit/`.
-3. Install **MGU Styles**. The Store pulls in `cluster-render` (≥ 0.6.9)
-   and `mgu-deploy` as dependencies.
-4. Open MGU Styles on iDrive and press **Show on cluster**. It starts
-   with the car from then on; **BMW original** hands the cluster back.
+3. Install **MGU Styles**. The Store pulls in `cluster-render` (≥ 0.6.9),
+   `mgu-render` (≥ 0.6.11, the full-screen iDrive page) and `mgu-deploy`
+   as dependencies.
+4. Open MGU Styles on iDrive and press **Cluster on / off**. It starts
+   with the car from then on (unless *Start at every startup* is off);
+   the same button hands the cluster back to BMW.
    Pick the style in **Settings**.
 5. For M's centre: install **Maps on cluster** (`robertnisipeanu/idrive-apps`)
    for Waze, and/or **Turn View** (`IterioDev/car-apps`) for the camera,
@@ -423,5 +446,5 @@ This project is built on what others worked out, mostly on their own cars:
   **[cauliflowermossgrape/idrive7-apps](https://github.com/cauliflowermossgrape/idrive7-apps)**
   — app structure, signal catalogues and layout practice.
 
-Fonts: **Saira** (incl. Semi Condensed), **Chakra Petch** and **Barlow Condensed**, SIL OFL 1.1, baked into
+Fonts: **Saira** (incl. Semi Condensed), **Chakra Petch**, **Michroma** and **Barlow Condensed**, SIL OFL 1.1, baked into
 `assets/fonts/`. Licences in `assets/fonts/OFL.txt`.

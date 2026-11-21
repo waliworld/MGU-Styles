@@ -55,6 +55,9 @@ FACES = {
     "track": ("chakra-petch-latin-700-normal.ttf", DIGITS + "PRNDSM", 0.0),
     # the M style (iDrive 8): wide squared figures, flat strokes, upright
     "mnum": ("saira-semi-condensed-latin-700-normal.ttf", DIGITS + "PRNDSM+-.", 0.0),
+    # the start-up message: wide and geometric, as Lamborghini letters its cars
+    "lambo": ("michroma-latin-400-normal.ttf",
+              DIGITS + "ABCDEFGHIJKLMNOPQRSTUVWXYZ.,'!?&-:+ ", 0.0),
 }
 
 

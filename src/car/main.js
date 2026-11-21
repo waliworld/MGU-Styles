@@ -21,6 +21,7 @@ var State = require('../engine/state.js');
 var Theme = require('../theme/index.js');
 var Centre = require('./centre.js');
 var Feed = require('./feed.js');
+var Message = require('./message.js');
 var Panel = require('../geometry/panel.js');
 var core = require('../shaders/core.js');
 var parts = require('../shaders/parts.js');
@@ -110,6 +111,9 @@ function start(host, deps) {
     var feed = deps.feed || Feed.create({ log: log, now: now });
     try { feed.start(); } catch (e) { log.warn('feed: ' + e); }
 
+    /* when the cluster came up at this start, for the start-up message;
+       a settings change rebuilds the layers but keeps it */
+    var onAt = 0;
     var connected = false;
     var running = false;        /* our layers are up */
     var stopped = false;
@@ -139,6 +143,12 @@ function start(host, deps) {
     function configure() {
         try {
             settings = host.settings() || {};
+            /* your own start-up words come from a file (src/car/message.js) */
+            if (settings.intro && settings.introMessage === 'custom') {
+                var words = deps.message !== undefined ? deps.message
+                    : Message.load({ dataDir: host.dataDir, log: log });
+                settings = Object.assign({}, settings, { introText: words || null });
+            }
             profile = Panel.profile(settings.profile || Panel.DEFAULT_PROFILE);
             theme = Theme.build(atlas, profile.id, settings);
             driver = Driver.create({
@@ -225,9 +235,11 @@ function start(host, deps) {
             var want = enabled && connected && !!driver &&
                 (car === 'on' || (car === 'starting' && running));
 
+            if (car === 'off') onAt = 0;
             if (want && !running) {
                 driver.ready();
                 running = true;
+                if (!onAt) onAt = now();
                 log.info('cluster: on');
             } else if (!want && running) {
                 driver.stop();
@@ -242,6 +254,7 @@ function start(host, deps) {
             if (running) {
                 var st = State.present(raw, profile, theme.settings);
                 if (hasCentre) st.centre = centre.state();
+                st.sinceOn = onAt ? (now() - onAt) / 1000 : -1;
                 driver.tick(st);
             }
 

@@ -48,6 +48,15 @@
         accent: null                      /* follow the scheme's accent */
     };
 
+    /* The start-up message's ready-made words (settings: introMessage). */
+    var INTRO_WORDS = {
+        nicole: 'For my beautiful wife, Nicole Wali, I love you',
+        welcome: 'Welcome back',
+        drive: 'Drive safe and come home soon',
+        buongiorno: 'Buongiorno',
+        andiamo: 'Andiamo'
+    };
+
     var DEFAULTS = {
         units: 'imperial',
         accent: 'arancio',
@@ -58,6 +67,16 @@
         clock12: false,
         secondaryGlyph: null,     /* the small glyph beside the gear; off */
         shiftLights: true,
+        /* toro (Lamborghini blades, bursts at the limit) | gt3 | blade | off */
+        shiftStyle: 'toro',
+        /* how hard the whole cluster shakes at the limiter: off | light | medium | hard */
+        shake: 'medium',
+        holiday: false,          /* snow falling down the sides and a tree in a corner */
+        /* a message over the cluster at every start, fading into it */
+        intro: false,
+        introMessage: 'nicole',  /* one of INTRO_WORDS, or custom (a USB text file) */
+        introText: null,         /* the words themselves, when given (custom) */
+        introSeconds: 10,
         showBoost: true,
         showAuxLeft: true,       /* the brief's unreadable far-left region */
         revFlash: 'both',        /* off | band | edges | both */
@@ -169,6 +188,19 @@
         s.flashStyleIndex = ['edges', 'wide', 'full', 'top'].indexOf(s.flashStyle);
         s.flashSpread = s.flashStyle === 'edges' ? 0.25 : s.flashStyle === 'wide' ? 0.72 : 1.0;
         s.flashColourName = SCHEMES[s.flashColour] ? s.flashColour : null;
+        /* the old on/off switch still turns them off */
+        if (['toro', 'gt3', 'blade', 'off'].indexOf(s.shiftStyle) < 0) s.shiftStyle = DEFAULTS.shiftStyle;
+        if (settings.shiftLights === false) s.shiftStyle = 'off';
+        s.shiftLights = s.shiftStyle !== 'off';
+        s.shiftStyleIndex = { gt3: 0, toro: 1, blade: 2 }[s.shiftStyle] || 0;
+        s.shakePx = { off: 0, light: 3, medium: 6, hard: 10 }[s.shake];
+        if (s.shakePx === undefined) { s.shake = DEFAULTS.shake; s.shakePx = 6; }
+        s.holiday = s.holiday === true;
+        s.intro = s.intro === true;
+        s.introSeconds = clampNum(s.introSeconds, 3, 30, DEFAULTS.introSeconds);
+        if (typeof s.introText !== 'string' || !s.introText.trim()) {
+            s.introText = INTRO_WORDS[s.introMessage] || INTRO_WORDS.nicole;
+        }
         s.zoom = clampNum(s.zoom, 0.9, 1.1, DEFAULTS.zoom);
         if (['waze', 'off'].indexOf(s.centre) < 0) s.centre = DEFAULTS.centre;
         /* kept inside the rect where waze-on-cluster draws (416,120 1088x480) */
@@ -254,6 +286,6 @@
 
     return {
         BASE: BASE, SCHEMES: SCHEMES, LIT: LIT, DEFAULTS: DEFAULTS, resolve: resolve,
-        setAccent: setAccent, AMBIENT_FALLBACK: AMBIENT_FALLBACK
+        setAccent: setAccent, AMBIENT_FALLBACK: AMBIENT_FALLBACK, INTRO_WORDS: INTRO_WORDS
     };
 }));

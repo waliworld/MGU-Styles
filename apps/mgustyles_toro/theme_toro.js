@@ -108,7 +108,7 @@
         layers.push({
             /* z 1: the hosted map draws at z 0, under this.
                belowCut: the only layer allowed past the bottom strip. */
-            id: 'bg', z: 1, shader: 'bg', belowCut: true,
+            id: 'bg', z: 1, shader: 'bg', belowCut: true, still: true,
             x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT + S.bottomExtra,
             uniforms: function (s) {
                 var c = s && s.centre;
@@ -270,30 +270,39 @@
             }
         });
 
-        /* --------------------------------------------- GT3 shift lights */
+        /* ------------------------------------------------ shift lights */
+        /* Three kinds (src/shaders/core.js shiftbar). The Lamborghini one
+           is wider, closes in from both ends and fires in bursts at the
+           limit, with the screen flash in step and the cluster shaking. */
+        var toroShift = S.shiftStyle === 'toro';
         if (S.shiftLights) {
+            var SB = toroShift ? { x: 520, y: 2, w: 880, h: 46, leds: 11 }
+                : S.shiftStyle === 'blade' ? { x: 600, y: 8, w: 720, h: 30, leds: 1 }
+                : { x: 640, y: 6, w: 580, h: 34, leds: 15 };
             layers.push({
                 id: 'shift', z: 60, shader: 'shiftbar',
-                x: 640, y: 6, w: 580, h: 34,
+                x: SB.x, y: SB.y, w: SB.w, h: SB.h,
                 uniforms: function (s) {
                     var start = S.rpmRedline - 1800;
                     return {
                         u_frac: clamp01((s.rpm - start) / Math.max(1, S.rpmLimiter - start)),
-                        u_leds: 15,
+                        u_leds: SB.leds, u_style: S.shiftStyleIndex, u_burst: toroShift ? 1 : 0,
                         u_strobe: s.rpm >= S.rpmLimiter - 60 ? 1 : 0,
-                        u_c1: C.green, u_c2: C.amber, u_c3: GC.corsaRed
+                        u_c1: toroShift || S.shiftStyle === 'blade' ? GC.primaryWhite : C.green,
+                        u_c2: toroShift ? [1.0, 0.45, 0.08] : C.amber, u_c3: GC.corsaRed
                     };
                 }
             });
         }
         if (edgeFlash) {
             layers.push({
-                id: 'flash', z: 95, shader: 'flash',
+                id: 'flash', z: 95, shader: 'flash', still: true,
                 x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT,
                 uniforms: function (s) {
                     return { u_on: s.limiter || 0, u_rate: S.flashRate,
                              u_col: S.flashCol, u_strength: S.flashStrength,
-                             u_style: S.flashStyleIndex, u_spread: S.flashSpread };
+                             u_style: S.flashStyleIndex, u_spread: S.flashSpread,
+                             u_burst: toroShift ? 1 : 0 };
                 }
             });
         }
@@ -338,99 +347,122 @@
             function (s) { return s.modeLabel || S.mode; });
 
         /* ---------------------------------------- side instruments */
-        function instrument(id, rect, opts) {
+        /*
+         * The Huracan's side instruments: two slanted horizontal gauges a
+         * side, each a label with its icon, a scale with numbers and ticks,
+         * a hatched bar whose last section is orange-red, and a red needle
+         * at the value (shader 'hgauge'). They lean with the screen's own
+         * angled corners, and the upper one of each pair sits further in so
+         * the pair follows that edge too.
+         *
+         * rect is in guide units; inside it the gauge keeps a fixed grid,
+         * 100 units tall (src/shaders/parts.js hgauge).
+         */
+        var HOT = [1.0, 0.36, 0.10];
+        function instrument(id, rect, o) {
             var r = G.grect(rect);
-            var barTop = r.y + G.gs(68);
-            var barH = r.h - G.gs(68);
-            var barW = G.gs(26);
-            var cx = r.x + r.w / 2;
-
+            var k = r.h / 100;
+            var left = o.side === 'left';
+            var shear = left ? 0.30 : -0.30;
+            var X0 = 16, X1 = r.w / k - 16;
+            /* where a fraction of the scale lands, at a height in the grid */
+            function at(f, y) {
+                var ff = o.dir < 0 ? 1 - f : f;
+                return r.x + k * (X0 + ff * (X1 - X0) + (63 - y) * shear);
+            }
+            var iconS = 26 * k;
+            var iconX = left ? r.x + k * (2 + (63 - 12) * shear) : r.x + r.w - k * 2 - iconS + k * (63 - 12) * shear;
             layers.push({
                 id: 'icon_' + id, z: 20, shader: 'icon',
-                x: cx - G.gs(14), y: r.y, w: G.gs(28), h: G.gs(28),
+                x: iconX, y: r.y - 10 * k, w: iconS, h: iconS,
                 uniforms: function () {
-                    return { u_kind: opts.icon, u_col: GC.secondaryWhite };
+                    return { u_kind: o.icon, u_col: GC.secondaryWhite };
                 }
             });
-            function label(suffix, l1, l2, show) {
-                statics('lbl_' + id + suffix, 20,
-                    { x: r.x - G.gs(30), y: r.y + G.gs(30), w: r.w + G.gs(60), h: G.gs(40) },
-                    { face: 'label', size: G.gs(15) / 0.70, align: 'centre',
-                      color: GC.secondaryWhite, tracking: 0.5, show: show },
-                    [{ str: l1, x: cx, y: r.y + G.gs(46) },
-                     { str: l2, x: cx, y: r.y + G.gs(61) }]);
+            var lblX = left ? iconX + iconS + 8 * k : iconX - 8 * k;
+            var lblBox = { x: r.x - 20 * k, y: r.y - 12 * k, w: r.w + 40 * k, h: 30 * k };
+            function label(suffix, str, show) {
+                statics('lbl_' + id + suffix, 20, lblBox,
+                    { face: 'label', size: 16 * k / 0.70, align: left ? 'left' : 'right',
+                      color: GC.secondaryWhite, tracking: 0.8, show: show },
+                    [{ str: str, x: lblX, y: r.y + 13 * k }]);
             }
-            if (opts.alt) {
-                label('', opts.l1, opts.l2, function (s) { return !s.auxIsOil; });
-                label('_alt', opts.alt[0], opts.alt[1], function (s) { return !!s.auxIsOil; });
+            function numbers(suffix, marks, show) {
+                statics('scale_' + id + suffix, 21,
+                    { x: r.x - 30 * k, y: r.y + 20 * k, w: r.w + 60 * k, h: 26 * k },
+                    { face: 'label', size: 14 * k / 0.70, align: 'centre',
+                      color: GC.secondaryWhite, alpha: 0.9, show: show },
+                    marks.map(function (m, i) {
+                        return { str: m, x: at(i / (marks.length - 1), 34), y: r.y + 41 * k };
+                    }));
+            }
+            if (o.alt) {
+                label('', o.label, function (s) { return !s.auxIsOil; });
+                label('_alt', o.alt.label, function (s) { return !!s.auxIsOil; });
+                numbers('', o.marks, function (s) { return !s.auxIsOil; });
+                numbers('_alt', o.alt.marks, function (s) { return !!s.auxIsOil; });
             } else {
-                label('', opts.l1, opts.l2, null);
+                label('', o.label, null);
+                numbers('', o.marks, null);
             }
 
             layers.push({
-                id: 'bar_' + id, z: 21, shader: 'gauge',
-                x: cx - barW / 2, y: barTop, w: barW, h: barH,
+                id: 'bar_' + id, z: 21, shader: 'hgauge',
+                x: r.x, y: r.y, w: r.w, h: r.h,
                 uniforms: function (s) {
-                    var g = s.pods[opts.key];
+                    var g = s.pods[o.key];
+                    var red = o.alt && s.auxIsOil ? o.alt.red : o.red;
                     return {
-                        u_frac: clamp01(g.frac), u_redFrom: opts.redFrom,
-                        u_invert: opts.invert ? 1 : 0, u_ticks: opts.ticks,
+                        u_frac: clamp01(g.frac), u_dir: o.dir, u_redZone: red,
+                        u_shear: shear, u_on: g.text === '--' ? 0 : 1,
                         u_alarm: g.alarm ? 1 : 0,
-                        u_col: GC.primaryWhite, u_red: GC.corsaRed,
-                        u_frameCol: GC.fineContour
+                        u_col: GC.primaryWhite, u_hot: HOT, u_needle: GC.corsaRed
                     };
                 }
             });
 
-            /* Fixed scale markings down the side of the bar. */
-            var marks = opts.marks.map(function (mk, i) {
-                return { str: mk,
-                         x: cx + barW / 2 + G.gs(16),
-                         y: barTop + barH * (i / (opts.marks.length - 1)) + G.gs(5) };
-            });
-            statics('scale_' + id, 21,
-                { x: cx, y: barTop - G.gs(10), w: r.w / 2 + G.gs(46), h: barH + G.gs(22) },
-                { face: 'label', size: G.gs(14) / 0.70, align: 'left',
-                  color: GC.secondaryWhite, alpha: 0.85 }, marks);
-
-            var valTop = Math.min(barTop + barH + G.gs(2), Panel.BOTTOM_CUT - G.gs(30));
+            /* the reading itself, at the far end of the label row */
+            var valX = left ? r.x + r.w - 4 * k + (63 - 12) * shear * k : r.x + 4 * k + (63 - 12) * shear * k;
             txt('val_' + id, 21,
-                { x: cx - G.gs(42), y: valTop, w: G.gs(84), h: G.gs(30) },
-                { face: 'display', size: G.gs(19) / 0.70, align: 'centre',
-                  x: cx, y: valTop + G.gs(20),
+                { x: left ? valX - 90 * k : valX, y: r.y - 14 * k, w: 90 * k, h: 32 * k },
+                { face: 'display', size: 19 * k / 0.70, align: left ? 'right' : 'left',
+                  x: valX, y: r.y + 14 * k,
                   color: function (s) {
-                      return s.pods[opts.key].alarm ? GC.corsaRed : GC.primaryWhite;
+                      return s.pods[o.key].alarm ? GC.corsaRed : GC.primaryWhite;
                   } },
-                function (s) { return s.pods[opts.key].text; });
+                function (s) { return s.pods[o.key].text; });
         }
 
-        instrument('coolant', B.coolant, {
-            icon: 1, l1: 'TEMP.', l2: 'ACQUA', key: 'coolant',
-            marks: ['130', '90', '50'], ticks: 5, redFrom: 0.78, invert: false
+        /* scale numbers in the units shown: the pods' fractions are fixed in C */
+        function tLabels(cs) {
+            return cs.map(function (c) { return String(Math.round(imperial ? c * 9 / 5 + 32 : c)); });
+        }
+        instrument('fuel', [1572, 422, 1882, 522], {
+            side: 'right', icon: 0, label: 'BENZINA', key: 'fuel', dir: 1,
+            marks: ['0', '50', '100'], red: [0, 0.12]
         });
-        instrument('fuel', B.fuel, {
-            icon: 0, l1: 'LIVELLO', l2: 'BENZINA', key: 'fuel',
-            marks: ['100', '50', '0'], ticks: 5, redFrom: 0.14, invert: true
+        instrument('coolant', [1600, 538, 1910, 638], {
+            side: 'right', icon: 1, label: 'TEMP. ACQUA', key: 'coolant', dir: -1,
+            marks: tLabels([50, 90, 130]), red: [0.81, 1]   /* reads 130 .. 50 left to right */
         });
 
         /* The far-left region the brief cannot resolve: our own readings. */
         if (S.showAuxLeft) {
-            instrument('oilT', [150, 425, 245, 675], {
-                icon: 1, l1: 'TEMP.', l2: 'OLIO', key: 'oilTemp',
-                marks: ['170', '110', '50'], ticks: 5, redFrom: 0.82, invert: false
+            instrument('oilT', [36, 422, 346, 522], {
+                side: 'left', icon: 2, label: 'TEMP. OLIO', key: 'oilTemp', dir: 1,
+                marks: tLabels([50, 110, 170]), red: [0.83, 1]
             });
             /*
-             * The Huracan's second left dial is oil pressure. Nothing on
-             * this car's bus carries it, so the slot shows turbo pressure,
-             * which it does - labelled as what it is rather than left
-             * reading dashes. src/car/vehicle.js keeps setOilPressureBar
-             * for a feed that can supply the real thing.
+             * The Huracan's second left gauge is oil pressure. Nothing on
+             * this car's bus carries it: BeeM-Flash can (docs/BEEM-FLASH-FEED.md),
+             * and until it does the slot shows turbo pressure, labelled as
+             * what it is rather than left reading dashes.
              */
-            instrument('auxPress', [262, 425, 357, 675], {
-                icon: 0, l1: 'PRESS.', l2: 'TURBO', alt: ['PRESS.', 'OLIO'],
-                key: 'auxPress',
-                marks: [imperial ? '25' : '1.7', imperial ? '12' : '0.8', '0'],
-                ticks: 5, redFrom: 0.86, invert: false
+            instrument('auxPress', [8, 538, 318, 638], {
+                side: 'left', icon: 2, label: 'PRESS. TURBO', key: 'auxPress', dir: 1,
+                marks: imperial ? ['0', '12', '25'] : ['0', '0.8', '1.7'], red: [0.86, 1],
+                alt: { label: 'PRESS. OLIO', marks: imperial ? ['0', '70', '140'] : ['0', '5', '10'],
+                       red: [0, 0.08] }
             });
         }
 
@@ -513,9 +545,28 @@
 
         return { id: 'toro', name: 'Toro', layers: layers, profile: P,
                  setAccent: function (rgb) { return Palette.setAccent(S, rgb); },
+                 /* the shake, played by the renderer while the limiter holds */
+                 shakeKeys: S.shakePx > 0 ? shakeKeys(S.shakePx, toroShift) : null,
+                 shake: function (s) { return s.limiter >= 0.98; },
                  hasCentre: true, window: { x: S.hole[0], y: S.hole[1], w: S.hole[2], h: S.hole[3] },
                  settings: S, palette: C, guide: G, imperial: imperial,
                  dial: { centre: DC, rOuter: rOuter, ang: ANG, redV: redV } };
+    }
+
+    /*
+     * The shake's keyframes, "t:x,y,0 ...": a hard jolt that dies away.
+     * With the Lamborghini lights it lands on their bursts (0.36 s of
+     * every 0.9 s) and rests between; otherwise it never stops.
+     */
+    function shakeKeys(a, bursts) {
+        var path = [[0, 0], [-1, 0.4], [0.9, -0.5], [-0.75, 0.3], [0.7, 0.5],
+                    [-0.55, -0.4], [0.45, 0.2], [-0.3, -0.2], [0.15, 0.1], [0, 0]];
+        var step = 40, out = [], i;
+        for (i = 0; i < path.length; i++) {
+            out.push(i * step + ':' + (path[i][0] * a).toFixed(1) + ',' + (path[i][1] * a).toFixed(1) + ',0');
+        }
+        if (bursts) out.push('900:0,0,0');
+        return out.join(' ');
     }
 
     var BOOST_ZERO = 0.22;
@@ -524,5 +575,5 @@
         return clamp01(BOOST_ZERO * (1 - v / min));
     }
 
-    return { build: build, Guide: Guide, vOf: vOf, briefV: briefV };
+    return { build: build, Guide: Guide, vOf: vOf, briefV: briefV, shakeKeys: shakeKeys };
 }));

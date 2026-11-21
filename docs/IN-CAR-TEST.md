@@ -61,6 +61,19 @@ view** (Turn View's own requirement).
 | M9 | A route in BMW Maps or CarPlay, centre *Turn card only* | Arrow, distance and instruction (TURN LEFT, EXIT 2…) as a turn comes up; gone when the route ends |
 | M10 | Drive modes | The lozenge shows BMW's name for the mode |
 
+## New in 0.3
+
+| # | Check | Expect |
+|---|---|---|
+| N1 | Open MGU Styles on iDrive | The page fills the whole screen (needs `mgu-render`; the Store installs it with the app). **If it still shows in a frame, say so** |
+| N2 | Tap ◀ / ▶ beside the sketch, then turn the controller to **Design** and press | Steps Toro genuine → modern → Revuelto → M; the cluster follows within a second |
+| N3 | Toro, side gauges | Two slanted bar gauges each side: TEMP. OLIO / PRESS. OLIO (or PRESS. TURBO) left, BENZINA / TEMP. ACQUA right; the red needle sits at the reading shown beside the label |
+| N4 | Rev to the limiter, parked | Lamborghini shift lights close in from both ends, then fire in bursts with the screen flash; the whole cluster shakes in step and settles when the revs drop. BMW's bottom strip and telltales do not move |
+| N5 | Settings → Shift lights GT3 / single blade, Shake off | Each looks as named; with shake off nothing moves |
+| N6 | Holiday theme on | Snow drifting down both sides, a lit tree right of the dial; the gauges stay readable over it |
+| N7 | Start-up message on, then key off and start again | The words show over black for the chosen time, then fade slowly into the cluster. Changing a setting while driving does not bring them back |
+| N8 | Start at every startup off, key off, start again | BMW's own cluster; **Cluster on / off** brings MGU Styles up for this drive |
+
 ## Report back
 
 For anything wrong, a phone photo of the cluster plus the item number is

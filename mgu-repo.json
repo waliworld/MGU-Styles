@@ -12,7 +12,8 @@
       ],
       "requires": {
         "cluster-render": "0.6.9",
-        "mgu-deploy": "0.8.27"
+        "mgu-deploy": "0.8.27",
+        "mgu-render": "0.6.11"
       },
       "build": {
         "python": "kit/tools/build.py",

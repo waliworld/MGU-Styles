@@ -137,10 +137,42 @@ function create(opts) {
         if (atlasRef) cr.pixels(atlasRef, null, opts.atlasPixels);
     }
 
+    /*
+     * The shake at the limiter. The renderer plays it by itself (an
+     * `animate` translate, looped), so a shaking cluster costs nothing per
+     * frame: one message a layer to start it, one to stop it. Layers marked
+     * `still` (the full-screen background and flash) stay put, or their
+     * edges would show the stock cluster under them.
+     */
+    var shakeAnims = null;      /* layer id -> anim number, while shaking */
+    var calmFrames = 0;
+    var SHAKE_HOLD = 12;        /* frames it keeps going after the limiter lets go */
+    function shake(on) {
+        if (!cr.animate || !theme.shakeKeys) return;
+        if (on) {
+            calmFrames = 0;
+            if (shakeAnims) return;
+            shakeAnims = {};
+            for (var i = 0; i < ordered.length; i++) {
+                var L = ordered[i];
+                if (L.still || !refs[L.id]) continue;
+                var a = cr.animate(refs[L.id], { property: 'translate', keys: theme.shakeKeys, loop: true });
+                if (a) shakeAnims[L.id] = a;
+            }
+            return;
+        }
+        if (!shakeAnims || ++calmFrames < SHAKE_HOLD) return;
+        for (var id in shakeAnims) {
+            if (Object.prototype.hasOwnProperty.call(shakeAnims, id) && refs[id]) cr.stop(refs[id], shakeAnims[id]);
+        }
+        shakeAnims = null;
+    }
+
     /* One frame. Returns how many uniform messages went out. */
     function tick(state) {
         if (!built || stopped) return 0;
         var writes = 0;
+        if (theme.shake) shake(!!theme.shake(state));
         for (var i = 0; i < ordered.length; i++) {
             var L = ordered[i];
             var ref = refs[L.id];
@@ -171,12 +203,14 @@ function create(opts) {
         }
         if (atlasRef) cr.drop(atlasRef);
         refs = {}; sent = {}; visible = {}; atlasRef = 0; built = false;
+        shakeAnims = null; calmFrames = 0;
     }
 
     return {
         ready: ready, tick: tick, stop: stop,
         refs: function () { return refs; },
-        isBuilt: function () { return built; }
+        isBuilt: function () { return built; },
+        isShaking: function () { return !!shakeAnims; }
     };
 }
 

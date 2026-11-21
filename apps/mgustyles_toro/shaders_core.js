@@ -180,42 +180,89 @@
 
     /* ---------------------------------------------------------- shiftbar */
     /*
-     * GT3 shift lights: a strip of LEDs that fills green, then amber, then
-     * red as the engine approaches the limiter, and strobes once there.
+     * The shift lights, three kinds (u_style):
+     *   0 gt3    a strip of LEDs filling green, amber, red, strobing at the limit
+     *   1 toro   Lamborghini: angled blades closing in from both ends on a
+     *            hexagonal core, white to orange to red; at the limit the
+     *            whole bar fires in bursts - three hard flashes, a beat, again
+     *   2 blade  one slim sweep, the Huracan's own top line, red at the end
+     * u_burst picks the limit's pattern: 0 a steady strobe, 1 bursts.
      */
     var shiftbar = [
         'uniform float u_frac;',
         'uniform float u_strobe;',
         'uniform float u_leds;',
+        'uniform float u_style;',
+        'uniform float u_burst;',
         'uniform vec3 u_c1;',
         'uniform vec3 u_c2;',
         'uniform vec3 u_c3;',
         '',
+        /* 1 while the limit's flash is lit */
+        'float fire() {',
+        '  float steady = step(0.5, fract(u_time * 9.0));',
+        '  float t = fract(u_time / 0.9) * 0.9;',
+        '  float burst = step(t, 0.36) * step(fract(t / 0.12), 0.58);',
+        '  return mix(steady, burst, u_burst);',
+        '}',
+        '',
         'void main() {',
         '  vec2 p = px();',
-        '  float n = u_leds;',
-        '  float pitch = u_size.x / n;',
-        '  float i = floor(p.x / pitch);',
-        '  float cx = (i + 0.5) * pitch;',
-        '  vec2 q = p - vec2(cx, u_size.y * 0.5);',
-        '',
-        '  float w = pitch * 0.30;',
-        '  float h = u_size.y * 0.40;',
-        '  q.x -= q.y * 0.18;',
-        '  float d = sdRound(q, vec2(w, h), w * 0.45);',
-        '  float body = cov(d);',
-        '',
-        '  float lit = step((i + 0.5) / n, u_frac);',
-        '  vec3 stage = i < n * 0.4 ? u_c1 : (i < n * 0.73 ? u_c2 : u_c3);',
-        '  float strobe = u_strobe * step(0.5, fract(u_time * 9.0));',
-        '  stage = mix(stage, vec3(1.0), strobe * 0.85);',
-        '  lit = max(lit, u_strobe * strobe);',
-        '',
+        '  float f = fire() * u_strobe;',
         '  vec3 off = vec3(0.070, 0.086, 0.105);',
-        '  vec3 col = mix(off, stage, lit);',
-        '  float glow = exp(-max(d, 0.0) / 7.0) * lit * 0.55;',
+        '  vec3 col; float body; float lit; float d; float glit = -1.0;',
+        '  if (u_style < 0.5) {',
+        '    float n = u_leds;',
+        '    float pitch = u_size.x / n;',
+        '    float i = floor(p.x / pitch);',
+        '    vec2 q = p - vec2((i + 0.5) * pitch, u_size.y * 0.5);',
+        '    float w = pitch * 0.30;',
+        '    q.x -= q.y * 0.18;',
+        '    d = sdRound(q, vec2(w, u_size.y * 0.40), w * 0.45);',
+        '    lit = max(step((i + 0.5) / n, u_frac), f);',
+        '    col = i < n * 0.4 ? u_c1 : (i < n * 0.73 ? u_c2 : u_c3);',
+        '  } else if (u_style < 1.5) {',
+        /* mirrored about the middle: blades step in from each end */
+        '    float hw = u_size.x * 0.5;',
+        '    float x = abs(p.x - hw);',
+        '    float core = u_size.y * 0.55;',
+        '    float n = u_leds;',
+        '    float span = hw - core - 6.0;',
+        '    float pitch = span / n;',
+        '    float yy = p.y - u_size.y * 0.5;',
+        '    float xl = x + yy * 0.55;',                       /* blades lean outward */
+        '    float j = clamp(floor((hw - xl) / pitch), 0.0, n - 1.0);',   /* 0 at the outer end */
+        '    float cx = hw - (j + 0.5) * pitch;',
+        '    vec2 q = vec2(xl - cx, yy);',
+        '    float hgt = u_size.y * mix(0.26, 0.44, j / max(n - 1.0, 1.0));',
+        '    d = sdBox(q, vec2(pitch * 0.32, hgt));',
+        '    float inBlades = step(core + 6.0, x);',
+        '    float hex = sdHex(vec2(p.x - hw, p.y - u_size.y * 0.5).yx, u_size.y * 0.42);',
+        '    float ringd = abs(hex) - 1.6;',
+        '    float frac = (j + 0.5) / n;',
+        '    lit = inBlades > 0.5 ? step(frac, u_frac) : step(0.999, u_frac);',
+        '    lit = max(lit, f);',
+        '    col = frac < 0.55 ? u_c1 : (frac < 0.82 ? u_c2 : u_c3);',
+        '    if (inBlades < 0.5) { d = min(ringd, hex + u_size.y * 0.16); col = u_c3; }',
+        '    col = mix(col, u_c3, u_strobe);',                 /* at the limit it is all red */
+        '  } else {',
+        '    float y = p.y - u_size.y * 0.5;',
+        '    float x = p.x - y * 0.6;',
+        '    d = max(abs(y) - u_size.y * 0.18, max(-x + 4.0, x - u_size.x + 4.0));',
+        '    float t = clamp(p.x / u_size.x, 0.0, 1.0);',
+        '    float end = p.x - u_frac * u_size.x;',
+        '    lit = max(1.0 - smoothstep(-1.0, 1.0, end), f);',
+        '    glit = max(1.0 - smoothstep(0.0, 16.0, end), f);',
+        '    col = mix(u_c1, u_c3, smoothstep(0.62, 0.92, t));',
+        '    col = mix(col, u_c3, u_strobe);',
+        '  }',
+        '  body = cov(d);',
+        '  col = mix(col, vec3(1.0), f * (u_style > 0.5 && u_style < 1.5 ? 0.18 : 0.55));',
+        '  vec3 c = mix(off, col, lit);',
+        '  if (glit < 0.0) glit = lit;',
+        '  float glow = exp(-max(d, 0.0) / mix(7.0, 14.0, f)) * glit * mix(0.55, 0.95, f);',
         '  float alpha = clamp(body + glow, 0.0, 1.0);',
-        '  vec3 outc = col * body + stage * glow;',
+        '  vec3 outc = c * body + col * glow;',
         '  gl_FragColor = vec4(alpha > 0.0 ? outc / alpha : vec3(0.0), alpha);',
         '}'
     ].join('\n');
@@ -238,6 +285,7 @@
         'uniform float u_strength;',
         'uniform float u_style;',
         'uniform float u_spread;',
+        'uniform float u_burst;',   /* 1: in bursts, with the Toro shift lights */
         'void main() {',
         '  vec2 p = px() / u_size;',
         '  float k = mix(5.0, 0.9, clamp(u_spread, 0.0, 1.0));',
@@ -246,7 +294,9 @@
         '  float shape = max(ex, ey);',
         '  if (u_style > 2.5) shape = pow(1.0 - p.y, k * 0.5);',
         '  else if (u_style > 1.5) shape = 0.55 + 0.45 * max(ex, ey);',
-        '  float beat = step(0.5, fract(u_time * u_rate));',
+        '  float t = fract(u_time / 0.9) * 0.9;',
+        '  float beat = mix(step(0.5, fract(u_time * u_rate)),',
+        '                   step(t, 0.36) * step(fract(t / 0.12), 0.58), u_burst);',
         '  float a = u_on * beat * shape * u_strength;',
         '  gl_FragColor = vec4(mix(u_col, vec3(1.0), 0.25), clamp(a, 0.0, 1.0));',
         '}'

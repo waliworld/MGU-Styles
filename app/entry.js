@@ -120,8 +120,83 @@ function mSketch(cv, x, y, w) {
     cv.text('6', x + 1620 * s, y + 388 * s, 80, INK, { literal: true });
 }
 
+/* The Toro backgrounds' own marks behind the dial sketch. */
+function toroBackdrop(cv, bgName, x0, y0, w, h, accent) {
+    if (bgName === 'modern') {
+        /* the side lattice: hexagons down both sides */
+        const r = 22;
+        for (let side = 0; side < 2; side++) {
+            for (let row = 0; row < 7; row++) {
+                for (let col = 0; col < 3; col++) {
+                    const cx = side ? x0 + w - 40 - col * r * 1.75 : x0 + 40 + col * r * 1.75;
+                    const cy = y0 + 40 + row * r * 1.55 + (col % 2) * r * 0.78;
+                    if (cy > y0 + h - 20) continue;
+                    for (let k = 0; k < 6; k++) {
+                        const a0 = Math.PI / 3 * k + Math.PI / 6, a1 = a0 + Math.PI / 3;
+                        cv.line(cx + r * 0.9 * Math.cos(a0), cy + r * 0.9 * Math.sin(a0),
+                                cx + r * 0.9 * Math.cos(a1), cy + r * 0.9 * Math.sin(a1), 1, '#3a4654');
+                    }
+                    cv.circle(cx + r * 0.9 * Math.cos(Math.PI / 6), cy + r * 0.9 * Math.sin(Math.PI / 6), 2.5, accent);
+                }
+            }
+        }
+    } else if (bgName === 'revuelto') {
+        /* the Revuelto's Y lights, sweeping in from both sides */
+        for (let side = 0; side < 2; side++) {
+            const sx = side ? -1 : 1, bx = side ? x0 + w - 30 : x0 + 30, my = y0 + h * 0.5;
+            cv.line(bx, my, bx + sx * 120, my - 90, 3, accent);
+            cv.line(bx, my, bx + sx * 120, my + 90, 3, accent);
+            cv.line(bx + sx * 120, my - 90, bx + sx * 220, my - 100, 2, accent);
+            cv.line(bx + sx * 120, my + 90, bx + sx * 220, my + 100, 2, accent);
+        }
+    } else {
+        /* genuine: the Huracan's fine stipple */
+        for (let i = 0; i < 140; i++) {
+            const px = x0 + 20 + ((i * 97) % (w - 40)), py = y0 + 20 + ((i * 53) % (h - 40));
+            cv.circle(px, py, 1, '#1d2731');
+        }
+    }
+}
+
+/*
+ * The designs the arrows step through, in order. Each is a style and, for
+ * Toro, its background; the colours and everything else stay as set.
+ */
+const DESIGNS = [
+    { name: 'Toro', sub: 'Lamborghini Huracan, genuine', style: 'toro', background: 'genuine' },
+    { name: 'Toro', sub: 'Lamborghini, modern hex lattice', style: 'toro', background: 'modern' },
+    { name: 'Toro', sub: 'Lamborghini Revuelto', style: 'toro', background: 'revuelto' },
+    { name: 'M', sub: 'BMW M, iDrive 8 style', style: 'track' }
+];
+function designIndex(style, background) {
+    if (style === 'track') return 3;
+    const i = DESIGNS.findIndex((d) => d.style === 'toro' && d.background === background);
+    return i < 0 ? 0 : i;
+}
+
+/* Where the arrows are drawn and tapped (the page's 1600 x 520). */
+const ARROWS = { y: 262, left: 724, right: 1534, r: 30, hit: 78 };
+
+function arrow(cv, cx, cy, r, dir, col) {
+    cv.circle(cx, cy, r, '#1a2633');
+    const t = r * 0.42;
+    cv.line(cx - dir * t * 0.5, cy - t, cx + dir * t * 0.7, cy, 4, col);
+    cv.line(cx + dir * t * 0.7, cy, cx - dir * t * 0.5, cy + t, 4, col);
+}
+
 mgu.run({
     background(bg) {
+        /*
+         * "Start at every startup" off: each start of the head unit begins
+         * with BMW's own cluster, and Show on cluster brings ours up for
+         * that drive only.
+         */
+        try {
+            if (bg.settings.get('autoStart') === false && bg.settings.get('enabled') === true) {
+                bg.settings.set('enabled', false);
+                bg.log.info('start at every startup is off: BMW original until turned on');
+            }
+        } catch (e) { bg.log.warn('autoStart: ' + e); }
         try {
             const svc = Service.start(hostFor(bg), { appId: bg.spec.id });
             bg.log.info('cluster service started');
@@ -157,16 +232,26 @@ mgu.run({
 
             const cv = ctx.canvas(1600, 520);
             const label = (s, x, y, size, c) => cv.text(s, x, y, size, c || INK, { literal: true });
+            const fitLabel = (s, x, y, size, maxW, c) => {
+                const w = cv.textWidth(String(s), size, { literal: true });
+                label(String(s), x, y, w > maxW ? size * maxW / w : size, c);
+            };
             cv.fillRect(0, 0, 1600, 520, '#070b11');
+            const auto = settings.get('autoStart') !== false;
+            const di = designIndex(settings.get('style'), settings.get('background'));
+            const D = DESIGNS[di];
 
+            /*
+             * Full screen (mgu-render) shows x 12-1588, y 38-520 of this page
+             * scaled up to the whole display; everything sits inside that.
+             */
             /* left: what it is, and what it is doing */
-            cv.roundRect(18, 18, 640, 484, 16, CARD);
-            label(track ? 'M' : 'TORO', 46, 82, 48, INK);
-            label(track ? 'iDrive 8 M-style cluster' : 'Lamborghini Huracan-style cluster', 46, 116, 20, DIM);
-            cv.roundRect(46, 146, 584, 64, 10, FIELD);
-            cv.circle(76, 178, 9, statusColour(status));
-            const sw = cv.textWidth(status, 24, { literal: true });
-            label(status, 98, 187, sw > 510 ? 24 * 510 / sw : 24, INK);
+            cv.roundRect(16, 44, 640, 470, 16, CARD);
+            label(track ? 'M' : 'TORO', 44, 104, 48, INK);
+            fitLabel(D.sub, 44, 138, 20, 580, DIM);
+            cv.roundRect(44, 158, 584, 62, 10, FIELD);
+            cv.circle(74, 189, 9, statusColour(status));
+            fitLabel(status, 96, 198, 24, 510, INK);
 
             const rows = track ? [
                 ['Centre', choice('centre')],
@@ -174,33 +259,42 @@ mgu.run({
                 ['Turn View', centre ? centre.turnView : '-'],
                 ['Redline / limiter', choice('rpmRedline') + '  /  ' + choice('rpmLimiter')]
             ] : [
-                ['Dial', choice('scaleMaxRpm')],
-                ['Redline / limiter', choice('rpmRedline') + '  /  ' + choice('rpmLimiter')],
-                ['Look', choice('background') + ', ' + choice('accent')],
+                ['Colour', choice('accent')],
+                ['Shift lights', choice('shiftStyle') + (settings.get('shake') !== 'off' ? ', shake' : '')],
+                ['Extras', [settings.get('holiday') ? 'Holiday' : '', settings.get('intro') ? 'Start-up message' : '']
+                    .filter(Boolean).join(', ') || 'None'],
                 ['Readings', feed || 'BeeM-Flash: not running']
             ];
             rows.forEach((r, i) => {
-                const y = 254 + i * 46;
-                label(r[0], 46, y, 18, FAINT);
-                const vw = cv.textWidth(String(r[1]), 20, { literal: true });
-                label(String(r[1]), 250, y, vw > 380 ? 20 * 380 / vw : 20, INK);
+                const y = 262 + i * 44;
+                label(r[0], 44, y, 18, FAINT);
+                fitLabel(r[1], 230, y, 20, 400, INK);
             });
-            label(on ? 'Shown whenever the car is on. BMW original turns it off.'
-                     : 'Off. Show on cluster turns it on; it stays on at every start.',
-                  46, 456, 17, DIM);
-            label("Warnings and the bottom strip always stay BMW's.", 46, 482, 17, FAINT);
+            label(!on ? 'Off. Show on cluster turns it on.'
+                : auto ? 'On at every start. BMW original turns it off.'
+                       : 'On for this drive; BMW\'s own at the next start.',
+                  44, 460, 17, DIM);
+            label("Warnings and the bottom strip always stay BMW's.", 44, 488, 17, FAINT);
 
-            /* right: a sketch of the dial in the chosen accent */
-            cv.roundRect(676, 18, 906, 484, 16, CARD);
-            cv.roundRect(698, 40, 862, 440, 12, FIELD);
+            /* right: the design, with arrows to step through them */
+            cv.roundRect(672, 44, 912, 470, 16, CARD);
+            cv.roundRect(774, 66, 708, 392, 12, FIELD);
             const accent = { arancio: '#ff6a1a', giallo: '#ffd117', rosso: '#ff2e1c', verde: '#2ee07a',
-                             blu: '#3394ff', viola: '#b073ff', bianco: '#ebf2fb' }[settings.get('accent')] || '#ff6a1a';
-            if (track) mSketch(cv, 710, 90, 838);
+                             blu: '#3394ff', viola: '#b073ff', bianco: '#ebf2fb', magenta: '#ff2bd6' }[settings.get('accent')] || '#ff6a1a';
+            if (track) mSketch(cv, 786, 112, 684);
             else {
-                dialSketch(cv, 1129, 470, 380, accent);
-                label('P', 1100, 380, 120, RED);
+                toroBackdrop(cv, D.background, 774, 66, 708, 392, accent);
+                dialSketch(cv, 1128, 436, 300, accent);
+                label('4', 1104, 380, 96, RED);
             }
-            label('Settings: style, centre, revs, colours, units', 722, 466, 17, FAINT);
+            arrow(cv, ARROWS.left, ARROWS.y, ARROWS.r, -1, INK);
+            arrow(cv, ARROWS.right, ARROWS.y, ARROWS.r, 1, INK);
+            /* which design, and where it is in the list */
+            const name = D.name + '  ' + (di + 1) + ' / ' + DESIGNS.length;
+            const nw = cv.textWidth(name, 22, { literal: true });
+            label(name, 1128 - nw / 2, 503, 22, INK);
+            DESIGNS.forEach((d, i) => cv.circle(1128 - (DESIGNS.length - 1) * 11 + i * 22, 473, 4.5,
+                i === di ? accent : '#2a3846'));
 
             return ui.image('MAIN_GFX', cv);
         }
@@ -209,8 +303,23 @@ mgu.run({
         settings.onChange(refresh);
         ctx.onLayout(refresh);
         ui.onVisible((name) => { if (name === 'MAIN') refresh(); });
-        ui.onClick('BTN_SHOW', () => { settings.set('enabled', true); refresh(); });
-        ui.onClick('BTN_HIDE', () => { settings.set('enabled', false); refresh(); });
+        function step(dir) {
+            const i = designIndex(settings.get('style'), settings.get('background'));
+            const d = DESIGNS[(i + dir + DESIGNS.length) % DESIGNS.length];
+            settings.set('style', d.style);
+            if (d.background) settings.set('background', d.background);
+            refresh();
+        }
+        ui.onClick('BTN_SHOW', () => { settings.set('enabled', settings.get('enabled') !== true); refresh(); });
+        ui.onClick('BTN_DESIGN', () => step(1));
+        /* the arrows by the sketch, where the kit runs the screen (touch) */
+        if (ctx.onTap) {
+            ctx.onTap((x, y) => {
+                if (Math.abs(y - ARROWS.y) > ARROWS.hit) return;
+                if (Math.abs(x - ARROWS.left) <= ARROWS.hit) step(-1);
+                else if (Math.abs(x - ARROWS.right) <= ARROWS.hit) step(1);
+            });
+        }
         /* Waze lives in the Track style's centre: turning it on picks Track */
         ui.onClick('BTN_WAZE', () => {
             const on = settings.get('style') === 'track' && settings.get('centre') === 'waze';
