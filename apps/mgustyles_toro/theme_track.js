@@ -116,7 +116,7 @@
                     u_open: c.mode === 'map' || c.mode === 'camera' ? c.open : 0,
                     u_outside: K.outside, u_recess: K.recess, u_matte: K.matte, u_rule: K.rule,
                     u_blue: K.blue, u_red: K.red, u_blueHi: K.blueHi, u_redHi: K.redHi,
-                    u_lozenge: s.modeLabel ? 1 : 0
+                    u_lozenge: s.modeLabel ? 1 : 0, u_badge: 1
                 };
             }
         });
@@ -223,6 +223,15 @@
                         { str: '210', x: X(1636), y: Y(500) }, { str: '120', x: X(1636), y: Y(570) }]
                      : [{ str: '150', x: X(1636), y: Y(424) }, { str: '°C', x: X(1636), y: Y(462) },
                         { str: '100', x: X(1636), y: Y(500) }, { str: '50', x: X(1636), y: Y(570) }]);
+
+        /* the M mark beside the badge stripes, and the readiness word */
+        statics('badgeM', 30, box(150, 586, 230, 626),
+            { face: 'mnum', size: D(26 / CAP), align: 'left', baseline: 'middle', color: K.digits },
+            [{ str: 'M', x: X(162), y: Y(606) }]);
+        txt('ready', 30, box(1520, 586, 1660, 626),
+            { face: 'label', size: D(20 / CAP), align: 'right', x: X(1652), y: Y(614),
+              color: K.secondary },
+            function (s) { return (s.rpm || 0) > 0 ? 'READY' : null; });
 
         /* --------------------------------------------- lower status rail */
         var FOOT = 668;

@@ -211,6 +211,10 @@
         'uniform vec3 u_blueHi;',
         'uniform vec3 u_redHi;',
         'uniform float u_lozenge;',          /* 1: a drive mode to show */
+        'uniform float u_badge;',            /* 1: draw the stripe badge */
+        'float slab(float x, float a, float b) {',
+        '  return smoothstep(a - 7.0, a + 7.0, x) * (1.0 - smoothstep(b - 7.0, b + 7.0, x));',
+        '}',
         'float sdCham(vec2 q, vec2 lo, vec2 hi, float ch) {',
         '  vec2 h = (hi - lo) * 0.5;',
         '  vec2 a = abs(q - (lo + hi) * 0.5);',
@@ -229,7 +233,23 @@
         /* the centre */
         '  float dc = sdCham(q, vec2(' + f(C.x0) + ', ' + f(C.y0) + '), vec2(' + f(C.x1) + ', ' + f(C.y1) + '), ' + f(C.chamfer) + ');',
         '  float inC = covW(dc, aw);',
-        '  col = over(col, u_matte, inC);',
+        /* The centre at rest: angular planes slanting across it, bright at
+           the top and falling away below, as the car draws them. They go
+           with the matte, so the map replaces them as the window opens. */
+        '  float u = (q.x - 960.0) + (q.y - 347.0) * 0.42;',
+        '  float v = clamp((q.y - 108.0) / 478.0, 0.0, 1.0);',
+        '  float fade = (1.0 - 0.58 * v) * (1.0 - 0.40 * smoothstep(240.0, 640.0, u));',
+        '  vec3 mat = u_matte;',
+        '  mat = mix(mat, u_blue * 0.60, 0.95 * slab(u, -560.0, -150.0) * fade);',
+        '  mat = mix(mat, u_blue * 0.46, 0.95 * slab(u, -150.0, 210.0) * fade);',
+        '  mat = mix(mat, u_blue * 0.30, 0.95 * slab(u, 210.0, 620.0) * fade);',
+        /* the crisp edges between the planes */
+        '  mat += u_blue * 0.16 * fade * (covW(abs(u + 150.0) - 1.8, aw) + covW(abs(u - 210.0) - 1.8, aw));',
+        /* a shallower second set, crossing the first */
+        '  float w2 = (q.x - 960.0) - (q.y - 347.0) * 1.35;',
+        '  mat = mix(mat, u_blue * 0.52, 0.42 * slab(w2, -320.0, 170.0) * fade);',
+        '  mat = mix(mat, u_red * 0.30, 0.30 * slab(w2, 170.0, 260.0) * fade);',
+        '  col = over(col, mat, inC);',
         '',
         /* restrained top and bottom accents, fading towards the middle */
         '  float topL = covW(abs(q.y - 153.0) - 1.0, aw) * step(336.0, q.x) * (1.0 - smoothstep(336.0, 760.0, q.x));',
@@ -250,6 +270,14 @@
         '  float lzIn = covW(lzd, aw) * u_lozenge;',
         '  col = over(col, mix(u_blue * 0.30, u_blue * 0.55, smoothstep(19.0, -19.0, lz.y)), lzIn);',
         '  col = over(col, u_blueHi, covW(abs(lzd) - 0.8, aw) * u_lozenge * 0.9);',
+        '',
+        /* the badge: three slanted stripes, the M letter sits beside them */
+        '  vec2 bq = q - vec2(150.0, 606.0);',
+        '  float bu = bq.x + bq.y * 0.42;',
+        '  float inB = covW(abs(bq.y) - 9.0, aw) * u_badge;',
+        '  col = over(col, u_blueHi * 0.85, inB * slab(bu, -40.0, -26.0));',
+        '  col = over(col, u_blue * 0.75, inB * slab(bu, -24.0, -10.0));',
+        '  col = over(col, u_red, inB * slab(bu, -8.0, 6.0));',
         '',
         '  float reveal = smoothstep(0.0, ' + f(C.feather) + ', -dc);',
         '  float alpha = 1.0 - u_open * reveal;',

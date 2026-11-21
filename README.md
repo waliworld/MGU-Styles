@@ -125,8 +125,10 @@ facets) or switches to:
 Built to the **M iDrive 8 cluster guide**
 ([docs/M-IDRIVE8-BRIEF.md](docs/M-IDRIVE8-BRIEF.md)) and its photographs:
 the guide's rail paths, colours and anchors, fitted onto the iDrive 7
-panel. Unbranded, with original figures (Saira Semi Condensed, SIL OFL) and an
-original fuel pump and oil can drawn in the shader.
+panel. It is drawn to look like the factory M cluster, badge and all; the figures
+are Saira Semi Condensed (SIL OFL) and the fuel pump and oil can are drawn
+in the shader. **Unofficial, and nothing to do with BMW AG** — see the
+notice at the top.
 In settings and the code it is the style `track`.
 
 ![M, driving](docs/img/track.png)
@@ -152,14 +154,15 @@ outside the rail, and the numeral at the marker turns white.
 - **Centre:** one chamfered window, feathered over 40 design units exactly
   as the guide's checkpoint table says (`test/track.test.js`); it opens
   over 180 ms and closes over 110 ms, and nothing outside it ever moves or
-  fades. At rest it is a quiet matte.
+  fades. At rest it shows the angular navy planes the car draws there; the
+  map or camera replaces them as the window opens.
 
 | Centre shows | What you see |
 |---|---|
 | **Waze map** | the phone's map from *Maps on cluster* — and the turn card when no map is up |
 | **Turn View camera** | the front camera from IterioDev's *Turn View* |
 | **Turn card only** | our own arrow, distance and instruction for the next turn |
-| **Nothing** | the quiet matte |
+| **Nothing** | the angular centre graphic alone |
 
 ![M with the Waze map in the centre (a stand-in map in the preview)](docs/img/track-waze.png)
 
