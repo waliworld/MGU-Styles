@@ -12,7 +12,8 @@ const Track = require('../src/theme/track.js');
 const State = require('../src/engine/state.js');
 const Sim = require('../preview/sim.js');
 const atlas = require('../assets/fonts/atlas.json');
-const trackShaders = require('../src/shaders/track.js');
+const trackShaders = require('../src/shaders/mcluster.js');
+const M = require('../src/theme/mgeom.js');
 
 const build = (cfg) => Themes.build(atlas, (cfg && cfg.profile) || 'x3m40i', Object.assign({ style: 'track' }, cfg));
 const TURNS = [
@@ -45,8 +46,8 @@ test('the feather matches the brief\'s checkpoints (section 3)', () => {
     assert.strictEqual(Track.revealAt(441, 109), 0);
     assert.ok(Track.revealAt(470, 140) < Track.revealAt(480, 347));
     /* and the shader computes the same thing */
-    assert.match(trackShaders.tframe, /smoothstep\(0\.0, 40\.0, -dc\)/);
-    assert.match(trackShaders.tframe, /vec2\(440\.0, 108\.0\), vec2\(1480\.0, 586\.0\), vec4\(24\.0\)/);
+    assert.match(trackShaders.mframe, /smoothstep\(0\.0, 40\.0, -dc\)/);
+    assert.match(trackShaders.mframe, /vec2\(440\.0, 108\.0\), vec2\(1480\.0, 586\.0\), 24\.0\)/);
 });
 
 test('the window lies inside BMW\'s map window, where Waze and the camera land', () => {
@@ -138,29 +139,30 @@ test('every Track layer gives finite uniforms and keeps its glyphs inside, in ev
     assert.deepStrictEqual([...bad].sort(), []);
 });
 
-test('speed digits keep clear of the bar and its scale at 330', () => {
+test('speed digits keep clear of the rail at 330', () => {
     const t = build({ units: 'metric' });
     const L = t.layers.find((x) => x.id === 'speed');
     const st = Object.assign(State.present({}, Panel.profile('x3m40i'), t.settings), { speed: 330 });
     const u = L.uniforms(st);
     const left = L.x + u.u_quad[0];
-    /* the scale's widest label, "240", ends near x 186 */
-    assert.ok(left > Track.X(190), `330 starts at ${Math.round(left)}, over the speed scale`);
+    /* clear of the left rail's inner hairline at the figures' height */
+    assert.ok(left > Track.X(130), `330 starts at ${Math.round(left)}, over the rail`);
     /* right-aligned on the brief's anchor whatever the number */
     const right = (n) => { const v = L.uniforms(Object.assign({}, st, { speed: n })); const c = v.u_count - 1; return L.x + v.u_quad[c * 4] + v.u_quad[c * 4 + 2]; };
     assert.ok(Math.abs(right(0) - right(330)) < Track.D(16), 'one anchor for 0 and 330');
 });
 
-test('the centre shows the right thing in each mode', () => {
+test('the centre shows the right thing in each mode, and nothing of ours over a picture', () => {
     const t = build();
     const st = State.present({ boostBar: 1 }, Panel.profile('x3m40i'), t.settings);
     const on = (id, centre) => t.layers.find((L) => L.id === id).uniforms(Object.assign({}, st, { centre })) !== null;
-    assert.ok(on('brand', CENTRES[0]) && on('boost', CENTRES[0]), 'neutral: logo and boost');
-    assert.ok(!on('brand', CENTRES[1]) && !on('boost', CENTRES[1]), 'map: nothing of ours over it');
-    assert.ok(!on('turnArrow', CENTRES[1]) && !on('turnArrow', CENTRES[0]));
-    assert.ok(on('turnArrow', CENTRES[3]) && on('turnDist', CENTRES[3]) && on('turnSay', CENTRES[3]));
-    assert.ok(!on('boost', CENTRES[3]), 'turn: the card alone');
-    assert.ok(!build({ showBoost: false }).layers.some((L) => L.id === 'boost'));
+    for (const id of ['turnArrow', 'turnDist', 'turnSay']) {
+        assert.ok(!on(id, CENTRES[0]), id + ': neutral is the quiet matte');
+        assert.ok(!on(id, CENTRES[1]), id + ': nothing over the map');
+        assert.ok(on(id, CENTRES[3]), id + ': the turn card');
+    }
+    /* unbranded (guide): no logo layer anywhere */
+    assert.ok(!t.layers.some((L) => /brand|logo/i.test(L.id)));
 });
 
 test('maneuvers read as the right arrow and words', () => {
@@ -183,12 +185,35 @@ test('drive modes read as BMW names them, and nothing when unknown', () => {
     assert.ok(sp && !/CORSA/.test(sp), sp);
 });
 
-test('the rev strip turns red at the redline and flashes only when asked', () => {
+test('the rails light from the bottom along the guide\'s paths, with one value mapping', () => {
+    const t = build();
+    const st = (o) => Object.assign(State.present({}, Panel.profile('x3m40i'), t.settings), o);
+    const L = t.layers.find((x) => x.id === 'speedGauge'), R = t.layers.find((x) => x.id === 'revGauge');
+    assert.strictEqual(L.uniforms(st({ speed: 0 })).u_val, 0);
+    assert.strictEqual(L.uniforms(st({ speed: 80 })).u_val, 0.5, '80 mph is the fifth of nine labels');
+    assert.strictEqual(L.uniforms(st({ speed: 200 })).u_val, 1);
+    assert.strictEqual(L.uniforms(st({ speed: 400 })).u_val, 1, 'clamped, never wraps');
+    assert.ok(Math.abs(L.uniforms(st({ speed: 140 })).u_val - 6.5 / 8) < 1e-9, 'between 120 and 160');
+    assert.strictEqual(R.uniforms(st({ rpm: 4000 })).u_val, 0.5);
+    /* the red fringe starts at the redline */
+    assert.strictEqual(R.uniforms(st({ rpm: 0 })).u_bar[2], 6750 / 8000);
+    /* the numeral that brightens is the one at the marker */
+    const on = t.layers.find((x) => x.id === 'speedScaleOn');
+    assert.ok(on.uniforms(st({ speed: 76 })).u_count === 2, '"80" lit at 76 mph, as in the photograph');
+    /* labels sit outside the rail, on the side away from the centre */
+    for (let k = 0; k <= 8; k++) {
+        const p = M.pointAt('left', M.arcOf('left', k / 8));
+        assert.ok(p.nx < 0.01, 'left labels go left of the rail');
+        const q = M.pointAt('right', M.arcOf('right', k / 8));
+        assert.ok(q.nx > -0.01, 'right labels go right of the rail');
+    }
+});
+
+test('the limiter flashes the rev rail and the edges only when asked', () => {
     const st = (rpm, lim) => Object.assign(State.present({}, Panel.profile('x3m40i'), {}), { rpm, limiter: lim });
-    const f = build().layers.find((L) => L.id === 'frame');
-    assert.strictEqual(f.uniforms(st(0, 0)).u_rpm[1], Math.floor(6750 / 8000 * 12));
-    assert.strictEqual(f.uniforms(st(7000, 1)).u_rpm[2], 1);
+    const R = build().layers.find((L) => L.id === 'revGauge');
+    assert.strictEqual(R.uniforms(st(7000, 1)).u_bar[3], 1);
     const off = build({ revFlash: 'off' });
-    assert.strictEqual(off.layers.find((L) => L.id === 'frame').uniforms(st(7000, 1)).u_rpm[2], 0);
+    assert.strictEqual(off.layers.find((L) => L.id === 'revGauge').uniforms(st(7000, 1)).u_bar[3], 0);
     assert.ok(!off.layers.some((L) => L.id === 'flash'));
 });

@@ -32,7 +32,8 @@
 <script src="../src/shaders/core.js"></script>
 <script src="../src/shaders/dial.js"></script>
 <script src="../src/shaders/parts.js"></script>
-<script src="../src/shaders/track.js"></script>
+<script src="../src/theme/mgeom.js"></script>
+<script src="../src/shaders/mcluster.js"></script>
 <script src="./fixtures.js"></script>
 <script src="../src/engine/text.js"></script>
 <script src="../src/engine/state.js"></script>
@@ -55,7 +56,7 @@
   if (params.get('strip') === 'off') document.getElementById('strip').className = 'off';
 
   var shaders = {};
-  [MGUShadersCore, MGUShadersParts, MGUShadersDial, MGUShadersTrack, MGUShadersFixture].forEach(function (set) {
+  [MGUShadersCore, MGUShadersParts, MGUShadersDial, MGUShadersM, MGUShadersFixture].forEach(function (set) {
     for (var k in set) if (set.hasOwnProperty(k)) shaders[k] = set[k];
   });
 
@@ -113,6 +114,7 @@
     function draw(time) {
       var st = MGUState.present(sim.raw(), profile, theme.settings);
       if (centre) st.centre = centre;
+      if (params.get('drive')) st.modeLabel = params.get('drive');
       engine.render(theme, st, time, 720, MGUPanel.BOTTOM_CUT);
       window.__state = st;
     }

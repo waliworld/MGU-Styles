@@ -14,6 +14,7 @@
  */
 const mgu = require('./kit/mgu');
 const Service = require('./service.js');
+const MGeom = require('./mgeom.js');
 
 const FAST = ['de.bmw.infotainment.vehicle.CDS', 'de.bmw.infotainment.vehicle.Vehicle2'];
 
@@ -86,19 +87,21 @@ function dialSketch(cv, cx, cy, r, accent) {
     cv.line(n[0], n[1], m[0], m[1], 2.5, accent);
 }
 
-/* A small drawing of the Track layout: two towers and the centre window. */
-function trackSketch(cv, x, y, w, h) {
+/* A small drawing of the M layout: the two chevron rails, lit part way. */
+function mSketch(cv, x, y, w) {
     const s = w / 1920;
-    const X = (v) => x + v * s, Y = (v) => y + v * s;
-    cv.roundRect(X(72), Y(116), 344 * s, 472 * s, 10, '#0a131f');
-    cv.roundRect(X(1504), Y(116), 344 * s, 472 * s, 10, '#0a131f');
-    cv.roundRect(X(440), Y(108), 1040 * s, 478 * s, 12, '#0c1722');
-    cv.line(X(104), Y(140), X(104), Y(303), 3, '#3eaeeb');
-    cv.line(X(118), Y(317), X(118), Y(518), 3, '#3eaeeb');
-    cv.line(X(163), Y(563), X(386), Y(563), 3, '#3eaeeb');
-    for (let i = 0; i < 12; i++) cv.fillRect(X(1524 + i * 25.5), Y(176), 21 * s, 20 * s, i < 8 ? '#f25a43' : '#32495d');
-    cv.text('88', X(200), Y(392), 92, INK, { literal: true });
-    cv.text('4', X(1650), Y(451), 92, INK, { literal: true });
+    const P = (p) => [x + p[0] * s, y + p[1] * s];
+    const rail = (pts, col, dim, upto) => {
+        for (let i = 1; i < pts.length; i++) {
+            const a = P(pts[i - 1]), b = P(pts[i]);
+            cv.line(a[0], a[1], b[0], b[1], 6, i <= upto ? col : dim);
+        }
+    };
+    cv.roundRect(x + 440 * s, y + 108 * s, 1040 * s, 478 * s, 8, '#0a1320');
+    rail(MGeom.RAILS.left.rail, '#56c8ff', '#1c4f94', 3);
+    rail(MGeom.RAILS.right.rail, '#ff586c', '#6e1622', 4);
+    cv.text('76', x + 205 * s, y + 378 * s, 80, INK, { literal: true });
+    cv.text('6', x + 1620 * s, y + 388 * s, 80, INK, { literal: true });
 }
 
 mgu.run({
@@ -141,7 +144,7 @@ mgu.run({
 
             /* left: what it is, and what it is doing */
             cv.roundRect(18, 18, 640, 484, 16, CARD);
-            label(track ? 'TRACK' : 'TORO', 46, 82, 48, INK);
+            label(track ? 'M' : 'TORO', 46, 82, 48, INK);
             label(track ? 'iDrive 8 M-style cluster' : 'Lamborghini Huracan-style cluster', 46, 116, 20, DIM);
             cv.roundRect(46, 146, 584, 64, 10, FIELD);
             cv.circle(76, 178, 9, statusColour(status));
@@ -175,7 +178,7 @@ mgu.run({
             cv.roundRect(698, 40, 862, 440, 12, FIELD);
             const accent = { arancio: '#ff6a1a', giallo: '#ffd117', rosso: '#ff2e1c', verde: '#2ee07a',
                              blu: '#3394ff', viola: '#b073ff', bianco: '#ebf2fb' }[settings.get('accent')] || '#ff6a1a';
-            if (track) trackSketch(cv, 710, 110, 838, 314);
+            if (track) mSketch(cv, 710, 90, 838);
             else {
                 dialSketch(cv, 1129, 470, 380, accent);
                 label('P', 1100, 380, 120, RED);

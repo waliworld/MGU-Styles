@@ -25,7 +25,7 @@ var Panel = require('./panel.js');
 var core = require('./shaders_core.js');
 var parts = require('./shaders_parts.js');
 var dialShaders = require('./shaders_dial.js');
-var trackShaders = require('./shaders_track.js');
+var mShaders = require('./shaders_m.js');
 
 var FRAME_MS = 33;            /* 30 Hz: past what the eye reads off a gauge */
 var IDLE_MS = 250;            /* while nothing is drawn */
@@ -33,7 +33,7 @@ var SETTLE_MS = 400;          /* settings changes, while someone scrolls through
 
 function shaders() {
     var out = {}, k, i;
-    var sets = [core, parts, dialShaders, trackShaders];
+    var sets = [core, parts, dialShaders, mShaders];
     for (i = 0; i < sets.length; i++) {
         for (k in sets[i]) {
             if (Object.prototype.hasOwnProperty.call(sets[i], k)) out[k] = sets[i][k];

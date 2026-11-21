@@ -4,7 +4,7 @@
   "vendor": "MGU-Styles",
   "version": "0.2.0",
   "loggingId": "TORO",
-  "description": "Custom instrument clusters drawn over the whole iDrive 7 cluster: Toro, after the Lamborghini Huracan, and Track, after BMW's iDrive 8 M cluster, with the Waze map or Turn View's camera in its centre. Off until you turn it on; BMW's warnings and bottom strip always stay BMW's.",
+  "description": "Custom instrument clusters drawn over the whole iDrive 7 cluster: Toro, after the Lamborghini Huracan, and M, after BMW M's iDrive 8 cluster, with the Waze map or Turn View's camera in its centre. Everything is set up here; off until you turn it on; BMW's warnings and bottom strip always stay BMW's.",
   "autostart": true,
   "startType": "autostart",
   "iconGlyph": "gauge",
@@ -60,13 +60,13 @@
         ],
         [
           "track",
-          "Track (iDrive 8 M style)"
+          "M (iDrive 8 style)"
         ]
       ]
     },
     {
       "key": "centre",
-      "label": "Track: centre shows",
+      "label": "M: centre shows",
       "type": "choice",
       "default": "waze",
       "options": [
@@ -84,13 +84,13 @@
         ],
         [
           "off",
-          "Boost and logo only"
+          "Nothing (quiet centre)"
         ]
       ]
     },
     {
       "key": "trackPalette",
-      "label": "Track: colours",
+      "label": "M: colours",
       "type": "choice",
       "default": "night",
       "options": [

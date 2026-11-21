@@ -1,74 +1,75 @@
-# TBW Track Display — coding AI brief for a BMW M iDrive 8–inspired cluster
+# BMW M iDrive 8–inspired cluster design guide
 
-Build a high-resolution TBW Performance instrument cluster with a fixed instrument frame and a center that reveals navigation or turn guidance. Use the supplied BMW M iDrive 8 photographs to understand the functional hierarchy. The photos show speed and gear on opposing sides, navigation in the middle, and a turn/camera view in the same region. Build original TBW geometry, lettering, icons, and status layouts. Every dimension below is an exact implementation target for this design. The photos establish the placement concept and cannot establish BMW’s internal masking coordinates or the MGU’s compositor capabilities.
+Build a high-resolution digital instrument cluster in the visual language of BMW M’s iDrive 8. Use the three dashboard photos as references for the overall proportions, sharp blue and red gauge accents, large white figures, and the way the center opens for navigation or camera guidance. Draw original instrument paths, numberforms, icons, and status markers. Keep the display unbranded. The dimensions below are exact targets for this implementation. The photos establish the design cues and visible behavior.
 
-Implement the **center-only fade first**. Speed, gear, RPM, units, secondary gauges, and vehicle warnings stay steady when Waze, a map, or Turn Viewer is selected.
+Speed and fuel sit on the left. Gear, RPM, and oil temperature sit on the right. **Only the center fades when switching between the map, Waze, Turn Viewer, or camera.** Keep every gauge, unit, telltale, and status strip at its normal opacity throughout.
 
-## 1. Display geometry
+## 1. Canvas and instrument geometry
 
-Use a 1920 × 720 logical coordinate system. This is the design grid. Fit it uniformly to the actual target and letterbox as needed. For a web reference implementation use SVG viewBox="0 0 1920 720" and preserveAspectRatio="xMidYMid meet". Apply one shared transform to the graphics, camera, and map surfaces. Use the inverse transform for any approved input handling. The origin is at the upper-left.
+Use a 1920 × 720 logical canvas, with the origin at the upper-left. For a web renderer, set SVG viewBox="0 0 1920 720" and preserveAspectRatio="xMidYMid meet". Keep the artwork, source viewport, and capture frame on one uniform transform. Letterbox to fit a different output ratio. Use the inverse transform for approved interaction.
 
 | Region | Bounds or anchor in design units |
 | --- | --- |
-| Permanent top status rail | x=72–1848, y=34–90 |
-| Left instrument tower | x=72–416, y=112–592 |
-| Right instrument tower | x=1504–1848, y=112–592 |
-| Center reveal outer bounds | x=440–1480, y=108–586 |
-| Center area for essential guidance and provider controls | x=500–1420, y=154–540 |
-| Permanent footer | x=72–1848, y=626–686 |
-| Speed, right-aligned numeric anchor | x=377, baseline y=392 |
-| Speed unit, right-aligned | x=377, baseline y=429 |
-| Gear, centered anchor | x=1676, baseline y=451 |
-| RPM strip | x=1524–1828, y=154–211 |
-| Left secondary instrument, fuel | x=156–376, y=505–558 |
-| Right secondary instrument, oil temperature | x=1540–1812, y=505–558 |
+| Left gauge envelope | x=72–416, y=112–592 |
+| Right gauge envelope | x=1504–1848, y=112–592 |
+| Top warning and telltale space | x=72–1848, y=34–90 |
+| Center aperture | x=440–1480, y=108–586 |
+| Center guidance safe area | x=500–1420, y=154–540 |
+| Lower status rail | x=72–1848, y=626–686 |
+| Speed numeric anchor | right edge x=372, baseline y=378 |
+| Speed unit anchor | right edge x=372, baseline y=416 |
+| Gear anchor | centered at x=1652, baseline y=388 |
+| RPM scale title | right edge x=1798, baseline y=128 |
+| Left secondary scale | fuel module x=190–385, y=459–560 |
+| Right secondary scale | oil temperature module x=1536–1718, y=459–560 |
 
-Use an asymmetric instrument silhouette. The left tower gets a stepped vertical blue spine leading into a lower horizontal cut. The right tower gets a compact segmented vermilion RPM strip above the gear and a separate oil temperature ribbon. Carry a thin neutral line under the center at y=608. Use a chamfered rectangular center, and use open gutters between the center and the side towers. The right and left sides have different silhouettes.
+Put both primary instruments on angled outer rails. Give the left side a short upper blue entry, an inset around midheight, and a longer diagonal return below it. Give the right side a steep upper red section, a brief vertical shoulder, and a more upright lower return. Both rails frame the content with dark air around the large digits. Use open edges and only localized graphite shading behind the speed and gear. The span between the gauges should read as one screen, with restrained top and bottom horizontal accents.
 
-Exact suggested SVG geometry for the main fixed shapes:
+Reference paths for this design:
 
 ~~~text
-Left tower plate:
-M 88 116 H 388 L 416 144 V 560 L 388 588 H 88 L 72 572 V 132 Z
+Blue speed rail, from minimum to maximum:
+M 343 571 H 226 L 177 537 L 105 380 L 86 326 L 104 281 L 177 153 H 336
 
-Left blue spine:
-M 136 140 H 104 V 303 L 118 317 V 518 L 163 563 H 386
+Blue inner hairline:
+M 352 551 H 233 L 193 524 L 124 373 L 105 327 L 124 288 L 190 173 H 344
 
-Right tower plate:
-M 1524 116 H 1828 L 1848 136 V 568 L 1828 588 H 1524 L 1504 568 V 136 Z
+Red RPM rail, from minimum to maximum:
+M 1552 572 H 1708 L 1751 540 L 1820 407 L 1820 342 L 1806 306 L 1732 145 H 1588
 
-Right top accent:
-M 1524 132 H 1818 L 1830 144 V 211
+Red inner hairline:
+M 1568 552 H 1699 L 1736 523 L 1800 402 L 1800 347 L 1787 313 L 1719 165 H 1593
 
 Center boundary:
 M 464 108 H 1456 L 1480 132 V 562 L 1456 586 H 464 L 440 562 V 132 Z
 ~~~
 
-Use 24 units of clear space between the tower edges and reveal aperture at their closest point. Keep all warning legends clear of the aperture. If a critical vehicle message needs more space, let the host present it in an independent foreground layer and hide center media under it.
+Stroke the instrument rails between 11 and 15 units. Use near-square ends, bevel joins, and clean deliberate diagonal cuts. Use 1.25–1.75 units for inner hairlines. Put the ends of the blue and red rails on separate planes and leave the 24-unit gutters next to the center aperture open. The permanent gauge layers can use alpha for shading and highlights. Their alpha is independent of the map or camera state. A host priority warning can cover the center without relying on either provider.
 
-## 2. Render the fixed instruments
+## 2. Color, lettering, and gauge motion
 
-| Token | Day starting value | Night starting value |
-| --- | --- | --- |
-| Outside background | #0B1119 | #03070D |
-| Instrument plate | #14202D | #0A131F |
-| Inactive center matte | #10202C | #0C1722 |
-| Primary figures | #F1F6FC | #E3EDF7 |
-| Secondary figures | #BACBDD | #A6BBCD |
-| Speed accent | #55C5FF | #3EAEEB |
-| RPM accent | #FF6748 | #F25A43 |
-| Warning amber | #FFD063 | #EFBF51 |
-| Warning red | #FF3D51 | #F53D51 |
-| Separator | #526578 | #32495D |
+| Token | Day | Night | Placement |
+| --- | --- | --- | --- |
+| Outside field | #0A101A | #04070E | Full canvas and gutters |
+| Recess shade | #101A29 | #091321 | Subtle shade behind the instruments |
+| Inactive center matte | #101A26 | #0A1320 | Center at rest and transition background |
+| Main digits | #F4F8FF | #E8F0FA | Speed and gear |
+| Secondary text | #A9BBD1 | #8DA4BD | Scales and units |
+| Blue rail | #287EF5 | #2579E4 | Speed scale |
+| Blue edge highlight | #73DDFF | #56C8FF | Narrow lit speed edge and marker accent |
+| Red rail | #F12A3F | #DE263D | RPM scale |
+| Red edge highlight | #FF7180 | #FF586C | Narrow red edge and marker accent |
+| Warning amber | #FFD067 | #F2BD51 | Vehicle warnings and approved shift overlays |
+| Neutral rule | #51657B | #304458 | Low contrast separators |
 
-- Use original, heavy, squared numerals with open counters and clipped corners. Start at a visible 102 units for speed and 95 for gear. Give digits tabular advance. Verify that 0, 99, 100, and 330 fit with the same anchor and that P, R, N, D and the target’s gear symbols occupy a consistent optical box.
-- Speed unit is 25–28 units. Gauge scales and temperature use 19–22 units. Labels on rails use 17–21 units. Export-critical lettering uses vector contours or a bundled licensed font. Wait for the font to load before capturing.
-- The speed bar occupies x=118, y=188–477. Its active vertical length is proportional to a configured maximum in the selected units. Keep live speed numeric formatting independent of its bar and never let an out-of-range reading wrap the bar. Place scale labels against explicit tick anchors and keep numerals clear of the blue spine.
-- Build a 12-segment RPM strip from x=1524. Segment width is 21 units, gap is 4.5, and the row is y=176–196. This gives 301.5 units of segment and gap width. Show the units near y=157. The script uses vehicle-specific scale, shift thresholds, and redline inputs if available. The artwork alone supplies no operating limits.
-- Use four to six subdivisions for fuel and oil temperature. Show unknown readings as an em dash. Keep oil and coolant as separate channels if both exist. Apply the correct units for the actual channel.
-- Group clock, range, and ambient temperature in the footer. Reserve the top row or an approved host-provided warning zone for vehicle telltales. Speed limit and cruise target are distinct values with ordinary text labels in the reference implementation. Use verified host data for real telltale state.
-- Use 1.25–1.75-unit silhouette edge lines and 2.0–2.75-unit accent lines. Additional glow begins around 0.8-unit blur sigma at 12% opacity and belongs to the accent strokes only.
-- Use mostly flat dark tones with subtle material gradients. Use no full-display blur, chromatic aberration, simulated windshield glare, or visible camera grain in the screen graphics. A cockpit mockup can add those independently.
+- Draw wide, squared digits with clear open counters where the outline permits, flat horizontal strokes, and small chamfers. Use an independent set of original glyph outlines with tabular widths. Keep digit lean nearly upright, starting at 0–4°. Use 94 visible units for speed and 88 for gear. Target an advance of 63–66 units for speed digits. Check single, double, and triple digits against the speed anchor. Keep P, R, N, D, and numbered gears within a common optical box.
+- Use 24–28 units for the speed unit, 19–23 for scale labels, and 18–21 for secondary labels. Right-align the speed unit under the speed value. Mark the RPM scale with a small muted ×1000 r/min label. Draw scale numerals in a subdued blue or rose tint and brighten the active marker. Keep the main number brighter than its rail.
+- Draw each rail as an inactive track with a narrow colored edge. Draw active progress from the bottom along the rail’s path length using one SVG path and a dash mask or equivalent. Use the stated path direction and clamp the normalized value to 0–1. The point where the active track ends receives a short white marker, starting at 19 × 3.5 units, aligned across the rail normal. Place ticks on the long angled sections. Define tick positions as explicit value/fraction pairs when the scale spacing is nonlinear. The digital value, marker, and labels must use one unit conversion and the same value mapping. Keep short decorative rail caps outside the range used for tick labels and active progress.
+- Use a small optional red fringe on the high RPM end. Obtain shift and operating limits from verified vehicle data. The end of the drawn scale is a display choice.
+- Draw fuel at the lower inside edge of the left gauge and oil temperature at the corresponding lower inside edge of the right. Use compact diagonal segmented bars with a white live section and dark inactive segments. Start each module at a 5-segment track with a width of 9–12 units. Put the fuel or oil glyph near the lower endpoint and the labels outside the bar. Retain an em dash for unknown readings. Keep oil and coolant as separate data channels.
+- Put clock and remaining range on the lower left and ambient temperature on the lower right. If the host supplies a drive setting, use one restrained center status lozenge with angular ends. Keep speed limit distinct from cruise target. Show host-provided telltales in stable positions.
+- Keep glow confined to the lit rail and the active marker. Start with a 0.65–0.9-unit blur sigma at 8–14% opacity. Restore a sharp vector edge above it. Use shallow graphite shading at the gauge edges and keep the central field visually quiet.
+- The final screen uses clean gradients and sharp small labels. Keep physical glass glare, reflections, perspective distortion, and steering wheel occlusion in optional presentation renders.
 
 ## 3. Define exactly what fades
 
@@ -79,8 +80,8 @@ The screen has a **spatial feather** at the edge of one polygon and a separate *
 | Center walls and corner cuts | Feather over 40 units measured inward from the polygon edge |
 | Central interior | Fully reveals the selected source after the temporal fade |
 | Side gutters | Remain outside the aperture. No source pixels appear there |
-| Left tower and its speed, fuel, and units | Fixed at their normal opacity |
-| Right tower and its RPM, gear, oil temperature, and units | Fixed at their normal opacity |
+| Left instrument and its speed, fuel, and units | Fixed at their normal opacity |
+| Right instrument and its RPM, gear, oil temperature, and units | Fixed at their normal opacity |
 | Top warning rail and bottom status rail | Fixed at their normal opacity |
 | Any host-owned priority overlay | Drawn independently above the center content |
 

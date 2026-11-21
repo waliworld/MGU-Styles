@@ -53,6 +53,8 @@ FACES = {
     "gear": ("saira-latin-700-normal.ttf", DIGITS + "PRNDSM", 12.0),
     # the Track theme: heavy, squared, clipped corners (TBW brief section 2)
     "track": ("chakra-petch-latin-700-normal.ttf", DIGITS + "PRNDSM", 0.0),
+    # the M style (iDrive 8): wide squared figures, flat strokes, upright
+    "mnum": ("saira-semi-condensed-latin-700-normal.ttf", DIGITS + "PRNDSM+-.", 0.0),
 }
 
 
