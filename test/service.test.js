@@ -221,12 +221,18 @@ test('Track: the centre is asked for only while our layers are up, and given bac
     assert.ok(c.isStopped());
 });
 
-test('Toro never asks for a centre', { timeout: 10000 }, async (t) => {
-    const c = fakeCentre();
-    const h = harness(t, { style: 'toro', centre: 'waze' }, c);
+test('Toro asks for the map only when its own centre is set to it', { timeout: 10000 }, async (t) => {
+    const off = fakeCentre();
+    const h = harness(t, { style: 'toro', centre: 'off' }, off);
     h.on.ready(); h.condition('FAHREN'); h.rpm(1500);
     await wait(300);
-    assert.deepStrictEqual(c.asked, ['off']);
+    assert.deepStrictEqual(off.asked, ['off'], 'nothing moved while the opening is shut');
+
+    const on = fakeCentre();
+    const h2 = harness(t, { style: 'toro', centre: 'waze' }, on);
+    h2.on.ready(); h2.condition('FAHREN'); h2.rpm(1500);
+    await wait(300);
+    assert.strictEqual(on.asked[on.asked.length - 1], 'waze', 'the opening asks for the map');
 });
 
 test('switching style rebuilds the cluster and moves the centre with it', { timeout: 10000 }, async (t) => {

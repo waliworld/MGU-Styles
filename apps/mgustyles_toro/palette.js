@@ -48,13 +48,20 @@
         modeLabel: 'lamborghini',  /* lamborghini | bmw | fixed */
         enabled: false,            /* off until turned on: installing never takes the cluster */
         clock12: false,
-        secondaryGlyph: 'R',
+        secondaryGlyph: null,     /* the small glyph beside the gear; off */
         shiftLights: true,
         showBoost: true,
         showAuxLeft: true,       /* the brief's unreadable far-left region */
         revFlash: 'both',        /* off | band | edges | both */
         flashRate: 9,            /* Hz */
         flashStrength: 0.52,
+        flashStyle: 'wide',      /* edges | wide | full | top */
+        flashColour: null,       /* null: the accent's red; else a palette name */
+        centre: 'off',           /* waze | off: the map opening in the background */
+        hole: null,              /* [x, y, w, h] of the opening, panel pixels */
+        holeFeather: 46,
+        zoom: 1,                 /* 0.9-1.1, how much of the screen it fills */
+        shiftY: 0,               /* -30..30 px, nudge the whole cluster up or down */
         /*
          * The dial keeps the Huracan's sweep and styling but is marked in
          * thousands up to scaleMaxRpm: 8000 suits a BMW six, 10000 gives the
@@ -126,6 +133,19 @@
                                   s.rpmLimiter - 150);
         s.flashRate = clampNum(s.flashRate, 1, 20, DEFAULTS.flashRate);
         s.flashStrength = clampNum(s.flashStrength, 0, 1, DEFAULTS.flashStrength);
+        if (['edges', 'wide', 'full', 'top'].indexOf(s.flashStyle) < 0) s.flashStyle = DEFAULTS.flashStyle;
+        s.flashStyleIndex = ['edges', 'wide', 'full', 'top'].indexOf(s.flashStyle);
+        s.flashSpread = s.flashStyle === 'edges' ? 0.25 : s.flashStyle === 'wide' ? 0.72 : 1.0;
+        s.flashColourName = SCHEMES[s.flashColour] ? s.flashColour : null;
+        s.zoom = clampNum(s.zoom, 0.9, 1.1, DEFAULTS.zoom);
+        if (['waze', 'off'].indexOf(s.centre) < 0) s.centre = DEFAULTS.centre;
+        /* kept inside the rect where waze-on-cluster draws (416,120 1088x480) */
+        var h = s.hole && s.hole.length === 4 ? s.hole : [672, 178, 576, 256];
+        s.hole = [Math.max(416, h[0]), Math.max(120, h[1]),
+                  Math.min(1504, h[0] + h[2]) - Math.max(416, h[0]),
+                  Math.min(600, h[1] + h[3]) - Math.max(120, h[1])];
+        s.holeFeather = clampNum(s.holeFeather, 0, 120, DEFAULTS.holeFeather);
+        s.shiftY = clampNum(s.shiftY, -30, 30, DEFAULTS.shiftY);
         if (['modern', 'revuelto'].indexOf(s.background) < 0) s.background = 'genuine';
         if (['lamborghini', 'bmw', 'fixed'].indexOf(s.modeLabel) < 0) s.modeLabel = 'lamborghini';
         s.enabled = s.enabled === true || s.enabled === 'on';
@@ -152,6 +172,8 @@
             accent: scheme.accent, second: scheme.second, tint: scheme.tint,
             lit: lit || scheme.accent
         };
+        /* the limiter flash: the brief's red unless a scheme is named */
+        s.flashCol = s.flashColourName ? SCHEMES[s.flashColourName].accent : [1.0, 0.149, 0.239];
         s.schemeName = scheme.name;
         return s;
     }

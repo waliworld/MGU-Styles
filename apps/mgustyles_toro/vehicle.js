@@ -253,9 +253,14 @@ function createReader(opts) {
 
     function raw(now, tankLitres) {
         now = now || Date.now();
-        var litres = get('fuelLitres', now);
+        /* the tank is read slowly; holding it stops the gauge blinking
+           between a number and dashes between polls */
+        var litres = held('fuelLitres');
         var boost = get('boostBar', now);
-        var lat = get('gLat', now) || 0, lon = get('gLon', now) || 0;
+        var latR = get('gLat', now), lonR = get('gLon', now);
+        var gOk = typeof latR === 'number' || typeof lonR === 'number';
+        var lat = typeof latR === 'number' ? latR : 0;
+        var lon = typeof lonR === 'number' ? lonR : 0;
 
         /* Peaks decay so an old number does not sit on the gauge for ever. */
         var dt = lastPeak ? Math.min(2, (now - lastPeak) / 1000) : 0;
@@ -282,7 +287,10 @@ function createReader(opts) {
             rangeKm: held('rangeKm'),
             ambientC: held('ambientC'),
             clock: { h: d.getHours(), m: d.getMinutes() },
-            gLat: lat, gLon: lon, gPeakLat: peakLat, gPeakLon: peakLon
+            /* undefined, not zero, when the car is not sending it: the
+               meter then shows dashes instead of a convincing 0.00 */
+            gLat: gOk ? lat : undefined, gLon: gOk ? lon : undefined,
+            gPeakLat: gOk ? peakLat : undefined, gPeakLon: gOk ? peakLon : undefined
         };
     }
 

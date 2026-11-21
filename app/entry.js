@@ -15,7 +15,24 @@ const mgu = require('./kit/mgu');
 const Service = require('./service.js');
 const MGeom = require('./mgeom.js');
 
-const FAST = ['de.bmw.infotainment.vehicle.CDS', 'de.bmw.infotainment.vehicle.Vehicle2'];
+/*
+ * How often each interface is re-read. Notifications carry most readings,
+ * but a car that does not notify a field leaves it on the poll - so the
+ * gear, the g sensor and boost need a fast one or the cluster runs behind
+ * (a 3 s poll showed the gear two shifts late on the car).
+ */
+const POLL_MS = {
+    'de.bmw.infotainment.vehicle.CDS': 300,              // rpm, temperatures
+    'de.bmw.infotainment.vehicle.Vehicle2': 300,         // speed
+    'de.bmw.infrastructure.VehicleInformation': 250,     // the engaged gear
+    'de.bmw.infotainment.vehicle.CDS2': 400,             // lateral / long. g
+    'de.bmw.infotainment.drivingexcitement.FES': 500,    // boost, drive mode
+    'de.bmw.infrastructure.VehicleCondition': 1000,
+    'de.bmw.infotainment.MDrive': 2000,
+    'de.bmw.infotainment.KombiIF': 5000,                 // range, fuel, odo
+    'de.bmw.infrastructure.EnvironmentalInformation': 15000
+};
+const DEFAULT_POLL_MS = 3000;
 
 /* The app's current settings as one plain object. */
 function settingsOf(settings, spec) {
@@ -43,7 +60,7 @@ function hostFor(bg) {
                 });
                 /* Notifications carry the readings; the poll only catches
                    any the head unit drops. */
-                const pollMs = FAST.indexOf(svc) >= 0 ? 500 : 3000;
+                const pollMs = POLL_MS[svc] || DEFAULT_POLL_MS;
                 Promise.resolve()
                     .then(() => bg.signals.watch(svc, '1', handlers, bg.log, { pollMs }))
                     .then((r) => { if (r && r.error) bg.log.warn('signals ' + svc + ': ' + r.error); })

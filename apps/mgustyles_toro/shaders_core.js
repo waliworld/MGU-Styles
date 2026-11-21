@@ -38,6 +38,8 @@
         'uniform float u_hexSize;',
         'uniform float u_facets;',
         'uniform float u_rev;',
+        'uniform vec4 u_hole;',          /* x, y, w, h of the map opening */
+        'uniform vec2 u_holeOpen;',      /* how far open 0..1, feather in px */
         '',
         /* Which cell p falls in: xy local offset from its centre, zw cell id. */
         'vec4 hexCell(vec2 p, float s) {',
@@ -152,7 +154,19 @@
         '  float cr = ((u_size.x - p.x) * 200.0 + p.y * 270.0) - 270.0 * 200.0;',
         '  col *= clamp(cl * 0.06, 0.0, 1.0) * clamp(cr * 0.06, 0.0, 1.0);',
         '',
-        '  gl_FragColor = vec4(max(col, vec3(0.0)), 1.0);',
+        /*
+         * The map opening. Waze draws under this layer; the background
+         * fades away over the feather so the map appears out of the dark
+         * rather than behind a cut-out.
+         */
+        '  float a = 1.0;',
+        '  if (u_holeOpen.x > 0.001) {',
+        '    vec2 hc = u_hole.xy + u_hole.zw * 0.5;',
+        '    vec2 hd = abs(p - hc) - u_hole.zw * 0.5;',
+        '    float d = min(max(hd.x, hd.y), 0.0) + length(max(hd, 0.0));',
+        '    a = 1.0 - u_holeOpen.x * (1.0 - smoothstep(-u_holeOpen.y, 0.0, d));',
+        '  }',
+        '  gl_FragColor = vec4(max(col, vec3(0.0)) * a, a);',
         '}'
     ].join('\n');
 
@@ -201,18 +215,32 @@
     /* ------------------------------------------------------------- flash */
     /* The rev-limit warning. Edges only: the middle of the cluster stays
        readable, which is the whole point of a shift light. */
+    /*
+     * The rev-limit warning. u_style picks how far it reaches:
+     *   0 edges   a border round the screen
+     *   1 wide    the border, pulled well in towards the middle
+     *   2 full    the whole screen, the middle a little weaker
+     *   3 top     a band across the top only
+     * u_spread stretches whichever shape is chosen (0.2 tight .. 1 broad).
+     */
     var flash = [
         'uniform float u_on;',
         'uniform float u_rate;',
         'uniform vec3 u_col;',
         'uniform float u_strength;',
+        'uniform float u_style;',
+        'uniform float u_spread;',
         'void main() {',
         '  vec2 p = px() / u_size;',
-        '  float edge = pow(1.0 - 4.0 * p.x * (1.0 - p.x), 3.0);',
-        '  edge = max(edge, pow(1.0 - 4.0 * p.y * (1.0 - p.y), 3.0));',
+        '  float k = mix(5.0, 0.9, clamp(u_spread, 0.0, 1.0));',
+        '  float ex = pow(1.0 - 4.0 * p.x * (1.0 - p.x), k);',
+        '  float ey = pow(1.0 - 4.0 * p.y * (1.0 - p.y), k);',
+        '  float shape = max(ex, ey);',
+        '  if (u_style > 2.5) shape = pow(1.0 - p.y, k * 0.5);',
+        '  else if (u_style > 1.5) shape = 0.55 + 0.45 * max(ex, ey);',
         '  float beat = step(0.5, fract(u_time * u_rate));',
-        '  float a = u_on * beat * edge * u_strength;',
-        '  gl_FragColor = vec4(mix(u_col, vec3(1.0), 0.25), a);',
+        '  float a = u_on * beat * shape * u_strength;',
+        '  gl_FragColor = vec4(mix(u_col, vec3(1.0), 0.25), clamp(a, 0.0, 1.0));',
         '}'
     ].join('\n');
 

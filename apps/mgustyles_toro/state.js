@@ -137,12 +137,18 @@
             limiter: limiter,
             boostPsi: boost,
             boostPeakPsi: boostPeak,
+            gOk: has(raw.gLat) || has(raw.gLon),
             gLat: has(raw.gLat) ? raw.gLat : 0,
             gLon: has(raw.gLon) ? raw.gLon : 0,
             gPeakLat: has(raw.gPeakLat) ? raw.gPeakLat : 0,
             gPeakLon: has(raw.gPeakLon) ? raw.gPeakLon : 0,
             pods: { oilTemp: oilTemp, oilPress: oilPress,
-                    coolant: coolant, fuel: fuelPod },
+                    coolant: coolant, fuel: fuelPod,
+                    /* the Huracan's second left dial is oil pressure, which
+                       this car does not publish; turbo pressure takes the
+                       slot, labelled as what it is */
+                    boost: pod(boost / (imperial ? 25 : 25 / PSI_PER_BAR), 2, 0,
+                               boost.toFixed(imperial ? 1 : 2), LIT) },
             odoText: odoText, rangeText: rangeText,
             clockText: clockText, ambientText: ambientText
         };

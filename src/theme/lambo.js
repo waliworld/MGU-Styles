@@ -58,6 +58,8 @@
     function build(atlas, profileId, settings) {
         var P = Panel.profile(profileId);
         var S = Palette.resolve(settings, P);
+        /* how much of the screen it fills, and where it sits */
+        G.setFit(S.zoom, S.shiftY);
         var C = S.colours;
         var GC = G.COLOURS;
         var names = gearNames(P);
@@ -99,10 +101,14 @@
 
         /* ------------------------------------------------- background */
         layers.push({
-            id: 'bg', z: 0, shader: 'bg',
+            /* z 1: the hosted map draws at z 0, under this */
+            id: 'bg', z: 1, shader: 'bg',
             x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT,
-            uniforms: function () {
+            uniforms: function (s) {
+                var c = s && s.centre;
+                var open = c && c.mode === 'map' ? c.open : 0;
                 return {
+                    u_hole: S.hole, u_holeOpen: [open, S.holeFeather],
                     u_black: GC.screenBlack, u_blue: GC.screenBlueBlack,
                     u_lower: GC.lowerField, u_line: GC.geometricLine,
                     u_hex: S.hexagons, u_hexSize: S.hexSize, u_facets: S.facets, u_rev: S.revuelto,
@@ -250,7 +256,8 @@
                 x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT,
                 uniforms: function (s) {
                     return { u_on: s.limiter || 0, u_rate: S.flashRate,
-                             u_col: GC.corsaRed, u_strength: S.flashStrength };
+                             u_col: S.flashCol, u_strength: S.flashStrength,
+                             u_style: S.flashStyleIndex, u_spread: S.flashSpread };
                 }
             });
         }
@@ -368,9 +375,17 @@
                 icon: 1, l1: 'TEMP.', l2: 'OLIO', key: 'oilTemp',
                 marks: ['170', '110', '50'], ticks: 5, redFrom: 0.82, invert: false
             });
-            instrument('oilP', [262, 425, 357, 675], {
-                icon: 0, l1: 'PRESS.', l2: 'OLIO', key: 'oilPress',
-                marks: ['10', '5', '0'], ticks: 5, redFrom: 0.10, invert: true
+            /*
+             * The Huracan's second left dial is oil pressure. Nothing on
+             * this car's bus carries it, so the slot shows turbo pressure,
+             * which it does - labelled as what it is rather than left
+             * reading dashes. src/car/vehicle.js keeps setOilPressureBar
+             * for a feed that can supply the real thing.
+             */
+            instrument('boostPod', [262, 425, 357, 675], {
+                icon: 0, l1: 'PRESS.', l2: 'TURBO', key: 'boost',
+                marks: [imperial ? '25' : '1.7', imperial ? '12' : '0.8', '0'],
+                ticks: 5, redFrom: 0.86, invert: false
             });
         }
 
@@ -381,6 +396,7 @@
             x: G.gx(gf.cx - gf.w / 2), y: G.gy(gf.cy - gf.h / 2),
             w: G.gs(gf.w), h: G.gs(gf.h),
             uniforms: function (s) {
+                if (!s.gOk) return null;
                 return { u_g: [s.gLat, s.gLon], u_max: 1.2, u_col: GC.primaryWhite };
             }
         });
@@ -395,38 +411,15 @@
             txt(r[0], 22, { x: ax - G.gs(46), y: ay - G.gs(20), w: G.gs(92), h: G.gs(28) },
                 { face: 'display', size: G.gs(14) / 0.70, align: r[3],
                   x: ax, y: ay, color: GC.secondaryWhite },
-                function (s) { return r[6](s).toFixed(1); });
+                function (s) { return s.gOk ? r[6](s).toFixed(1) : '--'; });
         });
 
-        /* ------------------------------------------ lower-left panel */
-        var ll = G.grect(B.lowerLeft);
-        layers.push({
-            id: 'icon_range', z: 26, shader: 'icon',
-            x: ll.x, y: ll.y + G.gs(6), w: G.gs(26), h: G.gs(26),
-            uniforms: function () { return { u_kind: 0, u_col: GC.secondaryWhite }; }
-        });
-        txt('range', 26, { x: ll.x + G.gs(32), y: ll.y, w: G.gs(150), h: G.gs(40) },
-            { face: 'display', size: G.gs(26) / 0.70, align: 'left',
-              x: ll.x + G.gs(34), y: ll.y + G.gs(28), color: GC.primaryWhite },
-            function (s) { return s.rangeText; });
-        statics('rangeUnit', 26,
-            { x: ll.x + G.gs(100), y: ll.y + G.gs(6), w: G.gs(80), h: G.gs(30) },
-            { face: 'label', size: G.gs(15) / 0.70, align: 'left', color: GC.secondaryWhite },
-            [{ str: U.dist, x: ll.x + G.gs(112), y: ll.y + G.gs(28) }]);
-
-        txt('ambient', 26, { x: ll.x, y: ll.y + G.gs(44), w: G.gs(150), h: G.gs(40) },
-            { face: 'display', size: G.gs(26) / 0.70, align: 'left',
-              x: ll.x + G.gs(2), y: ll.y + G.gs(72), color: GC.primaryWhite },
-            function (s) { return s.ambientText; });
-        statics('ambientUnit', 26,
-            { x: ll.x + G.gs(60), y: ll.y + G.gs(50), w: G.gs(80), h: G.gs(30) },
-            { face: 'label', size: G.gs(15) / 0.70, align: 'left', color: GC.secondaryWhite },
-            [{ str: U.temp, x: ll.x + G.gs(74), y: ll.y + G.gs(72) }]);
-
-        txt('clock', 26, { x: ll.x + G.gs(140), y: ll.y + G.gs(42), w: G.gs(230), h: G.gs(42) },
-            { face: 'display', size: G.gs(22) / 0.70, align: 'right',
-              x: ll.x + ll.w + G.gs(26), y: ll.y + G.gs(72), color: GC.secondaryWhite },
-            function (s) { return s.clockText; });
+        /*
+         * No range, clock or outside temperature of ours: the cluster's own
+         * bottom strip, which we never cover, already carries all three -
+         * and the head unit's clock runs on UTC, so ours read the wrong
+         * time on the car. The room they took goes to the instrument.
+         */
 
         /* ------------------------------------------------------ speed */
         var sp = G.grect(B.speed);
@@ -474,6 +467,7 @@
         var bMin = imperial ? -10 : -10 / PSI_PER_BAR;
 
         return { id: 'toro', name: 'Toro', layers: layers, profile: P,
+                 hasCentre: true, window: { x: S.hole[0], y: S.hole[1], w: S.hole[2], h: S.hole[3] },
                  settings: S, palette: C, guide: G, imperial: imperial,
                  dial: { centre: DC, rOuter: rOuter, ang: ANG, redV: redV } };
     }

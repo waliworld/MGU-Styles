@@ -271,9 +271,19 @@ test('the dial follows the brief\'s circle and angle function', () => {
 
 test('the brief\'s grid is fitted, not stretched, into the drawable area', () => {
     /* One scale for both axes, and nothing reaches the car's bottom strip. */
-    assert.ok(Guide.FIT > 0.8 && Guide.FIT < 1);
+    Guide.setFit(1, 0);
+    assert.ok(Guide.fit() > 0.8 && Guide.fit() < 1);
     assert.ok(Math.abs(Guide.gy(Guide.GRID.contentBottom) - Panel.BOTTOM_CUT) < 0.01);
-    assert.ok(Guide.gs(100) / 100 === Guide.FIT, 'lengths scale by the same factor');
+    assert.ok(Guide.gs(100) / 100 === Guide.fit(), 'lengths scale by the same factor');
+    /* zoomed in, the grid still ends exactly on the cut, never past it */
+    Guide.setFit(1.1, 0);
+    assert.ok(Math.abs(Guide.gy(Guide.GRID.contentBottom) - Panel.BOTTOM_CUT) < 0.01);
+    /* a nudge only ever moves it up, so the strip stays the car's */
+    Guide.setFit(1, 20);
+    assert.ok(Guide.gy(Guide.GRID.contentBottom) <= Panel.BOTTOM_CUT + 0.01);
+    Guide.setFit(1, -20);
+    assert.ok(Math.abs(Guide.gy(Guide.GRID.contentBottom) - (Panel.BOTTOM_CUT - 20)) < 0.01);
+    Guide.setFit(1, 0);
     assert.ok(Guide.gx(0) > 0 && Guide.gx(Guide.GRID.w) < Panel.PANEL_WIDTH,
         'the composition is letterboxed, not cropped');
 });

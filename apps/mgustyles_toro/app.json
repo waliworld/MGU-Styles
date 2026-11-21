@@ -104,25 +104,25 @@
     },
     {
       "key": "centre",
-      "label": "M: centre shows",
+      "label": "Map opening (Waze / camera)",
       "type": "choice",
       "default": "waze",
       "options": [
         [
           "waze",
-          "Waze map (turn card without it)"
+          "Waze map"
         ],
         [
           "camera",
-          "Turn View camera"
+          "Turn View camera (M style)"
         ],
         [
           "turn",
-          "Turn card only"
+          "Turn card only (M style)"
         ],
         [
           "off",
-          "Nothing (quiet centre)"
+          "Off"
         ]
       ]
     },
@@ -431,6 +431,122 @@
         [
           "off",
           "Off"
+        ]
+      ]
+    },
+    {
+      "key": "flashStyle",
+      "label": "Rev-limit flash: shape",
+      "type": "choice",
+      "default": "wide",
+      "options": [
+        [
+          "wide",
+          "Wide border"
+        ],
+        [
+          "edges",
+          "Thin border"
+        ],
+        [
+          "full",
+          "Whole screen"
+        ],
+        [
+          "top",
+          "Across the top"
+        ]
+      ]
+    },
+    {
+      "key": "flashColour",
+      "label": "Rev-limit flash: colour",
+      "type": "choice",
+      "default": "",
+      "options": [
+        [
+          "",
+          "Red"
+        ],
+        [
+          "arancio",
+          "Arancio"
+        ],
+        [
+          "giallo",
+          "Giallo"
+        ],
+        [
+          "rosso",
+          "Rosso"
+        ],
+        [
+          "verde",
+          "Verde"
+        ],
+        [
+          "blu",
+          "Blu"
+        ],
+        [
+          "viola",
+          "Viola"
+        ],
+        [
+          "bianco",
+          "Bianco"
+        ]
+      ]
+    },
+    {
+      "key": "zoom",
+      "label": "Fill the screen",
+      "type": "choice",
+      "default": "1",
+      "options": [
+        [
+          "0.94",
+          "Smaller"
+        ],
+        [
+          "0.97",
+          "Slightly smaller"
+        ],
+        [
+          "1",
+          "Standard"
+        ],
+        [
+          "1.03",
+          "Slightly larger"
+        ],
+        [
+          "1.06",
+          "Larger"
+        ]
+      ]
+    },
+    {
+      "key": "shiftY",
+      "label": "Nudge up",
+      "type": "choice",
+      "default": "0",
+      "options": [
+        [
+          "0",
+          "None"
+        ],
+        [
+          "-8",
+          "A little"
+        ],
+        [
+          "-16",
+          "More"
+        ],
+        [
+          "-24",
+          "Most"
         ]
       ]
     },

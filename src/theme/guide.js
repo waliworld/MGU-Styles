@@ -24,11 +24,28 @@
     var GRID = { w: 1920, h: 720, contentBottom: 704 };
 
     /* Uniform fit into the drawable area, centred. */
-    var FIT = Panel.BOTTOM_CUT / GRID.contentBottom;
+    var BASE = Panel.BOTTOM_CUT / GRID.contentBottom;
+    var FIT = BASE;
     var OFF_X = (Panel.PANEL_WIDTH - GRID.w * FIT) / 2;
+    var OFF_Y = 0;
+
+    /*
+     * How much of the screen the instrument fills, and where it sits. The
+     * zoom is anchored at the bottom cut, so growing it never pushes
+     * anything over the cluster's own strip; the nudge then moves the whole
+     * thing, and is clamped so the bottom still clears the cut.
+     */
+    function setFit(zoom, shiftY) {
+        zoom = typeof zoom === 'number' && zoom > 0 ? zoom : 1;
+        shiftY = typeof shiftY === 'number' ? shiftY : 0;
+        FIT = BASE * zoom;
+        OFF_X = (Panel.PANEL_WIDTH - GRID.w * FIT) / 2;
+        var bottom = Panel.BOTTOM_CUT;              /* where the grid's bottom lands */
+        OFF_Y = bottom - GRID.contentBottom * FIT + Math.min(shiftY, 0);
+    }
 
     function gx(x) { return OFF_X + x * FIT; }
-    function gy(y) { return y * FIT; }
+    function gy(y) { return OFF_Y + y * FIT; }
     function gs(v) { return v * FIT; }              /* a length */
     function grect(r) {
         return { x: gx(r[0]), y: gy(r[1]), w: gs(r[2] - r[0]), h: gs(r[3] - r[1]) };
@@ -107,7 +124,8 @@
     var STIPPLE = { spacing: 4.5, rowOffset: 2.25, dotRadius: 0.55, opacity: 0.19 };
 
     return {
-        GRID: GRID, FIT: FIT, OFF_X: OFF_X,
+        GRID: GRID, setFit: setFit,
+        fit: function () { return FIT; }, offY: function () { return OFF_Y; },
         gx: gx, gy: gy, gs: gs, grect: grect,
         TACH: TACH, BOUNDS: BOUNDS, COLOURS: COLOURS, STIPPLE: STIPPLE,
         thetaDeg: thetaDeg, phiRad: phiRad, point: point

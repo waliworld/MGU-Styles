@@ -50,7 +50,7 @@ FACES = {
                "abcdefghijklmnopqrstuvwxyz.:-/%+° ", 0.0),
     # inclined, for the dial itself
     "dial": ("saira-latin-500-normal.ttf", DIGITS, 11.0),
-    "gear": ("saira-latin-700-normal.ttf", DIGITS + "PRNDSM", 12.0),
+    "gear": ("saira-latin-700-normal.ttf", DIGITS + "PRNDSM", 17.0),
     # the Track theme: heavy, squared, clipped corners (TBW brief section 2)
     "track": ("chakra-petch-latin-700-normal.ttf", DIGITS + "PRNDSM", 0.0),
     # the M style (iDrive 8): wide squared figures, flat strokes, upright
