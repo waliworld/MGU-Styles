@@ -73,7 +73,8 @@
     var profileId = params.get('profile') || 'x3m40i';
     var units = params.get('units') || 'imperial';
     var cfg = { units: units };
-    ['accent', 'litColour', 'revFlash', 'mode', 'background', 'style', 'centre', 'trackPalette'].forEach(function (k) {
+    ['accent', 'accentScope', 'litColour', 'revFlash', 'flashStyle', 'flashColour',
+     'mode', 'background', 'style', 'centre', 'trackPalette'].forEach(function (k) {
       if (params.get(k)) cfg[k] = params.get(k);
     });
     ['scaleMaxRpm', 'rpmRedline', 'rpmLimiter', 'redFromScale', 'flashFromRpm',
@@ -92,6 +93,10 @@
 
     var profile = MGUPanel.profile(profileId);
     var theme = MGUThemes.build(a.atlas, profileId, cfg);
+    var ambHex = params.get('ambient');
+    var amb = ambHex && /^[0-9a-fA-F]{6}$/.test(ambHex)
+      ? [parseInt(ambHex.slice(0, 2), 16) / 255, parseInt(ambHex.slice(2, 4), 16) / 255,
+         parseInt(ambHex.slice(4, 6), 16) / 255] : null;
     /* Track: what is under the window (show=map|camera|magenta) and what the
        centre shows (mode=map|camera|turn|neutral, turn=left|roundabout|...) */
     var show = params.get('show');
@@ -115,6 +120,8 @@
       var st = MGUState.present(sim.raw(), profile, theme.settings);
       if (centre) st.centre = centre;
       if (params.get('drive')) st.modeLabel = params.get('drive');
+      /* ambient=RRGGBB stands in for the car's interior light */
+      if (amb && theme.setAccent) theme.setAccent(amb);
       engine.render(theme, st, time, 720, MGUPanel.BOTTOM_CUT);
       window.__state = st;
     }

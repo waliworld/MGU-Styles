@@ -30,8 +30,17 @@
         verde:   { name: 'Verde',    accent: [0.180, 0.880, 0.480], second: [0.800, 0.950, 0.350], tint: [0.060, 0.150, 0.100] },
         blu:     { name: 'Blu',      accent: [0.200, 0.580, 1.000], second: [0.500, 0.850, 1.000], tint: [0.060, 0.120, 0.220] },
         viola:   { name: 'Viola',    accent: [0.690, 0.450, 1.000], second: [0.950, 0.600, 1.000], tint: [0.120, 0.080, 0.200] },
-        bianco:  { name: 'Bianco',   accent: [0.920, 0.950, 0.985], second: [0.700, 0.780, 0.880], tint: [0.090, 0.110, 0.150] }
+        bianco:  { name: 'Bianco',   accent: [0.920, 0.950, 0.985], second: [0.700, 0.780, 0.880], tint: [0.090, 0.110, 0.150] },
+        magenta: { name: 'Magenta',  accent: [1.000, 0.180, 0.620], second: [1.000, 0.520, 0.800], tint: [0.170, 0.050, 0.110] }
     };
+
+    /*
+     * "ambient" follows the car's interior light. The colour arrives on the
+     * feed (docs/BEEM-FLASH-FEED.md) and is applied live, so the cluster
+     * changes with the light instead of being rebuilt. Until one arrives
+     * the scheme below stands in.
+     */
+    var AMBIENT_FALLBACK = 'arancio';
 
     /* What the rev band turns as it lights. */
     var LIT = {
@@ -57,6 +66,7 @@
         flashStrength: 0.52,
         flashStyle: 'wide',      /* edges | wide | full | top */
         flashColour: null,       /* null: the accent's red; else a palette name */
+        accentScope: 'highlights',  /* highlights | full */
         centre: 'off',           /* waze | off: the map opening in the background */
         hole: null,              /* [x, y, w, h] of the opening, panel pixels */
         holeFeather: 46,
@@ -163,22 +173,51 @@
             s.revFlash = DEFAULTS.revFlash;
         }
 
-        var scheme = SCHEMES[s.accent] || SCHEMES[DEFAULTS.accent];
+        s.accentFollowsAmbient = s.accent === 'ambient';
+        /* highlights: the brief's red keeps the gear and the mode labels.
+           full: the chosen colour takes those too. */
+        if (['highlights', 'full'].indexOf(s.accentScope) < 0) s.accentScope = 'highlights';
+        var scheme = SCHEMES[s.accentFollowsAmbient ? AMBIENT_FALLBACK : s.accent]
+            || SCHEMES[DEFAULTS.accent];
         var lit = LIT[s.litColour] !== undefined ? LIT[s.litColour] : LIT.ice;
+        /* copies, not the scheme's own arrays: setAccent() writes into these */
         s.colours = {
             text: BASE.text, muted: BASE.muted, faint: BASE.faint,
             steel: BASE.steel, danger: BASE.danger, cool: BASE.cool,
             green: BASE.green, amber: BASE.amber,
-            accent: scheme.accent, second: scheme.second, tint: scheme.tint,
-            lit: lit || scheme.accent
+            accent: scheme.accent.slice(), second: scheme.second.slice(),
+            tint: scheme.tint.slice(),
+            lit: (lit || scheme.accent).slice()
         };
+        s.litFollowsAccent = !lit;
         /* the limiter flash: the brief's red unless a scheme is named */
         s.flashCol = s.flashColourName ? SCHEMES[s.flashColourName].accent : [1.0, 0.149, 0.239];
         s.schemeName = scheme.name;
         return s;
     }
 
+    /*
+     * Repaint a resolved palette in place. The themes read these arrays
+     * every frame, so the cluster takes a new accent without being rebuilt
+     * - which would drop and re-create every layer, and show as a blink.
+     */
+    function setAccent(s, rgb) {
+        if (!s || !s.colours || !rgb || rgb.length < 3) return false;
+        var i, changed = false;
+        for (i = 0; i < 3; i++) {
+            var v = Math.max(0, Math.min(1, rgb[i]));
+            if (Math.abs(s.colours.accent[i] - v) > 0.002) changed = true;
+            s.colours.accent[i] = v;
+            if (s.litFollowsAccent) s.colours.lit[i] = v;
+            /* the second colour keeps its lift over the accent */
+            s.colours.second[i] = Math.max(0, Math.min(1, v * 0.45 + 0.55));
+            s.colours.tint[i] = v * 0.16;
+        }
+        return changed;
+    }
+
     return {
-        BASE: BASE, SCHEMES: SCHEMES, LIT: LIT, DEFAULTS: DEFAULTS, resolve: resolve
+        BASE: BASE, SCHEMES: SCHEMES, LIT: LIT, DEFAULTS: DEFAULTS, resolve: resolve,
+        setAccent: setAccent, AMBIENT_FALLBACK: AMBIENT_FALLBACK
     };
 }));

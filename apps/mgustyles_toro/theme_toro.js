@@ -63,6 +63,10 @@
         G.setFit(S.zoom, S.shiftY);
         var C = S.colours;
         var GC = G.COLOURS;
+        /* The brief paints the gear and the mode labels red. With the
+           colour set to apply to everything they follow the accent, which
+           is read every frame so the interior light can move it live. */
+        function keyCol() { return S.accentScope === 'full' ? C.accent : GC.corsaRed; }
         var names = gearNames(P);
         var layers = [];
         var imperial = S.units !== 'metric';
@@ -271,16 +275,16 @@
             { face: 'gear', size: gearSize, align: 'centre', baseline: 'middle',
               x: gearRect.x + gearRect.w / 2, y: gearRect.y + gearRect.h / 2,
               outline: G.gs(3.6), glow: 0.0,
-              color: function () { return GC.corsaRed; },
+              color: function () { return keyCol(); },
               outCol: function (s) {
-                  return s.limiter > 0.5 ? [1, 1, 1] : GC.corsaRed;
+                  return s.limiter > 0.5 ? [1, 1, 1] : keyCol();
               } },
             function (s) { return s.gear; });
 
         txt('corsa', 24, { x: G.gx(B.corsa.cx) - 100, y: G.gy(B.corsa.cy) - 28, w: 200, h: 50 },
             { face: 'label', size: G.gs(26) / 0.70, align: 'centre',
               x: G.gx(B.corsa.cx), y: G.gy(B.corsa.cy) + G.gs(13),
-              color: GC.corsaRed, tracking: 1.5 },
+              color: keyCol, tracking: 1.5 },
             function (s) { return s.modeLabel || S.mode; });
 
         if (S.secondaryGlyph) {
@@ -294,12 +298,12 @@
         /* ESC state, stacked, small and red. */
         statics('esc', 24, { x: G.gx(B.escBlock.cx) - 60, y: G.gy(B.escBlock.cy) - 34, w: 120, h: 40 },
             { face: 'label', size: G.gs(21) / 0.70, align: 'centre',
-              color: GC.corsaRed, tracking: 1 },
+              color: keyCol, tracking: 1 },
             [{ str: 'ESC', x: G.gx(B.escBlock.cx), y: G.gy(B.escBlock.cy) - G.gs(3) }]);
         txt('escMode', 24, { x: G.gx(B.escBlock.cx) - 90, y: G.gy(B.escBlock.cy) - 4, w: 180, h: 40 },
             { face: 'label', size: G.gs(21) / 0.70, align: 'centre',
               x: G.gx(B.escBlock.cx), y: G.gy(B.escBlock.cy) + G.gs(23),
-              color: GC.corsaRed, tracking: 1 },
+              color: keyCol, tracking: 1 },
             function (s) { return s.modeLabel || S.mode; });
 
         /* ---------------------------------------- side instruments */
@@ -477,6 +481,7 @@
         var bMin = imperial ? -10 : -10 / PSI_PER_BAR;
 
         return { id: 'toro', name: 'Toro', layers: layers, profile: P,
+                 setAccent: function (rgb) { return Palette.setAccent(S, rgb); },
                  hasCentre: true, window: { x: S.hole[0], y: S.hole[1], w: S.hole[2], h: S.hole[3] },
                  settings: S, palette: C, guide: G, imperial: imperial,
                  dial: { centre: DC, rOuter: rOuter, ang: ANG, redV: redV } };

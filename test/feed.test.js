@@ -90,3 +90,37 @@ test('the dial label switches with it, and only one is ever shown', () => {
     assert.ok(main.uniforms(turbo) !== null && alt.uniforms(turbo) === null, 'turbo');
     assert.ok(main.uniforms(oil) === null && alt.uniforms(oil) !== null, 'oil');
 });
+
+test('the interior light becomes an accent, hue only', () => {
+    const Main = require('../src/car/main.js');
+    assert.strictEqual(Main.ambientAccent(0, 0, 0), null, 'off');
+    assert.strictEqual(Main.ambientAccent(6, 4, 2), null, 'too dark to read a hue');
+    assert.strictEqual(Main.ambientAccent(undefined, 1, 2), null, 'no reading');
+    /* a dimmed light gives a full-strength accent of the same hue */
+    const dim = Main.ambientAccent(0, 16, 64);
+    const bright = Main.ambientAccent(0, 64, 255);
+    for (let i = 0; i < 3; i++) assert.ok(Math.abs(dim[i] - bright[i]) < 0.01, 'same hue');
+    assert.strictEqual(Math.max.apply(null, dim), 1, 'pulled up to full');
+});
+
+test('the accent can be repainted live, without rebuilding the cluster', () => {
+    const Themes = require('../src/theme/index.js');
+    const atlas = require('../assets/fonts/atlas.json');
+    const th = Themes.build(atlas, 'x3m40i', { accent: 'ambient' });
+    assert.strictEqual(th.settings.accentFollowsAmbient, true);
+    const before = th.layers.length;
+    const bgU = th.layers.find((L) => L.id === 'bg').uniforms;
+    const was = bgU({}).u_accent.slice();
+
+    assert.strictEqual(th.setAccent([1, 0, 0.62]), true, 'a new colour takes');
+    assert.strictEqual(th.setAccent([1, 0, 0.62]), false, 'the same one does not');
+    const now = bgU({}).u_accent;
+    assert.notDeepStrictEqual(now.slice(), was, 'the layer reads the new colour');
+    assert.deepStrictEqual(now.map((v) => +v.toFixed(2)), [1, 0, 0.62]);
+    assert.strictEqual(th.layers.length, before, 'no layer was added or dropped');
+
+    /* a fixed scheme is never dragged around by the light */
+    const fixed = Themes.build(atlas, 'x3m40i', { accent: 'magenta' });
+    assert.strictEqual(fixed.settings.accentFollowsAmbient, false);
+    assert.deepStrictEqual(fixed.palette.accent.map((v) => +v.toFixed(2)), [1, 0.18, 0.62]);
+});

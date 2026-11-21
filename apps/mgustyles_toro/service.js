@@ -60,6 +60,19 @@ function carState(raw) {
     return typeof raw.rpm === 'number' ? 'on' : 'off';
 }
 
+/*
+ * The car's interior light as an accent. The light's own bytes carry its
+ * brightness, and a dimmed colour would leave the cluster barely lit, so
+ * only the hue is taken: the brightest channel is pulled up to full. A
+ * light that is off (or all but off) leaves the accent alone.
+ */
+function ambientAccent(r, g, b) {
+    if (typeof r !== 'number' || typeof g !== 'number' || typeof b !== 'number') return null;
+    var mx = Math.max(r, g, b);
+    if (!(mx > 12)) return null;                 /* off, or too dark to read a hue from */
+    return [r / mx, g / mx, b / mx];
+}
+
 /* Tank sizes, litres, only to turn the fuel level into a percentage. */
 function profileTank(profile) {
     return profile.id === 'x3m40i' ? 65 : profile.id === 'mCarS58' ? 59 : 60;
@@ -193,6 +206,17 @@ function start(host, deps) {
             try {
                 var op = feed.value('oilPressure');
                 if (typeof op === 'number') reader.setOilPressureBar(op, now());
+
+                /* the accent follows the interior light, repainted in place
+                   so the cluster never has to be rebuilt for a colour */
+                if (theme && theme.setAccent && theme.settings.accentFollowsAmbient) {
+                    var rgb = ambientAccent(feed.value('ambientRed'),
+                                            feed.value('ambientGreen'),
+                                            feed.value('ambientBlue'));
+                    if (rgb && theme.setAccent(rgb)) {
+                        log.info('accent: following the interior light');
+                    }
+                }
             } catch (e) { log.warn('feed: ' + e); }
 
             var raw = reader.raw(now(), settings.tankLitres || profileTank(profile));
@@ -264,4 +288,5 @@ function start(host, deps) {
     };
 }
 
-module.exports = { start: start, shaders: shaders, carState: carState, FRAME_MS: FRAME_MS };
+module.exports = { start: start, shaders: shaders, carState: carState,
+                   ambientAccent: ambientAccent, FRAME_MS: FRAME_MS };

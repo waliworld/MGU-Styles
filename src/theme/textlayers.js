@@ -57,13 +57,15 @@
             var L = Text.place(atlas, local, base);
             chunk = []; used = 0;
             if (!L) return;
-            var col = base.color || C.muted;
             var al = base.alpha === undefined ? 1 : base.alpha;
             layers.push({
                 id: id + (n ? '_' + n : ''), z: z, shader: 'text',
                 x: box.x, y: box.y, w: box.w, h: box.h,
                 uniforms: function (state) {
                     if (base.show && !base.show(state)) return null;
+                    /* resolved per frame: a colour may follow the accent */
+                    var col = (typeof base.color === 'function' ? base.color(state) : base.color)
+                        || C.muted;
                     return {
                         u_g: L.g, u_quad: L.p, u_count: L.count, u_sharp: L.sharp,
                         u_color: [col[0], col[1], col[2], al],

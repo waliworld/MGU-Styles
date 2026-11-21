@@ -188,7 +188,7 @@
     },
     {
       "key": "accent",
-      "label": "Look / Accent colour",
+      "label": "Toro: colour",
       "type": "choice",
       "default": "arancio",
       "options": [
@@ -217,8 +217,16 @@
           "Viola"
         ],
         [
+          "magenta",
+          "Magenta"
+        ],
+        [
           "bianco",
           "Bianco"
+        ],
+        [
+          "ambient",
+          "Match the interior light"
         ]
       ]
     },
@@ -491,6 +499,10 @@
         [
           "viola",
           "Viola"
+        ],
+        [
+          "magenta",
+          "Magenta"
         ],
         [
           "bianco",

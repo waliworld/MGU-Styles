@@ -59,6 +59,44 @@ Channels MGU Styles uses today:
 | Key | Used for |
 |---|---|
 | `oilPressure` | the second left dial on Toro, in place of turbo pressure, and its label changes to **PRESS. OLIO** |
+| `ambientRed`, `ambientGreen`, `ambientBlue` | with Toro's colour set to **Match the interior light**, the cluster's accent. 0-255 each |
+
+### The interior light's colour
+
+Set Toro's colour to *Match the interior light* and the gear numeral, the
+lit rev band and the highlights follow the car's ambient light — including
+when it is changed from iDrive or from another app, because the colour is
+read from the car rather than from whoever set it.
+
+The colour is not on the bus: it lives in the body controller (BDC, 0x40),
+which BeeM-Flash can already reach. The read is the one IterioDev's
+Ambient Light tool documents — `22 DA 5F` for LIN bus 1 (`22 E3 D1` for
+bus 2), which answers with 26 records of 10 bytes: *location, blue, green,
+red, brightness, white, short circuit, over-temperature, open load,
+internal fault*, a location of `FF` meaning an empty slot. The BDC polls
+its LIN slaves first, so expect `7F 22 78` (pending) and the real answer a
+moment later.
+
+Publish the colour of whichever module you want the cluster to follow —
+the dash line (location `0x13`/`0x15`/`0x17`) is the one in the driver's
+eye line:
+
+```js
+const rec = records.find((r) => r.location === 0x15) || records[0];
+if (rec) channels.push(
+    { key: 'ambientRed',   value: rec.red },
+    { key: 'ambientGreen', value: rec.green },
+    { key: 'ambientBlue',  value: rec.blue });
+```
+
+Send the colour bytes as they come, 0-255, **without** applying the
+brightness byte: the cluster takes only the hue and lights it fully, so a
+dimmed cabin does not leave the gauges dim. A light that is off (every
+channel under 12) leaves the accent as it was.
+
+Reading the BDC is slow next to engine channels, and the colour only
+changes when someone changes it — **once every few seconds is plenty**,
+and it can share the same file as everything else.
 
 Any other channel is read and kept, ready for the readout row; sending
 more costs nothing.
