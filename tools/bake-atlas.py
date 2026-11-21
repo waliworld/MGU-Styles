@@ -40,7 +40,13 @@ PAD = SPREAD + 2
 
 DIGITS = "0123456789"
 # id -> (file, characters, slant in degrees)
-FACES = {
+#
+# The faces as they stood at Beta 1, in that order. They are packed first,
+# exactly as then, so every glyph Toro draws keeps its place in the atlas
+# and Toro renders bit for bit as it did (tools/toro-regress.sh). Three of
+# them belonged to the first M style and nothing draws them now: they are
+# packed for their place only (LEGACY) - no pixels, no metadata.
+FROZEN = {
     # upright, for small readouts and labels
     "display": ("saira-latin-600-normal.ttf", DIGITS + "-.:/%°+", 0.0),
     "label": ("barlow-condensed-latin-600-normal.ttf",
@@ -51,13 +57,31 @@ FACES = {
     # inclined, for the dial itself
     "dial": ("saira-latin-500-normal.ttf", DIGITS, 11.0),
     "gear": ("saira-latin-700-normal.ttf", DIGITS + "PRNDSM", 17.0),
-    # the Track theme: heavy, squared, clipped corners (TBW brief section 2)
     "track": ("chakra-petch-latin-700-normal.ttf", DIGITS + "PRNDSM", 0.0),
-    # the M style (iDrive 8): wide squared figures, flat strokes, upright
     "mnum": ("saira-semi-condensed-latin-700-normal.ttf", DIGITS + "PRNDSM+-.", 0.0),
     # the start-up message: wide and geometric, as Lamborghini letters its cars
     "lambo": ("michroma-latin-400-normal.ttf",
               DIGITS + "ABCDEFGHIJKLMNOPQRSTUVWXYZ.,'!?&-:+ ", 0.0),
+}
+LEGACY = ("labelL", "track", "mnum")
+FROZEN_SIZE = 1024
+
+# Faces added since, packed after the frozen block.
+#
+# The M View (docs/ref): its own figures and symbols, traced in
+# tools/mglyphs.py - wide for the dials and readouts, narrower for the
+# footer and the strips' labels. Its words (km/h, mph, pm ...) are Inter
+# Tight, which sets them to the reference's widths within a pixel
+# (docs/ref/MEASUREMENTS.md).
+ADDED = {
+    "mw": ("@mw", DIGITS + "PRNDSM", 0.0),
+    "mn": ("@mn", DIGITS + ":.+-/", 0.0),
+    "mi": ("@mi", "fromblscgte", 0.0),
+    "ms": ("inter-tight-latin-400-normal.ttf",
+           DIGITS + "abcdefghijklmnopqrstuvwxyzCFLIMT/°. ", 0.0),
+    # the heavy capitals of the footer's panel: "WD", or the driving mode
+    "mb": ("barlow-semi-condensed-latin-700-normal.ttf",
+           DIGITS + "ABCDEFGHIJKLMNOPQRSTUVWXYZ+- ", 0.0),
 }
 
 
@@ -83,6 +107,14 @@ def glyph_sdf(path, ch, slant_deg):
         img = img.transform((w, h), Image.AFFINE, (1, k, -k * oy, 0, 1, 0),
                             resample=Image.BICUBIC)
 
+    return cell_from_image(img, ox, oy, advance)
+
+
+def cell_from_image(img, ox, oy, advance):
+    """An alpha image drawn at RASTER * SUPER px per em, its pen at (ox, oy),
+    -> (sdf cell, metrics). Shared by the fonts and the drawn glyphs."""
+    em = RASTER * SUPER
+    w, h = img.size
     small = img.resize((w // SUPER, h // SUPER), Image.LANCZOS)
     a = np.asarray(small, dtype=np.float32) / 255.0
     inside = a > 0.5
@@ -114,40 +146,69 @@ def glyph_sdf(path, ch, slant_deg):
     }
 
 
+def drawn_glyph(face, ch):
+    """A glyph of tools/mglyphs.py: a figure of the M View's own hand, or one
+    of its symbols."""
+    import mglyphs
+    assert mglyphs.EM == RASTER * SUPER
+    if face == "mi":
+        img, ox, oy, adv = mglyphs.icon_glyph(ch)
+    else:
+        img, ox, oy, adv = mglyphs.figure_glyph(mglyphs.FIGURES[face][0], ch)
+    return cell_from_image(img, ox, oy, adv)
+
+
 def main():
     if not FONTS.is_dir():
         sys.exit("run tools/fetch-fonts.sh first")
     OUT.mkdir(parents=True, exist_ok=True)
 
-    cells, meta = [], {}
-    for face, (fname, chars, slant) in FACES.items():
-        path = FONTS / fname
-        meta[face] = {"source": fname, "slant": slant, "glyphs": {}}
-        for ch in chars:
-            cell, m = glyph_sdf(path, ch, slant)
-            if cell is not None:
-                cells.append((face, ch, cell))
-            meta[face]["glyphs"][ch] = m
+    def bake(faces):
+        cells, meta = [], {}
+        for face, (fname, chars, slant) in faces.items():
+            path = FONTS / fname
+            meta[face] = {"source": fname, "slant": slant, "glyphs": {}}
+            for ch in chars:
+                if fname.startswith("@"):
+                    cell, m = drawn_glyph(fname[1:], ch)
+                else:
+                    cell, m = glyph_sdf(path, ch, slant)
+                if cell is not None:
+                    cells.append((face, ch, cell))
+                meta[face]["glyphs"][ch] = m
+        cells.sort(key=lambda c: -c[2].shape[0])
+        return cells, meta
 
-    cells.sort(key=lambda c: -c[2].shape[0])
-    for size in (512, 1024, 2048, 4096):
-        placed, x, y, shelf = {}, 1, 1, 0
-        ok = True
+    def pack(cells, size, y0):
+        """shelves of cells from row y0 down -> ({(face, ch): (x, y)}, next free row) or None"""
+        placed, x, y, shelf = {}, 1, y0, 0
         for face, ch, cell in cells:
             ch_h, ch_w = cell.shape
             if x + ch_w + 1 > size:
                 x, y, shelf = 1, y + shelf + 1, 0
             if y + ch_h + 1 > size:
-                ok = False
-                break
+                return None
             placed[(face, ch)] = (x, y)
             x += ch_w + 1
             shelf = max(shelf, ch_h)
-        if ok:
-            break
-    else:
-        sys.exit("atlas does not fit 4096x4096")
+        return placed, y + shelf + 1
 
+    size = FROZEN_SIZE
+    old_cells, meta = bake(FROZEN)
+    packed = pack(old_cells, size, 1)
+    if packed is None:
+        sys.exit("the frozen faces no longer fit %d: the fonts have changed" % size)
+    placed, free = packed
+    new_cells, new_meta = bake(ADDED)
+    packed = pack(new_cells, size, free)
+    if packed is None:
+        sys.exit("the added faces do not fit under the frozen block (from row %d of %d)" % (free, size))
+    placed.update(packed[0])
+    meta.update(new_meta)
+    for face in LEGACY:
+        del meta[face]
+
+    cells = [c for c in old_cells if c[0] not in LEGACY] + new_cells
     atlas = np.zeros((size, size), dtype=np.uint8)
     for face, ch, cell in cells:
         x, y = placed[(face, ch)]
@@ -163,8 +224,8 @@ def main():
         {"size": size, "spread": SPREAD, "emPx": RASTER // DOWN, "faces": meta},
         separators=(",", ":"), sort_keys=True))
     used = int((atlas > 0).sum()) / (size * size) * 100
-    print("atlas %dx%d  %d glyphs  %.0f%% covered  png %d KB  r8.gz %d KB"
-          % (size, size, len(cells), used,
+    print("atlas %dx%d  %d glyphs  %.0f%% covered  rows used %d  png %d KB  r8.gz %d KB"
+          % (size, size, len(cells), used, packed[1],
              (OUT / "atlas.png").stat().st_size // 1024,
              (OUT / "atlas.r8.gz").stat().st_size // 1024))
 

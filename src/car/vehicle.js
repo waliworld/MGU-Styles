@@ -32,7 +32,8 @@ var SIGNALS = {
     },
     'de.bmw.infotainment.KombiIF': {
         statusRangeTankStatus: 'rs',
-        _optional: 'Fuel range, tank level and odometer'
+        statusShowTimeDate: 'rs',
+        _optional: 'Fuel range, tank level and odometer; the time of day the cluster shows'
     },
     'de.bmw.infrastructure.EnvironmentalInformation': {
         ExteriorTemperature: 's',
@@ -150,6 +151,27 @@ function gearText(stage, gear) {
     return stage || undefined;
 }
 
+/*
+ * The head unit's own clock runs on UTC, so the time of day is taken from
+ * the instrument cluster's display time (KombiIF statusShowTimeDate): the
+ * zone, the summer time and any minutes the owner has set it fast are the
+ * car's own. What is kept is how far the cluster's clock runs ahead of
+ * ours, in milliseconds, so the minute turns over when the car's does and
+ * nothing depends on the head unit's clock being right - only on it
+ * running. The cluster shows the time while statusDisplayClockTimeDate is
+ * odd, --:-- while it is even (null: we show none either), and 15 means
+ * the field is not filled (undefined: keep what we had).
+ */
+function clockOffset(show, now) {
+    var status = show && show.statusDisplayClockTimeDate;
+    if (typeof status !== 'number' || status === 15) return undefined;
+    var h = show.displayHour, m = show.displayMinute;
+    if (status % 2 !== 1 || !(h >= 0 && h < 24) || !(m >= 0 && m < 60)) return null;
+    var sec = show.displaySecond >= 0 && show.displaySecond < 60 ? show.displaySecond : 0;
+    var DAY = 86400000;
+    return ((((h * 60 + m) * 60 + sec) * 1000 - now) % DAY + DAY) % DAY;
+}
+
 var DRIVE_MODES = {
     1: 'COMFORT', 2: 'SPORT', 3: 'SPORT PLUS', 4: 'ECO PRO',
     5: 'ADAPTIVE', 6: 'TRACK'
@@ -210,6 +232,8 @@ function createReader(opts) {
             }
         } else if (service === 'de.bmw.infrastructure.VehicleCondition' && field === 'VehicleCondition') {
             put('condition', conditionOf(value && value.statusConditionVehicle), now);
+        } else if (service === 'de.bmw.infotainment.KombiIF' && field === 'statusShowTimeDate') {
+            put('clockOffsetMs', clockOffset(value, now), now);
         } else if (service === 'de.bmw.infotainment.KombiIF' && field === 'statusRangeTankStatus') {
             put('rangeKm', scaled(value && value.range, 4095, 1), now);
             put('fuelLitres', scaled(value && value.fluidLevelFuelTank, 255, 1), now);
@@ -268,7 +292,9 @@ function createReader(opts) {
         peakLat = Math.abs(lat) > Math.abs(peakLat) ? lat : peakLat * (1 - dt * 0.25);
         peakLon = Math.abs(lon) > Math.abs(peakLon) ? lon : peakLon * (1 - dt * 0.25);
 
-        var d = new Date(now);
+        /* the car's time of day, once its cluster has told us the zone */
+        var off = held('clockOffsetMs');
+        var d = typeof off === 'number' ? new Date(now + off) : null;
         return {
             rpm: get('rpm', now),
             speedKmh: get('speedKmh', now),
@@ -285,7 +311,7 @@ function createReader(opts) {
             odoKm: held('odoKm'),
             rangeKm: held('rangeKm'),
             ambientC: held('ambientC'),
-            clock: { h: d.getHours(), m: d.getMinutes() },
+            clock: d ? { h: d.getUTCHours(), m: d.getUTCMinutes() } : undefined,
             /* undefined, not zero, when the car is not sending it: the
                meter then shows dashes instead of a convincing 0.00 */
             gLat: gOk ? lat : undefined, gLon: gOk ? lon : undefined,
@@ -326,7 +352,7 @@ module.exports = {
     createReader: createReader,
     scaled: scaled, stageOf: stageOf, gearText: gearText,
     selectionOf: selectionOf, conditionOf: conditionOf,
-    driveModeOf: driveModeOf, mEngineModeOf: mEngineModeOf,
+    driveModeOf: driveModeOf, mEngineModeOf: mEngineModeOf, clockOffset: clockOffset,
     DME: DME, BOOST_DIDS: BOOST_DIDS, BARO_DIDS: BARO_DIDS,
     OIL_PRESSURE_DID: OIL_PRESSURE_DID, AMBIENT_PRESSURE_DID: AMBIENT_PRESSURE_DID
 };

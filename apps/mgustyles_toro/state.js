@@ -124,9 +124,10 @@
             ? String(imperial ? Math.round(c2f(raw.ambientC)) : raw.ambientC.toFixed(1))
             : dash;
 
-        var clockText = dash;
+        var clockText = dash, clockHalf = '';
         if (raw.clock && has(raw.clock.h)) {
             var h = raw.clock.h, m = raw.clock.m || 0;
+            clockHalf = h < 12 ? 'am' : 'pm';
             if (opts.clock12) {
                 var hh = h % 12; if (hh === 0) hh = 12;
                 clockText = hh + ':' + pad(m, 2);
@@ -163,7 +164,9 @@
                        slot unless a feed supplies the real thing. */
                     auxPress: auxPress },
             odoText: odoText, rangeText: rangeText,
-            clockText: clockText, ambientText: ambientText
+            clockText: clockText, clockHalf: clockHalf, ambientText: ambientText,
+            /* the oil's own temperature, for a scale that is not the pod's */
+            oilTempC: has(oilC) ? oilC : null
         };
     }
 

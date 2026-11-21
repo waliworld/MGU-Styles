@@ -1,8 +1,12 @@
 'use strict';
 /*
- * The Track theme (TBW brief) against the car's limits and the brief's own
- * numbers: the feather checkpoints, the window inside BMW's map window, and
- * the same bottom-strip, keep-clear, budget and clipping rules as Toro.
+ * The M style (BMW M View, rebuilt from docs/ref/m-view-reference.jpg)
+ * against the car's limits and its own geometry: the bottom strip, the
+ * factory telltales, the shader budget, the window the hosted map shows
+ * through, and that a tick, its numeral and the marker agree.
+ *
+ * How closely it matches the photograph is measured by tools/m-compare.py
+ * (it needs Python; these tests do not).
  */
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -11,11 +15,20 @@ const Themes = require('../src/theme/index.js');
 const Track = require('../src/theme/track.js');
 const State = require('../src/engine/state.js');
 const Sim = require('../preview/sim.js');
+const Text = require('../src/engine/text.js');
 const atlas = require('../assets/fonts/atlas.json');
-const trackShaders = require('../src/shaders/mcluster.js');
+const mShaders = require('../src/shaders/mcluster.js');
+const allShaders = Object.assign({}, require('../src/shaders/core.js'), require('../src/shaders/parts.js'),
+    require('../src/shaders/dial.js'), mShaders);
 const M = require('../src/theme/mgeom.js');
+const Vehicle = require('../src/car/vehicle.js');
 
+const PROFILE = Panel.profile('x3m40i');
 const build = (cfg) => Themes.build(atlas, (cfg && cfg.profile) || 'x3m40i', Object.assign({ style: 'track' }, cfg));
+const layer = (t, id) => t.layers.find((L) => L.id === id);
+/* a presented state, with anything in `over` laid on top */
+const state = (t, raw, over) => Object.assign(State.present(raw || {}, t.profile, t.settings), over);
+
 const TURNS = [
     { kind: 'intersection', angle: 90, side: -1, exit: 0, text: '0.3 mi' },
     { kind: 'intersection', angle: 135, side: 1, exit: 0, text: '1500 ft' },
@@ -28,82 +41,308 @@ const TURNS = [
 const CENTRES = [{ mode: 'neutral', open: 0, maneuver: null }, { mode: 'map', open: 1, maneuver: null },
     { mode: 'camera', open: 0.5, maneuver: null }].concat(TURNS.map((m) => ({ mode: 'turn', open: 0, maneuver: m })));
 
+/* ---- reading a text layer back: which characters, and where ---- */
+const GLYPH_AT = new Map();
+for (const [face, f] of Object.entries(atlas.faces)) {
+    for (const [ch, g] of Object.entries(f.glyphs)) if (g.tw) GLYPH_AT.set(g.u + ',' + g.v, { face, ch });
+}
+const isText = (L) => L.shader === 'text' || L.shader === 'mnum';
+const countOf = (L, u) => (L.shader === 'mnum' ? u.u_cfg[0] : u.u_count);
+/* the glyph boxes of a text layer, in panel pixels */
+function quads(L, u) {
+    const out = [];
+    for (let g = 0; g < countOf(L, u); g++) {
+        const [x, y, w, h] = u.u_quad.slice(g * 4, g * 4 + 4);
+        out.push({ x: L.x + x, y: L.y + y, w, h });
+    }
+    return out;
+}
+function read(L, u) {
+    if (!u) return null;
+    let s = '';
+    for (let g = 0; g < countOf(L, u); g++) {
+        const hit = GLYPH_AT.get(Math.round(u.u_g[g * 4] * atlas.size) + ',' + Math.round(u.u_g[g * 4 + 1] * atlas.size));
+        s += hit ? hit.ch : '?';
+    }
+    return s;
+}
+const says = (t, id, st) => read(layer(t, id), layer(t, id).uniforms(st, 0));
+const hits = (r, z) => r.x < z.x + z.w && r.x + r.w > z.x && r.y < z.y + z.h && r.y + r.h > z.y;
+
+/* ------------------------------------------------------------ the registry */
+
 test('the registry picks the style, Toro by default', () => {
     assert.strictEqual(Themes.build(atlas, 'x3m40i', {}).id, 'toro');
     assert.strictEqual(Themes.build(atlas, 'x3m40i', { style: 'nonsense' }).id, 'toro');
     assert.strictEqual(build().id, 'track');
+    assert.strictEqual(build().name, 'M');
     assert.ok(build().hasCentre);
 });
 
-test('the feather follows the guide\'s rule across the aperture (section 3)', () => {
-    const C = M.CENTRE, cy = (C.y0 + C.y1) / 2, cx = (C.x0 + C.x1) / 2;
-    /* the guide's own profile: 0 on the perimeter, 0.5 twenty units in,
-       1 at forty, smoothstep between - checked on all four walls */
-    const want = [[0, 0], [10, 0.15625], [20, 0.5], [30, 0.84375], [40, 1], [120, 1]];
-    for (const [d, alpha] of want) {
-        for (const [x, y, where] of [[C.x0 + d, cy, 'left'], [C.x1 - d, cy, 'right'],
-                                     [cx, C.y0 + d, 'top'], [cx, C.y1 - d, 'bottom']]) {
-            assert.ok(Math.abs(Track.revealAt(x, y) - alpha) <= 2 / 255,
-                `${where} ${d} in: ${Track.revealAt(x, y)} != ${alpha}`);
+/* ---------------------------------------------------- the artboard's fit */
+
+test('the reference frame is fitted uniformly, its axis on the panel\'s centre, all of it above the strip', () => {
+    const A = M.ART;
+    assert.deepStrictEqual([A.w, A.h], [1726, 612], 'the reference frame\'s own size');
+    /* one scale both ways: px and py differ only by their origin */
+    assert.strictEqual(M.px(100) - M.px(0), M.py(100) - M.py(0));
+    assert.ok(Math.abs(M.px(M.AX) - Panel.PANEL_WIDTH / 2) < 0.05, 'the dials mirror about x = 960');
+    assert.ok(M.px(0) >= 0 && M.px(A.w) <= Panel.PANEL_WIDTH);
+    assert.ok(M.py(0) >= 0 && M.py(A.h) <= Panel.BOTTOM_CUT, 'the whole frame is above the car\'s strip');
+    /* layers sit on whole pixels and cover what they were asked to */
+    const b = M.box(10.2, 20.7, 30.1, 40.9);
+    assert.ok(Number.isInteger(b.x) && Number.isInteger(b.y) && Number.isInteger(b.w) && Number.isInteger(b.h));
+    assert.ok(b.x <= M.px(10.2) && b.x + b.w >= M.px(30.1) && b.y <= M.py(20.7) && b.y + b.h >= M.py(40.9));
+});
+
+test('one fit carries the whole design to a target: the comparison\'s 1:1 artboard, or any other size', () => {
+    const panel = build({ mFixture: true });
+    const boxes = (t) => t.layers.map((L) => [L.id, L.x, L.y, L.w, L.h]);
+    const before = boxes(panel);
+    try {
+        /* the artboard itself: what tools/m-compare.py measures against the photograph */
+        M.setFit({ s: 1, ox: 0, oy: 0 });
+        assert.deepStrictEqual([M.px(0), M.py(0), M.px(1726), M.py(612)], [0, 0, 1726, 612]);
+        const native = build({ mFixture: true });
+        const st = state(native, { speedKmh: 0 });
+        for (const L of native.layers.filter((x) => x.shader !== 'flash' && !x.belowCut)) {
+            assert.ok(L.x >= 0 && L.y >= 0 && L.x + L.w <= 1726 && L.y + L.h <= 612, L.id + ' is on the artboard');
+        }
+        /* a shader is told its place in artboard units, one pixel to the unit */
+        const dial = layer(native, 'speedDial');
+        assert.deepStrictEqual(dial.uniforms(st).u_art, [dial.x, dial.y, 1]);
+        /* the speed's "0" is 51.6 units tall there, as in the photograph */
+        const zero = quads(layer(native, 'speed'), layer(native, 'speed').uniforms(st, 0))[0];
+        const ink = atlas.faces.mw.glyphs['0'];
+        assert.ok(Math.abs(0.70 * zero.h / ink.h - 51.6) < 0.01, 'the figure\'s height follows the fit');
+
+        /* twice the size: every layer twice as far out and twice as big (to the pixel grid) */
+        M.setFit({ s: 2, ox: 10, oy: 20 });
+        const big = build({ mFixture: true });
+        for (const [i, L] of big.layers.entries()) {
+            const N = native.layers[i];
+            if (N.id === 'back' || N.id === 'flash') continue;          /* these cover the panel, whatever the fit */
+            assert.strictEqual(L.id, N.id);
+            assert.ok(Math.abs(L.x - (10 + 2 * N.x)) <= 2 && Math.abs(L.y - (20 + 2 * N.y)) <= 2, L.id + ' moved with the fit');
+            assert.ok(Math.abs(L.w - 2 * N.w) <= 3 && Math.abs(L.h - 2 * N.h) <= 3, L.id + ' grew with the fit');
+        }
+        assert.strictEqual(layer(big, 'speedDial').uniforms(state(big, {})).u_art[2], 2);
+    } finally {
+        M.setFit();
+    }
+    /* and the car's fit is back, exactly */
+    assert.deepStrictEqual([M.ART.s, M.ART.ox, M.ART.oy], [M.PANEL_FIT.s, M.PANEL_FIT.ox, M.PANEL_FIT.oy]);
+    assert.deepStrictEqual(boxes(build({ mFixture: true })), before);
+});
+
+/* ------------------------------------------------- the outline compiler */
+
+/* the generated GLSL of one outline, as a JavaScript function of [x, y] */
+function outline(pts, radii, closed) {
+    const N = '(-?[\\d.e-]+)';
+    const js = mShaders.chain('f', pts, radii, closed)
+        .replace(/^float f\(vec2 p\) \{/, '')
+        .replace(/\}\s*$/, '')
+        .replace(new RegExp('dot\\(p - vec2\\(' + N + ', ' + N + '\\), vec2\\(' + N + ', ' + N + '\\)\\)', 'g'),
+            '((p[0] - ($1)) * ($3) + (p[1] - ($2)) * ($4))')
+        .replace(new RegExp('q = p - vec2\\(' + N + ', ' + N + '\\);', 'g'), 'q = [p[0] - ($1), p[1] - ($2)];')
+        .replace(new RegExp('dot\\(q, vec2\\(' + N + ', ' + N + '\\)\\)', 'g'), '(q[0] * ($1) + q[1] * ($2))')
+        .replace(/length\(q\)/g, 'Math.hypot(q[0], q[1])')
+        .replace(/\bmax\(/g, 'Math.max(')
+        .replace('float d =', 'var d =')
+        .replace('vec2 q;', 'var q;');
+    assert.ok(!/vec2|float|dot\(/.test(js), 'everything in the outline was understood:\n' + js);
+    return new Function('p', js);
+}
+
+test('an outline\'s distance: negative inside, the corners rounded by their own radius', () => {
+    /* a 100 x 60 box, clockwise with y down; two corners rounded */
+    const f = outline([[0, 0], [100, 0], [100, 60], [0, 60]], [10, 0, 20, 0], true);
+    const near = (a, b, why) => assert.ok(Math.abs(a - b) < 0.01, `${why}: ${a} != ${b}`);
+    near(f([50, 30]), -30, 'the middle');
+    near(f([110, 30]), 10, 'right of it');
+    near(f([50, -7]), 7, 'above it');
+    near(f([100, 0]), 0, 'a sharp corner is on the outline');
+    near(f([0, 0]), 10 * (Math.SQRT2 - 1), 'a rounded corner is cut away');
+    near(f([10 - 10 / Math.SQRT2, 10 - 10 / Math.SQRT2]), 0, 'on the arc');
+    near(f([100, 60]), 20 * (Math.SQRT2 - 1), 'the larger radius cuts further');
+    near(f([5, 5]), Math.hypot(5, 5) - 10, 'inside, by the arc');
+    /* an open chain: its first and last edges run on for ever */
+    const g = outline([[0, 100], [0, 0], [100, 0]], [0, 25, 0], false);
+    near(g([50, 5000]), -50, 'far down the first edge');
+    near(g([5000, 40]), -40, 'far along the last');
+    near(g([0, 0]), 25 * (Math.SQRT2 - 1), 'its one corner is rounded');
+});
+
+test('every plate is a clockwise convex slab, and its corners are rounded as measured', () => {
+    for (const [id, P] of Object.entries(M.PLATES)) {
+        const f = outline(P.v, P.r, true), k = P.v.length;
+        const cx = P.v.reduce((a, v) => a + v[0], 0) / k, cy = P.v.reduce((a, v) => a + v[1], 0) / k;
+        assert.ok(f([cx, cy]) < -20, `${id}: its middle is inside`);
+        assert.ok(M.convexDist(P.v, cx, cy) < -20, `${id} is listed clockwise`);
+        for (let i = 0; i < k; i++) {
+            const a = P.v[(i + k - 1) % k], b = P.v[i], c = P.v[(i + 1) % k];
+            /* convex: each corner turns the same way */
+            const turn = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+            assert.ok(turn > 0, `${id}: corner ${i} is convex`);
+            /* at the corner itself the outline stands off by r (1 / sin(half the angle) - 1) */
+            const u = [a[0] - b[0], a[1] - b[1]], w = [c[0] - b[0], c[1] - b[1]];
+            const cos = (u[0] * w[0] + u[1] * w[1]) / (Math.hypot(u[0], u[1]) * Math.hypot(w[0], w[1]));
+            const want = P.r[i] * (1 / Math.sin(Math.acos(cos) / 2) - 1);
+            assert.ok(Math.abs(f(b) - want) < 0.05, `${id} corner ${i}: ${f(b)} != ${want}`);
+        }
+        /* its light: a brightness the shader can show, falling gently */
+        assert.ok(P.g[2] > 40 && P.g[2] < 118 && Math.abs(P.g[3]) < 1 && Math.abs(P.g[4]) < 1, `${id} light`);
+    }
+    /* the shaders are written from these same numbers */
+    for (const id of ['LU1', 'LU2', 'LL1', 'LL2']) {
+        assert.ok(mShaders.mplatesL.includes(mShaders.chain('pl' + id, M.PLATES[id].v, M.PLATES[id].r, true)), id);
+    }
+    for (const id of ['RU1', 'RU2', 'RL1', 'RL2']) {
+        assert.ok(mShaders.mplatesR.includes(mShaders.chain('pl' + id, M.PLATES[id].v, M.PLATES[id].r, true)), id);
+    }
+});
+
+/* -------------------------------------------------------- the map's window */
+
+test('the window: the black field between the plates, feathered in from their edges', () => {
+    const W = M.WINDOW;
+    /* down from the top edge of the wide band, far from its sides */
+    const top = W.polys[0][0][1];
+    const smooth = (t) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+    for (const d of [-5, 0, W.inset, W.inset + W.feather / 2, W.inset + W.feather, 60]) {
+        const want = smooth((d - W.inset) / W.feather);
+        assert.ok(Math.abs(Track.revealAt(M.AX, top + d) - want) < 1e-9, `${d} in from the top: ${want}`);
+    }
+    assert.strictEqual(Track.revealAt(M.AX, top + W.inset + W.feather / 2), 0.5, 'half-way through the feather');
+    assert.strictEqual(Track.revealAt(M.AX, 170), 1, 'wide open in the middle');
+    assert.strictEqual(Track.revealAt(M.AX, 430), 1, 'and down the neck between the lower plates');
+    /* nothing of the picture on a plate, anywhere */
+    let onPlate = 0, shown = 0;
+    for (let y = 60; y < 560; y += 3) {
+        for (let x = 250; x < 1560; x += 3) {
+            const r = Track.revealAt(x, y);
+            if (r > 0) shown++;
+            const plate = Object.keys(M.PLATES).find((id) => M.convexDist(M.PLATES[id].v, x, y) < 0);
+            if (plate) { onPlate++; assert.strictEqual(r, 0, `the picture shows on ${plate} at ${x}, ${y}`); }
         }
     }
-    assert.strictEqual(Track.revealAt(C.x0 - 1, cy), 0, 'nothing outside the polygon');
-    /* at the corners it is measured against the chamfer, not the box */
-    assert.ok(Track.revealAt(C.x0 + 30, C.y0 + 30) < Track.revealAt(C.x0 + 30, cy));
-    /* and the shader computes the same thing */
-    assert.match(trackShaders.mframe, /smoothstep\(0\.0, 40\.0, -dc\)/);
-    assert.match(trackShaders.mframe, new RegExp('vec2\\(' + C.x0 + '\\.0, ' + C.y0 +
-        '\\.0\\), vec2\\(' + C.x1 + '\\.0, ' + C.y1 + '\\.0\\), ' + C.chamfer + '\\.0\\)'));
+    assert.ok(onPlate > 5000 && shown > 5000, 'the plates and the window were both sampled');
+    /* and the shader computes the same thing, from the same polygons */
+    W.polys.forEach((poly, i) => assert.ok(mShaders.mback.includes(mShaders.chain('win' + i, poly, null, true))));
+    assert.ok(mShaders.mback.includes('(-d - ' + W.inset + '.0) / ' + W.feather + '.0'));
+    assert.match(mShaders.mback, /a = 1\.0 - u_open \* t \* t \* \(3\.0 - 2\.0 \* t\)/);
 });
 
 test('the window lies inside BMW\'s map window, where Waze and the camera land', () => {
     const w = build().window, m = Track.MAP_WINDOW;
     assert.ok(w.x >= m.x && w.y >= m.y && w.x + w.w <= m.x + m.w && w.y + w.h <= m.y + m.h,
         JSON.stringify(w) + ' not inside ' + JSON.stringify(m));
+    /* and it is the window's own bounds, on the panel */
+    const b = M.windowBox();
+    assert.ok(w.x <= M.px(b.x0) && w.x + w.w >= M.px(b.x1) && w.y <= M.py(b.y0) && w.y + w.h >= M.py(b.y1));
 });
 
-test('the frame sits above the hosted map (z 0) and is the only see-through layer', () => {
+test('the back glass sits above the hosted map (z 0) and is the only see-through layer', () => {
     const t = build();
-    const frame = t.layers.find((L) => L.id === 'frame');
-    assert.ok(frame.z >= 1);
-    assert.ok(t.layers.every((L) => L.z >= 1), 'every layer above the map');
-    const st = State.present({}, Panel.profile('x3m40i'), t.settings);
-    assert.strictEqual(frame.uniforms(Object.assign({}, st, { centre: CENTRES[0] })).u_open, 0);
-    assert.strictEqual(frame.uniforms(Object.assign({}, st, { centre: CENTRES[1] })).u_open, 1);
-    /* our own turn card keeps the window shut */
-    assert.strictEqual(frame.uniforms(Object.assign({}, st, { centre: CENTRES[3] })).u_open, 0);
+    const back = layer(t, 'back');
+    assert.ok(back.z >= 1);
+    assert.ok(t.layers.every((L) => L.z >= back.z), 'nothing of ours is under the glass');
+    assert.deepStrictEqual([back.x, back.y, back.w], [0, 0, Panel.PANEL_WIDTH], 'it covers the panel');
+    const open = (centre) => back.uniforms(state(t, {}, { centre })).u_open;
+    assert.strictEqual(open(CENTRES[0]), 0, 'shut with nothing to show');
+    assert.strictEqual(open(CENTRES[1]), 1, 'open on the map');
+    assert.strictEqual(open(CENTRES[2]), 0.5, 'and as far as the camera has faded in');
+    assert.strictEqual(open(CENTRES[3]), 0, 'our own turn card keeps it shut');
+    assert.strictEqual(back.uniforms(state(t, {})).u_open, 0, 'shut when the centre says nothing');
+    /* only the glass has a window in it */
+    for (const [id, src] of Object.entries(mShaders)) {
+        assert.strictEqual(/u_open/.test(src), id === 'mback', id);
+    }
 });
 
-test('Track: nothing below the cut, nothing off the panel, nothing under a factory box', () => {
-    for (const id of Object.keys(Panel.PROFILES)) {
-        const zones = Panel.keepClear(id).filter((z) => z.id !== 'bottomStrip');
-        for (const L of build({ profile: id }).layers) {
-            if (L.belowCut) assert.strictEqual(L.id, 'frame', 'only the frame goes below');
-            else assert.ok(L.y + L.h <= Panel.BOTTOM_CUT, `${id}/${L.id} reaches ${L.y + L.h}`);
-            assert.ok(L.x >= 0 && L.y >= 0 && L.x + L.w <= Panel.PANEL_WIDTH, `${L.id} off the panel`);
-            if (L.id === 'frame' || L.id === 'flash') continue;
-            for (const z of zones) {
-                /* the M boxes sit in the middle: what the centre shows is
-                   ours to lose there, readouts are not */
-                /*
-                 * On M cars the KOMBI draws its own boxes in the middle of
-                 * the panel. The centre is ours to lose there. The gauge
-                 * layers are wide because they carry the caps, but nothing
-                 * of theirs is drawn where the right box falls: the band's
-                 * inner edge starts at x 1515 and the oil bar at 1501, both
-                 * clear of the box at 1223-1394.
-                 */
-                if (/^M box/.test(z.name) && /^(turn|speedGauge|revGauge)/.test(L.id)) continue;
-                const hit = L.x < z.x + z.w && L.x + L.w > z.x && L.y < z.y + z.h && L.y + L.h > z.y;
-                assert.ok(!hit, `${id}/${L.id} under ${z.name}`);
+test('no readout stands where the picture shows', () => {
+    for (const units of ['imperial', 'metric']) {
+        const t = build({ units, mFixture: true, clock12: true });
+        const st = state(t, { rpm: 3000, speedKmh: 330, gear: 'M8', fuelPct: 40, oilTempC: 100, rangeKm: 999,
+                              ambientC: -22.5, clock: { h: 23, m: 59 } }, { centre: CENTRES[1] });
+        for (const L of t.layers.filter(isText)) {
+            const u = L.uniforms(st, 0);
+            if (!u) continue;
+            for (const q of quads(L, u)) {
+                for (const [x, y] of [[q.x, q.y], [q.x + q.w, q.y], [q.x, q.y + q.h], [q.x + q.w, q.y + q.h],
+                                      [q.x + q.w / 2, q.y + q.h / 2]]) {
+                    const ax = (x - M.ART.ox) / M.ART.s, ay = (y - M.ART.oy) / M.ART.s;
+                    assert.strictEqual(Track.revealAt(ax, ay), 0, `${L.id} over the map at ${Math.round(x)}, ${Math.round(y)}`);
+                }
             }
         }
     }
 });
 
-test('Track shaders fit the budget and avoid what the head unit refuses', () => {
-    for (const [id, src] of Object.entries(trackShaders)) {
-        let vectors = 3;
+/* ---------------------------------------------------------- the car's rules */
+
+test('M: nothing below the cut, nothing off the panel, nothing under a factory box', () => {
+    /* what the car lays over us is decoration's to lose, never a reading's */
+    const DECOR = /^(back|plates[LR]|centreLines|flash|snow\d)$/;
+    for (const id of Object.keys(Panel.PROFILES)) {
+        const zones = Panel.keepClear(id).filter((z) => z.id !== 'bottomStrip');
+        const t = build({ profile: id, mFixture: true, holiday: true, clock12: true });
+        const st = state(t, { rpm: 3000, speedKmh: 330, gear: 'M8', driveMode: 'SPORT_PLUS', fuelPct: 40, oilTempC: 100,
+                              rangeKm: 999, ambientC: -22.5, clock: { h: 23, m: 59 } });
+        for (const L of t.layers) {
+            if (L.belowCut) assert.strictEqual(L.id, 'back', 'only the glass may be asked below the cut');
+            else assert.ok(L.y + L.h <= Panel.BOTTOM_CUT, `${id}/${L.id} reaches ${L.y + L.h}`);
+            assert.ok(L.x >= 0 && L.y >= 0 && L.x + L.w <= Panel.PANEL_WIDTH, `${id}/${L.id} off the panel`);
+            assert.ok(Number.isInteger(L.x) && Number.isInteger(L.y) && Number.isInteger(L.w) && Number.isInteger(L.h),
+                `${id}/${L.id} on whole pixels`);
+            if (DECOR.test(L.id)) continue;
+            /* a text layer is judged by its glyphs, anything else by its box */
+            let ink = [L];
+            if (isText(L)) { const u = L.uniforms(st, 0); ink = u ? quads(L, u) : []; }
+            for (const z of zones) {
+                /*
+                 * The rev dial's layer is wide because it carries the level
+                 * line across its top; down at the M box there is only the
+                 * dial's rail, far to the right of it (checked below).
+                 */
+                if (z.id === 'mBoxB' && L.id === 'revDial') continue;
+                assert.ok(!ink.some((r) => hits(r, z)), `${id}/${L.id} under ${z.name}`);
+            }
+        }
+    }
+    /* the rev dial at the heights of the right-hand M box: its innermost
+       ink there is the fine contour, the mirror of the speed dial's */
+    const z = Panel.PROFILES.mCarS58.extraZones.find((b) => b.id === 'mBoxB');
+    for (let y = z.y; y <= z.y + z.h; y += 2) {
+        const ay = (y - M.ART.oy) / M.ART.s;
+        const inner = M.px(M.mirror(M.contourX(ay) + M.DIAL.conW));
+        assert.ok(inner > z.x + z.w + 40, `the rev dial at y ${y} starts at ${Math.round(inner)}`);
+    }
+});
+
+test('no glyph is hidden behind the cut corners of the glass', () => {
+    for (const units of ['imperial', 'metric']) {
+        const t = build({ units, mFixture: true, clock12: true });
+        const st = state(t, { rpm: 3000, speedKmh: 330, gear: 'M8', fuelPct: 40, oilTempC: 100, rangeKm: 999,
+                              ambientC: -22.5, clock: { h: 23, m: 59 } });
+        for (const L of t.layers.filter(isText)) {
+            const u = L.uniforms(st, 0);
+            for (const q of (u ? quads(L, u) : [])) {
+                for (const [x, y] of [[q.x, q.y], [q.x + q.w, q.y], [q.x, q.y + q.h], [q.x + q.w, q.y + q.h]]) {
+                    assert.ok(!Panel.inCutCorner(x, y), `${L.id} (${units}) in a cut corner`);
+                }
+            }
+        }
+    }
+});
+
+test('M shaders fit the budget and avoid what the head unit refuses', () => {
+    assert.deepStrictEqual(Object.keys(mShaders).sort(),
+        ['mback', 'mbadge', 'mdiag', 'mfoot', 'mgauge', 'mnum', 'mplatesL', 'mplatesR', 'mrails', 'mstrip', 'tturn'],
+        'shaders only: the outline compiler is not listed with them');
+    for (const [id, src] of Object.entries(mShaders)) {
+        let vectors = 3;                      /* u_size, u_time, u_keep from the prelude */
         for (const m of src.matchAll(/uniform\s+(float|vec2|vec3|vec4)\s+(\w+)(\[(\d+)\])?/g)) {
             vectors += m[4] ? Number(m[4]) : 1;
         }
@@ -115,21 +354,44 @@ test('Track shaders fit the budget and avoid what the head unit refuses', () => 
     }
 });
 
-test('every Track layer gives finite uniforms and keeps its glyphs inside, in every centre mode', () => {
-    const profile = Panel.profile('x3m40i');
+test('with everything switched on the M style stays inside the layer budget', () => {
+    const t = build({ mFixture: true, holiday: true, revFlash: 'both', intro: true, clock12: true });
+    assert.ok(t.layers.length <= 64, `${t.layers.length} layers`);
+    assert.strictEqual(new Set(t.layers.map((L) => L.id)).size, t.layers.length, 'no two layers share a name');
+});
+
+test('every M layer is given exactly the uniforms its shader declares', () => {
+    const BUILT_IN = ['u_size', 'u_time', 'u_keep', 'u_atlas', 'u_atlasSize'];
+    for (const cfg of [{ mFixture: true, revFlash: 'both', clock12: true }, { mPanel: 'mode', units: 'metric', clock12: true }]) {
+        const t = build(cfg);
+        const st = state(t, { rpm: 7100, speedKmh: 120, gear: 'D', driveMode: 'SPORT', fuelPct: 40, oilTempC: 100,
+                              rangeKm: 207, ambientC: 12.5, clock: { h: 12, m: 4 } }, { centre: CENTRES[3] });
+        for (const L of t.layers) {
+            const src = allShaders[L.shader];
+            assert.ok(src, `${L.id}: no shader called ${L.shader}`);
+            const u = L.uniforms(st, 0);
+            assert.ok(u, L.id + ' shows in this state');
+            const declared = [...src.matchAll(/uniform\s+\w+\s+(\w+)/g)].map((m) => m[1])
+                .filter((k) => !BUILT_IN.includes(k)).sort();
+            assert.deepStrictEqual(Object.keys(u).sort(), declared, `${L.id} (${L.shader})`);
+        }
+    }
+});
+
+test('every M layer gives finite uniforms and keeps its glyphs inside, in every centre mode', () => {
     const bad = new Set();
     for (const units of ['imperial', 'metric']) {
-        for (const trackPalette of ['night', 'day']) {
-            const t = build({ units, trackPalette });
-            const sim = Sim.create(profile);
+        for (const mPanel of ['4wd', 'mode']) {
+            const t = build({ units, mPanel, mFixture: true, clock12: mPanel === 'mode' });
+            const sim = Sim.create(PROFILE);
             for (let i = 0; i < 1200; i++) {
                 sim.step(1 / 60);
                 if (i % 151) continue;
-                const st = State.present(sim.raw(), profile, t.settings);
+                const st = State.present(sim.raw(), PROFILE, t.settings);
                 for (const centre of CENTRES) {
                     for (const gear of ['P', 'R', 'N', 'D', '1', '8', 'M8', 'S5']) {
                         for (const speed of [0, 99, 100, 330]) {
-                            const s2 = Object.assign({}, st, { gear, speed, centre });
+                            const s2 = Object.assign({}, st, { gear, speed, centre, modeLabel: 'SPORT PLUS' });
                             for (const L of t.layers) {
                                 const u = L.uniforms ? L.uniforms(s2, 0) : null;
                                 if (!u) continue;
@@ -138,11 +400,12 @@ test('every Track layer gives finite uniforms and keeps its glyphs inside, in ev
                                         if (!Number.isFinite(n)) bad.add(`${L.id}.${k} = ${n}`);
                                     }
                                 }
-                                if (L.shader !== 'text') continue;
-                                for (let g = 0; g < u.u_count; g++) {
-                                    const [x, y, w, h] = u.u_quad.slice(g * 4, g * 4 + 4);
-                                    if (x >= -1 && y >= -1 && x + w <= L.w + 1 && y + h <= L.h + 1) continue;
-                                    bad.add(`${L.id} (${units}, gear ${gear}, speed ${speed}): glyph outside ${Math.round(L.w)}x${Math.round(L.h)}`);
+                                if (!isText(L)) continue;
+                                assert.ok(countOf(L, u) <= Text.MAX_GLYPHS);
+                                for (const q of quads(L, u)) {
+                                    if (q.x >= L.x - 1 && q.y >= L.y - 1 && q.x + q.w <= L.x + L.w + 1 &&
+                                        q.y + q.h <= L.y + L.h + 1) continue;
+                                    bad.add(`${L.id} (${units}, gear ${gear}, speed ${speed}): glyph outside ${L.w}x${L.h}`);
                                 }
                             }
                         }
@@ -154,30 +417,278 @@ test('every Track layer gives finite uniforms and keeps its glyphs inside, in ev
     assert.deepStrictEqual([...bad].sort(), []);
 });
 
-test('speed digits keep clear of the rail at 330', () => {
-    const t = build({ units: 'metric' });
-    const L = t.layers.find((x) => x.id === 'speed');
-    const st = Object.assign(State.present({}, Panel.profile('x3m40i'), t.settings), { speed: 330 });
-    const u = L.uniforms(st);
-    const left = L.x + u.u_quad[0];
-    /* clear of the left rail's inner hairline at the figures' height */
-    assert.ok(left > Track.X(130), `330 starts at ${Math.round(left)}, over the rail`);
-    /* right-aligned on the brief's anchor whatever the number */
-    const right = (n) => { const v = L.uniforms(Object.assign({}, st, { speed: n })); const c = v.u_count - 1; return L.x + v.u_quad[c * 4] + v.u_quad[c * 4 + 2]; };
-    assert.ok(Math.abs(right(0) - right(330)) < Track.D(16), 'one anchor for 0 and 330');
+/* ---------------------------------------------------------------- the dials */
+
+test('one value mapping: the scale is linear in height, and uneven where the car\'s is', () => {
+    /* ticks stand a fixed step apart, the first at the foot */
+    for (let k = 0; k < M.SCALE.n; k++) assert.ok(Math.abs(M.tickY(k) - M.tickY(k + 1) - M.SCALE.dy) < 1e-9);
+    assert.strictEqual(M.tickY(0), M.SCALE.y0);
+    for (const units of ['imperial', 'metric']) {
+        const s = M.SPEED_SCALE[units];
+        assert.strictEqual(s.length, M.SCALE.n + 1);
+        s.forEach((v, k) => assert.strictEqual(M.speedTicks(v, units), k, `${v} is tick ${k}`));
+        for (let v = 0; v < s[8] + 40; v += 0.5) {
+            const a = M.speedTicks(v, units), b = M.speedTicks(v + 0.5, units);
+            assert.ok(b >= a && b <= 8 && a >= 0, 'never falls back, never leaves the scale');
+        }
+    }
+    assert.strictEqual(M.speedTicks(140, 'imperial'), 6.5, 'half-way between 120 and 160');
+    assert.strictEqual(M.speedTicks(180, 'metric'), 5.5, 'half-way between 150 and 210');
+    assert.strictEqual(M.speedTicks(-3, 'metric'), 0);
+    assert.strictEqual(M.speedTicks(undefined, 'metric'), 0);
+    assert.strictEqual(M.rpmTicks(4000), 4);
+    assert.strictEqual(M.rpmTicks(9500), 8);
+    assert.strictEqual(M.rpmTicks(undefined), 0);
+
+    const t = build(), L = layer(t, 'speedDial'), R = layer(t, 'revDial');
+    const val = (D, o) => D.uniforms(state(t, {}, o)).u_val;
+    assert.strictEqual(val(L, { speed: 0 }), 0);
+    assert.strictEqual(val(L, { speed: 80 }), 4, '80 mph is the fifth of nine numerals');
+    assert.strictEqual(val(L, { speed: 200 }), 8);
+    assert.strictEqual(val(L, { speed: 400 }), 8, 'held at the top, never wraps');
+    assert.strictEqual(val(R, { rpm: 4000 }), 4);
+    assert.strictEqual(val(layer(build({ units: 'metric' }), 'speedDial'), { speed: 180 }), 5.5);
+    /* the rev dial is the speed dial through a mirror */
+    assert.strictEqual(L.uniforms(state(t, {})).u_side, 0);
+    assert.strictEqual(R.uniforms(state(t, {})).u_side, 1);
+    assert.ok(Math.abs((L.x + R.x + R.w) / 2 - 960) <= 1 && Math.abs((L.x + L.w + R.x) / 2 - 960) <= 1);
+    assert.deepStrictEqual([L.y, L.h], [R.y, R.h]);
 });
+
+test('each numeral stands at its own tick, and the two beside the value light up', () => {
+    for (const units of ['imperial', 'metric']) {
+        const t = build({ units });
+        const st = state(t, {});
+        const seen = { speed: [], rev: [] };
+        for (const [id, which] of [['speedScaleA', 'speed'], ['speedScaleB', 'speed'], ['revScale', 'rev']]) {
+            const L = layer(t, id), u = L.uniforms(st, 0);
+            const str = read(L, u), q = quads(L, u);
+            /* the tick each glyph belongs to: the shader's own sum */
+            const ticks = q.map((g) => Math.floor((M.SCALE.y0 - ((g.y + g.h / 2) - M.ART.oy) / M.ART.s) / M.SCALE.dy + 0.5));
+            assert.ok(Math.abs(u.u_art[1] + (q[0].y - L.y + q[0].h / 2) / u.u_art[2] -
+                ((q[0].y + q[0].h / 2) - M.ART.oy) / M.ART.s) < 1e-9, 'u_art carries the layer to the artboard');
+            const by = {};
+            ticks.forEach((k, i) => { by[k] = (by[k] || '') + str[i]; });
+            for (const [k, s] of Object.entries(by)) seen[which][k] = s;
+            /* level with the tick: the figure's middle is on the tick's height */
+            const size = q[0].h / atlas.faces.mw.glyphs['0'].h;
+            for (const [i, g] of q.entries()) {
+                const m = atlas.faces.mw.glyphs[str[i]];
+                const base = g.y - m.by * size;                       /* the baseline */
+                const mid = base - 0.35 * size;                       /* half a figure up */
+                assert.ok(Math.abs(mid - M.py(M.tickY(ticks[i]))) < 0.75, `${id} "${str[i]}" is level with tick ${ticks[i]}`);
+            }
+        }
+        assert.deepStrictEqual(seen.speed, M.SPEED_SCALE[units].map(String), units + ' speed numerals, foot to top');
+        assert.deepStrictEqual(seen.rev, ['0', '1', '2', '3', '4', '5', '6', '7', '8']);
+    }
+    /* what lights: the numerals either side of the value (the shader's rule) */
+    assert.match(mShaders.mnum, /float k = floor\(\(Y0 - gy\) \/ DY \+ 0\.5\);/);
+    assert.match(mShaders.mnum, /float lit = smoothstep\(0\.0, 0\.25, 1\.0 - abs\(k - u_cfg\.z\)\);/);
+    const t = build();
+    assert.strictEqual(layer(t, 'speedScaleB').uniforms(state(t, {}, { speed: 76 })).u_cfg[2], 3.8,
+        '76 mph: "60" and "80" light, as on the car');
+    assert.strictEqual(layer(t, 'speedScaleA').uniforms(state(t, {}, { speed: 76 })).u_cfg[2], 3.8);
+    assert.strictEqual(layer(t, 'revScale').uniforms(state(t, {}, { rpm: 738 })).u_cfg[2], 0.738);
+});
+
+test('the scale\'s numerals hug the rail: speed outside on the left, revs outside on the right', () => {
+    for (const units of ['imperial', 'metric']) {
+        const t = build({ units }), st = state(t, {});
+        for (const id of ['speedScaleA', 'speedScaleB']) {
+            const L = layer(t, id), u = L.uniforms(st, 0);
+            for (const q of quads(L, u)) {
+                const ay = ((q.y + q.h / 2) - M.ART.oy) / M.ART.s;
+                assert.ok(q.x + q.w < M.px(M.rimOuterX(ay)) + 6, `${id}: left of the rim`);
+            }
+        }
+        const R = layer(t, 'revScale');
+        for (const q of quads(R, R.uniforms(st, 0))) {
+            const ay = ((q.y + q.h / 2) - M.ART.oy) / M.ART.s;
+            assert.ok(q.x > M.px(M.mirror(M.rimOuterX(ay))) - 6, 'revScale: right of the rim');
+        }
+    }
+    /* clear of the tyre-pressure telltale, which the car draws beside the speed scale */
+    const tyre = Panel.TELLTALES.find((z) => z.id === 'tyre');
+    for (const id of ['speedScaleA', 'speedScaleB']) assert.ok(!hits(layer(build({ units: 'metric' }), id), tyre), id);
+});
+
+test('the red field follows the redline; the speed dial has none', () => {
+    const zone = (cfg, id) => { const t = build(cfg); return layer(t, id).uniforms(state(t, {})).u_zone; };
+    assert.deepStrictEqual(zone({}, 'speedDial'), [0, 0, 0, 0]);
+    const z = zone({}, 'revDial');                       /* this car: 6750 */
+    assert.ok(Math.abs(z[0] - 6.84) < 1e-9 && z[1] > 7.9 && z[1] <= 8, 'red from just past the redline to the top');
+    assert.ok(z[2] < z[3] && z[3] < z[0], 'the amber field ends before the red starts');
+    assert.ok(Math.abs(zone({ rpmRedline: 7000 }, 'revDial')[0] - 7.09) < 1e-9, 'it moves with the setting');
+    const high = zone({ rpmRedline: 8000 }, 'revDial');
+    assert.ok(high[0] < high[1], 'a redline at the top of the scale still leaves a field to see');
+});
+
+test('the limiter flashes the rev dial and the edges only when asked', () => {
+    const warn = (cfg, lim) => { const t = build(cfg); return layer(t, 'revDial').uniforms(state(t, {}, { rpm: 7000, limiter: lim })).u_warn; };
+    assert.strictEqual(warn({}, 1), 1);
+    assert.strictEqual(warn({}, 0), 0);
+    assert.strictEqual(warn({ revFlash: 'edges' }, 1), 0, 'edges only: the dial keeps still');
+    const off = build({ revFlash: 'off' });
+    assert.strictEqual(layer(off, 'revDial').uniforms(state(off, {}, { rpm: 7000, limiter: 1 })).u_warn, 0);
+    assert.ok(!off.layers.some((L) => L.id === 'flash'));
+    assert.ok(build({ revFlash: 'both' }).layers.some((L) => L.id === 'flash'));
+    /* the speed dial never flashes */
+    const t = build();
+    assert.strictEqual(layer(t, 'speedDial').uniforms(state(t, {}, { limiter: 1 })).u_warn, 0);
+});
+
+/* ------------------------------------------------------------ the readouts */
+
+test('both speeds are shown, each under its own unit', () => {
+    const imp = build({ units: 'imperial' }), met = build({ units: 'metric' });
+    const at = (t, speed) => state(t, {}, { speed });
+    assert.strictEqual(says(imp, 'speed', at(imp, 60)), '60');
+    assert.strictEqual(says(imp, 'speedUnit', at(imp, 60)), 'mph');
+    assert.strictEqual(says(imp, 'speed2', at(imp, 60)), '97');
+    assert.strictEqual(says(imp, 'speed2Unit', at(imp, 60)), 'km/h');
+    assert.strictEqual(says(imp, 'speedTitle', at(imp, 60)), 'mph', 'the dial is titled in its own unit');
+    assert.strictEqual(says(met, 'speed', at(met, 100)), '100');
+    assert.strictEqual(says(met, 'speedUnit', at(met, 100)), 'km/h');
+    assert.strictEqual(says(met, 'speed2', at(met, 100)), '62');
+    assert.strictEqual(says(met, 'speed2Unit', at(met, 100)), 'mph');
+    assert.strictEqual(says(met, 'speedTitle', at(met, 100)), 'km/h');
+    assert.strictEqual(says(met, 'revTitle', at(met, 0)), '1/minx1000');
+    /* a standing car reads 0 twice, as in the reference frame */
+    assert.strictEqual(says(met, 'speed', at(met, 0)), '0');
+    assert.strictEqual(says(met, 'speed2', at(met, 0)), '0');
+    assert.strictEqual(says(met, 'speed', at(met, -2)), '0', 'never a negative speed');
+});
+
+test('the speed is flush right over its unit and keeps clear of the dial at three figures', () => {
+    for (const units of ['imperial', 'metric']) {
+        const t = build({ units }), L = layer(t, 'speed');
+        const right = (n) => { const q = quads(L, L.uniforms(state(t, {}, { speed: n }), 0)); return q[q.length - 1].x + q[q.length - 1].w; };
+        assert.ok(Math.abs(right(0) - right(330)) < 0.01 && Math.abs(right(0) - right(88)) < 0.01, 'one right edge for 0, 88 and 330');
+        const q = quads(L, L.uniforms(state(t, {}, { speed: 330 }), 0))[0];
+        for (let y = q.y; y <= q.y + q.h; y += 4) {
+            const ay = (y - M.ART.oy) / M.ART.s;
+            assert.ok(q.x > M.px(M.contourX(ay) + M.DIAL.conW) + 40, `330 starts at ${Math.round(q.x)}, on the dial`);
+        }
+    }
+});
+
+test('the gear is shown as the car names it', () => {
+    const t = build();
+    for (const g of ['P', 'R', 'N', 'D', 'D8', 'S5', 'M3', '1']) assert.strictEqual(says(t, 'gear', state(t, {}, { gear: g })), g);
+    assert.strictEqual(says(t, 'gear', state(t, {})), 'P', 'P until the car says otherwise');
+});
+
+test('fuel and oil: lit from the foot to the reading, dark with no reading', () => {
+    const t = build({ units: 'metric' });
+    const fuel = (raw) => layer(t, 'fuelStrip').uniforms(state(t, raw));
+    assert.deepStrictEqual([fuel({ fuelPct: 40 }).u_level, fuel({ fuelPct: 40 }).u_on], [0.4, 1]);
+    assert.deepStrictEqual([fuel({}).u_level, fuel({}).u_on], [0, 0], 'no reading: nothing lit, not an empty tank');
+    assert.strictEqual(fuel({ fuelPct: 100 }).u_level, 1);
+    assert.strictEqual(fuel({}).u_side, 0);
+    /* oil: the strip runs between its own end marks, in either unit */
+    const oil = (cfg, c) => { const x = build(cfg); return layer(x, 'oilStrip').uniforms(state(x, c === null ? {} : { oilTempC: c })); };
+    const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' != ' + b);
+    near(oil({ units: 'metric' }, 50).u_level, 0);
+    near(oil({ units: 'metric' }, 100).u_level, 0.5);
+    near(oil({ units: 'metric' }, 150).u_level, 1);
+    near(oil({ units: 'imperial' }, (120 - 32) / 1.8).u_level, 0);          /* 120 F */
+    near(oil({ units: 'imperial' }, (210 - 32) / 1.8).u_level, 0.5);        /* 210 F */
+    near(oil({ units: 'imperial' }, (300 - 32) / 1.8).u_level, 1);          /* 300 F */
+    assert.strictEqual(oil({ units: 'metric' }, 20).u_level, 0, 'a cold engine reads the foot, not below it');
+    assert.strictEqual(oil({ units: 'metric' }, 190).u_level, 1);
+    assert.strictEqual(oil({ units: 'metric' }, null).u_on, 0);
+    assert.strictEqual(oil({ units: 'metric' }, 100).u_side, 1, 'the oil strip is the fuel strip mirrored');
+    /* and the marks say what the strip measures */
+    const marks = (cfg) => { const x = build(cfg); return says(x, 'oilLabels', state(x, {})); };
+    assert.strictEqual(marks({ units: 'metric' }), '15010050');
+    assert.strictEqual(marks({ units: 'imperial' }), '300210120');
+    const unit = (cfg) => { const x = build(cfg); return says(x, 'oilUnit', state(x, {})); };
+    assert.deepStrictEqual([unit({ units: 'metric' }), unit({ units: 'imperial' })], ['°C', '°F']);
+    assert.strictEqual(says(t, 'fuelLabels', state(t, {})), '11/20');
+});
+
+test('the footer: clock, range and outside temperature, each only when the car has told us', () => {
+    const t = build({ units: 'metric', clock12: true });
+    const full = state(t, { rangeKm: 207, ambientC: 12.5, clock: { h: 12, m: 4 } });
+    assert.strictEqual(says(t, 'clock', full), '12:04');
+    assert.strictEqual(says(t, 'clockHalf', full), 'pm');
+    assert.strictEqual(says(t, 'range', full), '207');
+    assert.strictEqual(says(t, 'rangeUnit', full), 'km');
+    assert.strictEqual(says(t, 'ambient', full), '+12.5');
+    assert.strictEqual(says(t, 'ambientUnit', full), '°C');
+    assert.strictEqual(says(t, 'ambient', state(t, { ambientC: -3.5 })), '-3.5', 'frost keeps its own sign');
+    const none = state(t, {});
+    for (const id of ['clock', 'clockHalf', 'range', 'rangeUnit', 'rangeIcon', 'ambient', 'ambientUnit']) {
+        assert.strictEqual(layer(t, id).uniforms(none, 0), null, id + ' is dark with no reading');
+    }
+    /* am / pm follows the figures, however many there are */
+    for (const clock of [{ h: 9, m: 41 }, { h: 12, m: 4 }, { h: 0, m: 0 }, { h: 23, m: 59 }]) {
+        const st = state(t, { clock });
+        const C = layer(t, 'clock'), H = layer(t, 'clockHalf');
+        const cq = quads(C, C.uniforms(st, 0)), hq = quads(H, H.uniforms(st, 0));
+        const gap = hq[0].x - (cq[cq.length - 1].x + cq[cq.length - 1].w);
+        assert.ok(gap > -6 && gap < 14, `"${says(t, 'clock', st)} ${says(t, 'clockHalf', st)}": gap ${gap}`);
+        assert.strictEqual(says(t, 'clockHalf', st), clock.h < 12 ? 'am' : 'pm');
+    }
+    /* the 24-hour clock has no am / pm */
+    const t24 = build({ units: 'imperial' }), st24 = state(t24, { rangeKm: 207, ambientC: 12.5, clock: { h: 15, m: 7 } });
+    assert.strictEqual(says(t24, 'clock', st24), '15:07');
+    assert.strictEqual(layer(t24, 'clockHalf').uniforms(st24, 0), null);
+    assert.strictEqual(says(t24, 'range', st24), '129');
+    assert.strictEqual(says(t24, 'rangeUnit', st24), 'mi');
+    assert.strictEqual(says(t24, 'ambient', st24), '+55');
+    assert.strictEqual(says(t24, 'ambientUnit', st24), '°F');
+});
+
+test('the footer\'s panel names the drive, the driving mode, or is left out', () => {
+    const fig = (cfg, st) => { const t = build(cfg); return says(t, 'driveFig', state(t, {}, st)) + says(t, 'driveWord', state(t, {}, st)); };
+    assert.strictEqual(fig({}), '4WD', 'as in the reference frame, by default');
+    assert.strictEqual(fig({ mPanel: '2wd' }), '2WD');
+    const mode = build({ mPanel: 'mode' });
+    assert.ok(!mode.layers.some((L) => /^drive(Fig|Word)$/.test(L.id)));
+    assert.strictEqual(layer(mode, 'driveMode').uniforms(state(mode, {}), 0), null, 'nothing until the car names a mode');
+    const sp = state(mode, { driveMode: 'SPORT_PLUS' });
+    assert.ok(sp.modeLabel && !/CORSA/.test(sp.modeLabel), 'BMW\'s own names, not Toro\'s');
+    assert.strictEqual(says(mode, 'driveMode', sp), sp.modeLabel.replace(/ /g, ''));
+    const off = build({ mPanel: 'off' });
+    assert.ok(!off.layers.some((L) => /^(footPanel|drive)/.test(L.id)), 'no panel, nothing on it');
+    assert.strictEqual(build({ mPanel: 'nonsense' }).settings.mPanel, '4wd');
+});
+
+test('the car\'s own lamps are never imitated: they exist only in the reference fixture', () => {
+    const LAMPS = /^(lamp|car|limit)/;
+    for (const cfg of [{}, { units: 'metric' }, { mPanel: 'mode' }, { holiday: true }, { revFlash: 'both' }]) {
+        assert.deepStrictEqual(build(cfg).layers.filter((L) => LAMPS.test(L.id)).map((L) => L.id), []);
+    }
+    const fx = build({ mFixture: true });
+    assert.deepStrictEqual(fx.layers.filter((L) => LAMPS.test(L.id)).map((L) => L.id).sort(),
+        ['carBody', 'carEdge', 'carSeats', 'lampBelt', 'lampBrake', 'lampLights', 'limitSign', 'limitWord']);
+    /* and the fixture adds nothing else */
+    assert.deepStrictEqual(fx.layers.filter((L) => !LAMPS.test(L.id)).map((L) => L.id), build().layers.map((L) => L.id));
+    /* no logo of anyone's but the M mark the style is named for */
+    assert.ok(!build().layers.some((L) => /brand|logo|roundel/i.test(L.id)));
+});
+
+/* --------------------------------------------------------- the centre */
 
 test('the centre shows the right thing in each mode, and nothing of ours over a picture', () => {
     const t = build();
-    const st = State.present({ boostBar: 1 }, Panel.profile('x3m40i'), t.settings);
-    const on = (id, centre) => t.layers.find((L) => L.id === id).uniforms(Object.assign({}, st, { centre })) !== null;
+    const on = (id, centre) => layer(t, id).uniforms(state(t, {}, { centre })) !== null;
     for (const id of ['turnArrow', 'turnDist', 'turnSay']) {
-        assert.ok(!on(id, CENTRES[0]), id + ': neutral is the quiet matte');
+        assert.ok(!on(id, CENTRES[0]), id + ': nothing with nothing to show');
         assert.ok(!on(id, CENTRES[1]), id + ': nothing over the map');
+        assert.ok(!on(id, CENTRES[2]), id + ': nothing over the camera');
         assert.ok(on(id, CENTRES[3]), id + ': the turn card');
     }
-    /* unbranded (guide): no logo layer anywhere */
-    assert.ok(!t.layers.some((L) => /brand|logo/i.test(L.id)));
+    /* the card stands in the black field the window would open on */
+    for (const id of ['turnArrow', 'turnDist', 'turnSay']) {
+        const L = layer(t, id), w = t.window;
+        assert.ok(L.x >= w.x && L.y >= w.y && L.x + L.w <= w.x + w.w && L.y + L.h <= w.y + w.h, id + ' inside the window');
+    }
+    const st = state(t, {}, { centre: CENTRES[4] });
+    assert.strictEqual(says(t, 'turnDist', st), '1500ft');
+    assert.strictEqual(says(t, 'turnSay', st), 'SHARPRIGHT');
 });
 
 test('maneuvers read as the right arrow and words', () => {
@@ -193,46 +704,67 @@ test('maneuvers read as the right arrow and words', () => {
     assert.strictEqual(Track.turnOf(null), null);
 });
 
-test('drive modes read as BMW names them, and nothing when unknown', () => {
-    const t = build();
-    assert.strictEqual(State.present({}, Panel.profile('x3m40i'), t.settings).modeLabel, '');
-    const sp = State.present({ driveMode: 'SPORT_PLUS' }, Panel.profile('x3m40i'), t.settings).modeLabel;
-    assert.ok(sp && !/CORSA/.test(sp), sp);
-});
-
-test('the rails light from the bottom along the guide\'s paths, with one value mapping', () => {
-    const t = build();
-    const st = (o) => Object.assign(State.present({}, Panel.profile('x3m40i'), t.settings), o);
-    const L = t.layers.find((x) => x.id === 'speedGauge'), R = t.layers.find((x) => x.id === 'revGauge');
-    assert.strictEqual(L.uniforms(st({ speed: 0 })).u_val, 0);
-    assert.strictEqual(L.uniforms(st({ speed: 80 })).u_val, 0.5, '80 mph is the fifth of nine labels');
-    assert.strictEqual(L.uniforms(st({ speed: 200 })).u_val, 1);
-    assert.strictEqual(L.uniforms(st({ speed: 400 })).u_val, 1, 'clamped, never wraps');
-    assert.ok(Math.abs(L.uniforms(st({ speed: 140 })).u_val - 6.5 / 8) < 1e-9, 'between 120 and 160');
-    assert.strictEqual(R.uniforms(st({ rpm: 4000 })).u_val, 0.5);
-    /* the red run and the amber shift mark sit at the redline and before it */
-    assert.strictEqual(R.uniforms(st({ rpm: 0 })).u_marks[0], 6750 / 8000);
-    assert.strictEqual(R.uniforms(st({ rpm: 0 })).u_marks[1], (6750 - 400) / 8000);
-    assert.strictEqual(R.uniforms(st({ rpm: 0 })).u_marks[2], 1, 'marks on the rev gauge');
-    const Lg = build().layers.find((x) => x.id === 'speedGauge');
-    assert.strictEqual(Lg.uniforms(st({})).u_marks[2], 0, 'none on the speed gauge');
-    /* the numeral that brightens is the one at the marker */
-    const on = t.layers.find((x) => x.id === 'speedScaleOn');
-    assert.ok(on.uniforms(st({ speed: 76 })).u_count === 2, '"80" lit at 76 mph, as in the photograph');
-    /* labels sit outside the rail, on the side away from the centre */
-    for (let k = 0; k <= 8; k++) {
-        const p = M.pointAt('left', M.arcOf('left', k / 8));
-        assert.ok(p.nx < 0.01, 'left labels go left of the rail');
-        const q = M.pointAt('right', M.arcOf('right', k / 8));
-        assert.ok(q.nx > -0.01, 'right labels go right of the rail');
+test('the holiday dressing keeps off the M style\'s instruments', () => {
+    const t = build({ holiday: true, mFixture: true, clock12: true });
+    const st = state(t, { rpm: 3000, speedKmh: 330, gear: 'M8', fuelPct: 40, oilTempC: 100, rangeKm: 999,
+                          ambientC: -22.5, clock: { h: 23, m: 59 } });
+    const tree = layer(t, 'tree');
+    for (const L of t.layers) {
+        if (/^(back|flash|snow\d|tree)$/.test(L.id)) continue;
+        const ink = isText(L) ? (L.uniforms(st, 0) ? quads(L, L.uniforms(st, 0)) : []) : [L];
+        assert.ok(!ink.some((r) => hits(r, tree)), L.id + ' behind the tree');
+    }
+    for (const z of Panel.keepClear('x3m40i')) assert.ok(!hits(tree, z), 'the tree under ' + z.name);
+    /* the snow falls down the sides, outside the plates and the strips, and
+       keeps off whatever is read there: each such layer is inside a box
+       the snow leaves clear */
+    for (const id of ['snow0', 'snow1']) {
+        const S = layer(t, id), clear = S.uniforms().u_clear, boxes = [];
+        assert.strictEqual(clear.length, 16, 'four boxes');
+        for (let i = 0; i < 16; i += 4) if (clear[i + 2] > 0) boxes.push(clear.slice(i, i + 4));
+        for (const L of t.layers.filter((x) => /^plates|Strip$|^speed$|^gear$/.test(x.id))) assert.ok(!hits(L, S), `${L.id} under ${id}`);
+        const read = t.layers.filter((x) => t.places.clearOf.test(x.id) && hits(x, S));
+        assert.ok(read.length >= 2, id + ' has instruments to keep off');
+        for (const L of read) {
+            /* the part of it under the snow */
+            const x0 = Math.max(L.x, S.x) - S.x, y0 = Math.max(L.y, S.y) - S.y;
+            const x1 = Math.min(L.x + L.w, S.x + S.w) - S.x, y1 = Math.min(L.y + L.h, S.y + S.h) - S.y;
+            assert.ok(boxes.some((b) => x0 >= b[0] - 0.5 && y0 >= b[1] - 0.5 && x1 <= b[0] + b[2] + 0.5 && y1 <= b[1] + b[3] + 0.5),
+                `${L.id} is kept clear by ${id}`);
+        }
     }
 });
 
-test('the limiter flashes the rev rail and the edges only when asked', () => {
-    const st = (rpm, lim) => Object.assign(State.present({}, Panel.profile('x3m40i'), {}), { rpm, limiter: lim });
-    const R = build().layers.find((L) => L.id === 'revGauge');
-    assert.strictEqual(R.uniforms(st(7000, 1)).u_bar[3], 1);
-    const off = build({ revFlash: 'off' });
-    assert.strictEqual(off.layers.find((L) => L.id === 'revGauge').uniforms(st(7000, 1)).u_bar[3], 0);
-    assert.ok(!off.layers.some((L) => L.id === 'flash'));
+/* ------------------------------------------------------------- the clock */
+
+test('the time of day comes from the cluster\'s own clock, not the head unit\'s', () => {
+    const UTC = Date.UTC(2026, 10, 21, 17, 4, 20);              /* the head unit runs on UTC */
+    const H = 3600000, MIN = 60000;
+    const show = (h, m, s, status) => ({ displayHour: h, displayMinute: m, displaySecond: s, statusDisplayClockTimeDate: status });
+    assert.strictEqual(Vehicle.clockOffset(show(12, 4, 20, 1), UTC), 19 * H, 'five hours behind UTC, kept as time ahead');
+    assert.strictEqual(Vehicle.clockOffset(show(17, 4, 20, 1), UTC), 0);
+    assert.strictEqual(Vehicle.clockOffset(show(22, 34, 20, 3), UTC), 5 * H + 30 * MIN, 'half-hour zones too');
+    assert.strictEqual(Vehicle.clockOffset(show(12, 11, 50, 1), UTC), 19 * H + 7 * MIN + 30000,
+        'a clock the owner keeps fast stays as fast as the car shows it');
+    assert.strictEqual(Vehicle.clockOffset(show(12, 4, 255, 1), UTC), 19 * H - 20000, 'no seconds given: the minute as it stands');
+    assert.strictEqual(Vehicle.clockOffset(show(12, 4, 0, 2), UTC), null, 'the cluster shows --:--: so do we');
+    assert.strictEqual(Vehicle.clockOffset(show(12, 4, 0, 15), UTC), undefined, 'not filled in: leave what we had');
+    assert.strictEqual(Vehicle.clockOffset(show(31, 4, 0, 1), UTC), null, 'an hour that is not one');
+    assert.strictEqual(Vehicle.clockOffset(show(12, -1, 0, 1), UTC), null);
+    assert.strictEqual(Vehicle.clockOffset(undefined, UTC), undefined);
+
+    /* through the reader: no time until the cluster has told us, the car's time after */
+    const r = Vehicle.createReader({});
+    const KOMBI = 'de.bmw.infotainment.KombiIF';
+    assert.ok(Vehicle.SIGNALS[KOMBI].statusShowTimeDate, 'the reader asks the cluster for its time');
+    assert.strictEqual(r.raw(UTC).clock, undefined, 'no time is better than the wrong one');
+    r.receive(KOMBI, 'statusShowTimeDate', show(12, 4, 52, 1), UTC);
+    assert.deepStrictEqual(r.raw(UTC).clock, { h: 12, m: 4 });
+    assert.deepStrictEqual(r.raw(UTC + 7999).clock, { h: 12, m: 4 }, 'the minute turns over with the car\'s own');
+    assert.deepStrictEqual(r.raw(UTC + 8000).clock, { h: 12, m: 5 });
+    assert.deepStrictEqual(r.raw(UTC + 12 * H).clock, { h: 0, m: 4 }, 'and it runs on past midnight');
+    r.receive(KOMBI, 'statusShowTimeDate', show(12, 4, 0, 15), UTC + 1000);
+    assert.deepStrictEqual(r.raw(UTC + 1000).clock, { h: 12, m: 4 }, 'an empty message changes nothing');
+    r.receive(KOMBI, 'statusShowTimeDate', show(12, 4, 0, 2), UTC + 2000);
+    assert.strictEqual(r.raw(UTC + 2000).clock, undefined, 'the cluster\'s clock is unset: ours goes dark');
 });

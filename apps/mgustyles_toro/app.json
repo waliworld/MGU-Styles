@@ -2,9 +2,9 @@
   "id": "mgustyles_toro",
   "title": "MGU Styles",
   "vendor": "MGU-Styles",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "loggingId": "TORO",
-  "description": "Custom instrument clusters drawn over the whole iDrive 7 cluster: Toro, after the Lamborghini Huracan, and M, after BMW M's iDrive 8 cluster, with the Waze map or Turn View's camera in its centre. Everything is set up here; off until you turn it on; BMW's warnings and bottom strip always stay BMW's.",
+  "description": "Custom instrument clusters drawn over the whole iDrive 7 cluster: Toro, after the Lamborghini Huracan, and M, BMW M's iDrive 8 M View rebuilt from a reference frame, with the Waze map or Turn View's camera between its dials. Everything is set up here; off until you turn it on; BMW's warnings and bottom strip always stay BMW's.",
   "autostart": true,
   "startType": "autostart",
   "iconGlyph": "gauge",
@@ -59,7 +59,8 @@
     },
     "de.bmw.infotainment.KombiIF": {
       "statusRangeTankStatus": "rs",
-      "_optional": "Fuel range, tank level and odometer"
+      "statusShowTimeDate": "rs",
+      "_optional": "Fuel range, tank level and odometer; the time of day the cluster shows"
     },
     "de.bmw.infrastructure.EnvironmentalInformation": {
       "ExteriorTemperature": "s",
@@ -149,7 +150,7 @@
         ],
         [
           "track",
-          "M (iDrive 8 style)"
+          "M (BMW M View, iDrive 8)"
         ]
       ]
     },
@@ -202,18 +203,26 @@
       ]
     },
     {
-      "key": "trackPalette",
-      "label": "M: colours",
+      "key": "mPanel",
+      "label": "M / Footer panel shows",
       "type": "choice",
-      "default": "night",
+      "default": "4wd",
       "options": [
         [
-          "night",
-          "Night"
+          "4wd",
+          "4WD"
         ],
         [
-          "day",
-          "Day"
+          "2wd",
+          "2WD"
+        ],
+        [
+          "mode",
+          "The driving mode"
+        ],
+        [
+          "off",
+          "Nothing"
         ]
       ]
     },
@@ -883,7 +892,7 @@
     },
     {
       "key": "clock12",
-      "label": "Clock",
+      "label": "M / Clock",
       "type": "choice",
       "default": "24",
       "options": [

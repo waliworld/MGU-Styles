@@ -72,10 +72,20 @@
   })
   .then(function (a) {
     var profileId = params.get('profile') || 'x3m40i';
-    var units = params.get('units') || 'imperial';
+    /*
+     * fixture=m: the M style in the exact state of its reference frame
+     * (docs/ref/m-view-reference.jpg): 0 km/h, P, idling, 12:04 pm, 207 km,
+     * 4WD, +12.5 C, and the frame's lamps. tools/m-compare.py renders this.
+     */
+    var mFixture = params.get('fixture') === 'm';
+    /* art=native: the M style's artboard 1:1 at the top-left corner, as
+       the photograph is - what tools/m-compare.py measures */
+    if (params.get('art') === 'native') MGUMGeom.setFit({ s: 1, ox: 0, oy: 0 });
+    var units = params.get('units') || (mFixture ? 'metric' : 'imperial');
     var cfg = { units: units };
+    if (mFixture) { cfg.style = 'track'; cfg.centre = 'off'; cfg.clock12 = true; cfg.mFixture = true; cfg.rpmRedline = 7000; }
     ['accent', 'accentScope', 'litColour', 'revFlash', 'flashStyle', 'flashColour',
-     'mode', 'background', 'style', 'centre', 'trackPalette', 'shiftStyle', 'shake',
+     'mode', 'background', 'style', 'centre', 'mPanel', 'shiftStyle', 'shake',
      'introText'].forEach(function (k) {
       if (params.get(k)) cfg[k] = params.get(k);
     });
@@ -84,7 +94,8 @@
      'facets', 'introSeconds'].forEach(function (k) {
       if (params.get(k)) cfg[k] = parseFloat(params.get(k));
     });
-    ['shiftLights', 'showBoost', 'showAuxLeft', 'showZeroNumeral', 'holiday', 'intro', 'numeralFill'].forEach(function (k) {
+    ['shiftLights', 'showBoost', 'showAuxLeft', 'showZeroNumeral', 'holiday', 'intro', 'numeralFill',
+     'clock12', 'mFixture'].forEach(function (k) {
       if (params.get(k) === 'off') cfg[k] = false;
       if (params.get(k) === 'on') cfg[k] = true;
     });
@@ -118,8 +129,10 @@
     var frozen = params.get('freeze') === '1';
     var elapsed = 0;
 
+    var FIXTURE_RAW = { rpm: 738, speedKmh: 0, gear: 'P', fuelPct: 40.5, oilTempC: 57.8, coolantC: 60,
+                        rangeKm: 207, ambientC: 12.5, clock: { h: 12, m: 4 }, odoKm: 18420 };
     function draw(time) {
-      var st = MGUState.present(sim.raw(), profile, theme.settings);
+      var st = MGUState.present(mFixture ? FIXTURE_RAW : sim.raw(), profile, theme.settings);
       if (centre) st.centre = centre;
       /* since=S: seconds since the cluster came up (the start-up message) */
       st.now = time * 1000;

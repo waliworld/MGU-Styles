@@ -1,7 +1,8 @@
-Toro Cluster
-============
+MGU Styles
+==========
 
-A Lamborghini Huracan-style instrument cluster for BMW iDrive 7.
+Custom instrument clusters for BMW iDrive 7: Toro, after the Lamborghini
+Huracan, and M, BMW M's iDrive 8 M View rebuilt from a reference frame.
 Source: https://github.com/waliworld/MGU-Styles
 
 This package carries third-party work under its own licences:
@@ -16,8 +17,10 @@ This package carries third-party work under its own licences:
   https://github.com/robertnisipeanu/idrive-apps (native/cluster-render/js).
   MPL-2.0 text: https://mozilla.org/MPL/2.0/
 
-* The glyph atlas in atlas_data.js is baked from Saira, Chakra Petch, Michroma and Barlow
-  Condensed, SIL Open Font License 1.1, reproduced below.
+* The glyph atlas in atlas_data.js is baked from Saira, Chakra Petch,
+  Michroma, Barlow Condensed, Barlow Semi Condensed and Inter Tight, SIL
+  Open Font License 1.1, reproduced below. The M style's figures and
+  symbols in it are drawn for this project (tools/mglyphs.py).
 
 Measurements and signal decoding this work relies on, with thanks:
   the panel's bottom-strip rule, glass corners and telltale positions -
@@ -25,8 +28,9 @@ Measurements and signal decoding this work relies on, with thanks:
   the driving-mode and vehicle-state tables - ALMSTRA/idv7lol and the MGU
   App Kit; field scalings - ZEKAI-Design/ID7-Cluster-Themes.
 
-The Huracan CORSA layout follows a reconstruction brief. This project has no
-connection with BMW AG or Automobili Lamborghini S.p.A.
+The Huracan CORSA layout follows a reconstruction brief; the M layout is
+traced from a photograph of a car's display, for the owner's own car. This
+project has no connection with BMW AG or Automobili Lamborghini S.p.A.
 
 ------------------------------------------------------------ MGU App Kit
 MIT License
@@ -53,17 +57,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------ fonts
-The SDF atlas in this folder (atlas.png / atlas.json) is baked from two
-typefaces, both under the SIL Open Font License, Version 1.1:
+The SDF atlas (atlas.png / atlas.json, atlas_data.js in the package) is
+baked from these typefaces, all under the SIL Open Font License,
+Version 1.1:
 
-  Saira            Copyright 2016 The Saira Project Authors
+  Saira, Saira Semi Condensed
+                   Copyright 2016 The Saira Project Authors
                    https://github.com/Omnibus-Type/Saira
+  Barlow Condensed, Barlow Semi Condensed
+                   Copyright 2017 The Barlow Project Authors
+                   https://github.com/jpt/barlow
   Chakra Petch     Copyright 2018 The Chakra Petch Project Authors
                    https://github.com/m4rc1e/Chakra-Petch
   Michroma         Copyright 2011 The Michroma Project Authors
                    https://github.com/googlefonts/Michroma-font
-  Barlow Condensed Copyright 2017 The Barlow Project Authors
-                   https://github.com/jpt/barlow
+  Inter Tight      Copyright 2022 The Inter Project Authors
+                   https://github.com/rsms/inter-tight
+
+It also holds figures and symbols drawn for this project (the faces mw, mn
+and mi, tools/mglyphs.py), which are not taken from any font.
 
 The baked atlas is a derivative of those fonts and is distributed under the
 same licence, reproduced in full below.

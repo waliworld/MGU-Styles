@@ -12,49 +12,70 @@
     'use strict';
 
     /*
-     * "M" - BMW M's iDrive 8 cluster, drawn on the iDrive 7 panel, after the
-     * M cluster design guide (docs/M-IDRIVE8-BRIEF.md) and its photographs:
-     * a blue speed chevron on the left, a red rev chevron on the right, each
-     * a thick rail that lights from the bottom with a white marker, big
-     * white figures inside them, fuel and oil as diagonal segmented bars,
-     * and a centre that shows the Waze map, Turn View's camera or a turn
-     * card, feathered into the frame. Unbranded; original figure shapes.
+     * "M" - BMW M's iDrive 8 M View, rebuilt on the iDrive 7 panel from one
+     * reference frame (docs/ref/m-view-reference.jpg) and its guide
+     * (docs/ref/M-VIEW-SPEC.md): the blue speed dial and the red rev dial
+     * as angular rails with a level marker, the eight dark-blue plates
+     * behind them, the two fine lines through the middle, fuel and oil as
+     * leaning segmented strips, and the footer.
      *
-     * The guide's 1920x720 grid is fitted uniformly so that everything ends
-     * above y = 646 and the centre window falls wholly inside BMW's map
-     * window (416,120 1088x480), where the hosted pictures land, and the
-     * speed scale stays clear of BMW's tyre-pressure telltale (x < 136).
-     * Every coordinate below is a panel pixel; the gauges' own geometry is
-     * in src/theme/mgeom.js, traced off the photograph.
+     * Everything here is placed in the reference frame's own coordinates
+     * (the 1726 x 612 "artboard", src/theme/mgeom.js) and carried to the
+     * panel by one uniform fit, so the guide's tables and
+     * docs/ref/MEASUREMENTS.md read straight across. Every figure and
+     * symbol is drawn from data: nothing is painted on for one state.
+     *
+     * What the car tells us is shown; what it does not is left dark. The
+     * reference frame also shows lamps (parking brake, side lights, seat
+     * belt, LIMIT, the car seen from above): those are the car's own
+     * warnings, which the instrument cluster keeps drawing itself, so they
+     * appear here only in the reference fixture (`mFixture`, the preview and
+     * the comparison tool) - never as an imitation on the road.
+     *
+     * Not affiliated with BMW AG; a reference-matched reconstruction for
+     * the owner's own car.
      */
 
-    /* the layout is in panel pixels: mgeom.js is already fitted */
-    var FIT = { tx: 0, ty: 0, s: 1 };
-    function X(v) { return FIT.tx + v * FIT.s; }
-    function Y(v) { return FIT.ty + v * FIT.s; }
-    function D(v) { return v * FIT.s; }
-    function box(x0, y0, x1, y1) { return { x: X(x0), y: Y(y0), w: D(x1 - x0), h: D(y1 - y0) }; }
-    var CAP = 0.70;               /* a figure's visible height, in em */
+    var A = M.ART;                /* the artboard and its fit to the target (read live: a tool may refit it) */
+    var CAP = 0.70;               /* a figure's height, in em (all faces) */
+    function X(x) { return M.px(x); }
+    function Y(y) { return M.py(y); }
+    function box(x0, y0, x1, y1) { return M.box(x0, y0, x1, y1); }
+    /* where a layer's rectangle sits on the artboard, for its shader */
+    function artOf(b) { return [(b.x - A.ox) / A.s, (b.y - A.oy) / A.s, A.s]; }
+    /* the size (em, panel px) that draws a figure h artboard units tall */
+    function fig(h) { return h * A.s / CAP; }
+    function words(em) { return em * A.s; }
 
-    var MAP_WINDOW = { x: 416, y: 120, w: 1088, h: 480 };
+    var MAP_WINDOW = { x: 416, y: 120, w: 1088, h: 480 };   /* where the hosted pictures land */
+    var KM_PER_MI = 1.609344;
 
-    function hex(h) {
-        return [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255,
-                parseInt(h.slice(5, 7), 16) / 255];
-    }
-    /* guide section 2 */
-    var TOKENS = {
-        day: { outside: '#0A101A', recess: '#101A29', matte: '#101A26', digits: '#F4F8FF', secondary: '#A9BBD1',
-               blue: '#287EF5', blueHi: '#73DDFF', red: '#F12A3F', redHi: '#FF7180', amber: '#FFD067', rule: '#51657B' },
-        night: { outside: '#04070E', recess: '#091321', matte: '#0A1320', digits: '#E8F0FA', secondary: '#8DA4BD',
-                 blue: '#2579E4', blueHi: '#56C8FF', red: '#DE263D', redHi: '#FF586C', amber: '#F2BD51', rule: '#304458' }
+    function c(r, g, b) { return [r / 255, g / 255, b / 255]; }
+    /* sampled off the reference frame (docs/ref/MEASUREMENTS.md) */
+    var K = {
+        white: c(250, 251, 253),
+        soft: c(228, 228, 236),          /* footer figures, strip labels */
+        blueNum: c(127, 143, 169), redNum: c(186, 128, 134),
+        blueTitle: c(190, 198, 214), redTitle: c(192, 152, 158),
+        unit: c(222, 234, 255), unit2: c(142, 166, 204),
+        bg: c(6, 5, 11), bgLift: c(13, 13, 22),
+        plateTint: [0.235, 0.515, 1.0], hair: c(14, 24, 40),
+        pane: c(9, 18, 46), paneFoot: c(21, 42, 79),
+        L: { rimHi: c(143, 198, 234), rimLo: c(105, 172, 220), line: c(162, 198, 238), lineLo: c(124, 168, 214),
+             chan: c(14, 30, 64),
+             fill: c(98, 180, 234), fillHot: c(133, 196, 239), tick: c(112, 148, 206), hot: 0.72 },
+        R: { rimHi: c(220, 56, 64), rimLo: c(214, 54, 64), line: c(214, 84, 88), lineLo: c(196, 64, 72),
+             chan: c(32, 8, 15),
+             fill: c(215, 49, 52), fillHot: c(234, 96, 87), tick: c(140, 56, 68), hot: 0.22 },
+        railBlue: c(98, 180, 234), railRed: c(210, 52, 60),
+        glowBlue: c(64, 136, 212), glowRed: c(200, 48, 52),
+        diagCyan: c(176, 212, 244), diagRed: c(228, 72, 82),
+        segLit: c(250, 249, 253), segDim: c(95, 94, 105), segLow: c(172, 138, 152),
+        hot: c(196, 90, 104), cold: c(150, 200, 244), oilIcon: c(122, 170, 234),
+        lampRed: c(238, 84, 70), lampBelt: c(236, 118, 100), lampLights: c(228, 236, 196),
+        limitDisc: c(252, 253, 253), limitRing: c(92, 100, 108), limitInk: c(43, 50, 56),
+        carBody: c(104, 102, 110), carEdge: c(196, 198, 206), carSeat: c(232, 122, 102)
     };
-    function colours(name) {
-        var t = TOKENS[name] || TOKENS.night, out = {}, k;
-        for (k in t) if (Object.prototype.hasOwnProperty.call(t, k)) out[k] = hex(t[k]);
-        return out;
-    }
-    function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 
     /* A maneuver from Turn View -> the arrow's kind and angle, and a short
        instruction (the text layers hold 12 glyphs). */
@@ -79,198 +100,351 @@
     }
 
     function centreOf(s) { return s.centre || { mode: 'neutral', open: 0, maneuver: null }; }
-    function oilC(s) {
-        var p = s.pods && s.pods.oilTemp;
-        return p && p.text !== '--' ? 50 + p.frac * 120 : null;
+    function oilC(s) { return typeof s.oilTempC === 'number' && isFinite(s.oilTempC) ? s.oilTempC : null; }
+    function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+    /* where each scale numeral's ink ends (speed, right-aligned to it) or
+       starts (revs), by tick, top of the scale first: measured */
+    var SPEED_EDGE = [340.0, 308.0, 275.0, 242.0, 209.0, 184.0, 202.0, 231.0, 259.0];
+    var REV_EDGE = [1471.0, 1508.5, 1536.5, 1568.5, 1599.5, 1629.0, 1610.0, 1579.0, 1555.0];
+    var NUM_H = { speed: 19.6, rev: 21.6 };
+    /* the figures' side bearings, in figure heights (tools/mglyphs.py) */
+    function bearing(face, ch) {
+        if (ch === '1') return -0.05;
+        if (ch === '7') return face === 'mw' ? 0.05125 : 0.0375;
+        return face === 'mw' ? 0.1025 : 0.075;
     }
 
     function build(atlas, profileId, settings) {
+        var SC = A.s;                 /* target pixels per artboard unit, for this build */
         var P = Panel.profile(profileId);
         var S = Palette.resolve(settings, P);
-        S.modeLabel = 'bmw';          /* BMW's own names, in the lozenge */
-        S.mode = '';                  /* and nothing when the car sends none */
-        S.trackPalette = settings && settings.trackPalette === 'day' ? 'day' : 'night';
+        S.modeLabel = 'bmw';          /* BMW's own names, should the panel show the mode */
+        S.mode = '';
         S.centre = ['waze', 'camera', 'turn', 'off'].indexOf(settings && settings.centre) >= 0
             ? settings.centre : 'waze';
-        var K = colours(S.trackPalette);
-        var units = S.units === 'metric' ? 'metric' : 'imperial';
-        var imperial = units === 'imperial';
+        S.mPanel = ['4wd', '2wd', 'mode', 'off'].indexOf(settings && settings.mPanel) >= 0
+            ? settings.mPanel : '4wd';
+        var fixture = !!(settings && settings.mFixture);
+        var metric = S.units === 'metric';
+        var units = metric ? 'metric' : 'imperial';
         var layers = [];
-        var TL = TextLayers.create(atlas, layers, { text: K.digits, muted: K.secondary });
+        var TL = TextLayers.create(atlas, layers, { text: K.white, muted: K.soft });
         var txt = TL.txt, statics = TL.statics;
-        var N = S.scaleMaxRpm / 1000;
         var flashRail = S.revFlash === 'band' || S.revFlash === 'both';
         var flashEdges = S.revFlash === 'edges' || S.revFlash === 'both';
-        var blueTint = mix(K.secondary, K.blueHi, 0.85);
-        var roseTint = mix(K.secondary, K.redHi, 0.85);
 
-        /* ------------------------------------------------------ the frame */
-        layers.push({
-            /* belowCut: the frame may be asked to run under the car's own
-               bottom strip, so its background shows there instead of BMW's */
-            id: 'frame', z: 1, shader: 'mframe', belowCut: true,
-            x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT + S.bottomExtra,
-            uniforms: function (s) {
-                var c = centreOf(s);
-                return {
-                    u_origin: [0, 0], u_fit: [FIT.tx, FIT.ty, FIT.s],
-                    u_open: c.mode === 'map' || c.mode === 'camera' ? c.open : 0,
-                    u_outside: K.outside, u_recess: K.recess, u_matte: K.matte, u_rule: K.rule,
-                    u_blue: K.blue, u_red: K.red, u_blueHi: K.blueHi, u_redHi: K.redHi,
-                    u_lozenge: s.modeLabel ? 1 : 0, u_badge: 1
-                };
-            }
-        });
+        function speedTicks(s) { return M.speedTicks(Math.max(0, s.speed || 0), units); }
+        function revTicks(s) { return M.rpmTicks(s.rpm); }
 
-        /* ------------------------------------------------------ the gauges */
-        function gauge(id, shader, b, fn) {
-            layers.push({
-                id: id, z: 10, shader: shader, x: b.x, y: b.y, w: b.w, h: b.h,
-                uniforms: function (s) {
-                    var u = fn(s);
-                    u.u_origin = [b.x, b.y];
-                    u.u_fit = [FIT.tx, FIT.ty, FIT.s];
-                    u.u_ink = K.digits; u.u_sub = K.secondary; u.u_warn = K.amber;
-                    return u;
-                }
-            });
+        /* a layer drawn by one of the M shaders (src/shaders/mcluster.js) */
+        function shape(id, z, shader, b, fn, extra) {
+            var art = artOf(b);
+            var L = { id: id, z: z, shader: shader, x: b.x, y: b.y, w: b.w, h: b.h,
+                      uniforms: function (s) {
+                          var u = fn ? fn(s) : {};
+                          if (u === null) return null;
+                          u.u_art = art;
+                          return u;
+                      } };
+            if (extra) Object.keys(extra).forEach(function (k) { L[k] = extra[k]; });
+            layers.push(L);
+            return L;
         }
-        gauge('speedGauge', 'mgaugeL', box(166, 54, 706, 600), function (s) {
-            var fuel = s.pods && s.pods.fuel;
-            return {
-                u_val: M.speedFrac(s.speed, units), u_rail: K.blue, u_hi: K.blueHi, u_fringe: K.amber,
-                u_bar: [fuel ? fuel.frac : 0, fuel && fuel.alarm ? 1 : 0, 0, 0],
-                u_marks: [1, 1, 0, 0]
-            };
-        });
-        /* the red run from the redline, and an amber mark the shift before it */
-        var redFrac = Math.min(1, S.rpmRedline / S.scaleMaxRpm);
-        var shiftFrac = Math.min(redFrac, Math.max(0, (S.rpmRedline - 400) / S.scaleMaxRpm));
-        gauge('revGauge', 'mgaugeR', box(1214, 54, 1754, 600), function (s) {
-            var c = oilC(s);
-            return {
-                u_val: Math.max(0, Math.min(1, (s.rpm || 0) / S.scaleMaxRpm)),
-                u_rail: K.red, u_hi: K.redHi, u_fringe: K.amber,
-                u_bar: [c === null ? 0 : Math.max(0, Math.min(1, (c - 50) / 100)), c !== null && c >= 150 ? 1 : 0,
-                        0, flashRail ? (s.limiter || 0) : 0],
-                u_marks: [redFrac, shiftFrac, 1, 0]
-            };
-        });
-
-        /* ------------------------------------------------- scale numerals */
-        var speedVals = M.SPEED_SCALE[units];
-        function scaleItems(side, vals, out, align) {
-            return vals.map(function (v, k) {
-                var p = M.pointAt(side, M.arcOf(side, k / (vals.length - 1)));
-                return { str: String(v), x: X(p.x + p.nx * out), y: Y(p.y + p.ny * out), align: align };
-            });
-        }
-        var speedItems = scaleItems('left', speedVals, 22, 'right');
-        var rpmVals = [], k;
-        for (k = 0; k <= N; k++) rpmVals.push(k);
-        var rpmItems = scaleItems('right', rpmVals, 22, 'left');
-        var NUM = 25 / CAP;
-        statics('speedScale', 20, box(140, 30, 392, 628),
-            { face: 'mnum', size: NUM, align: 'right', baseline: 'middle', color: blueTint }, speedItems);
-        statics('rpmScale', 20, box(1528, 30, 1766, 628),
-            { face: 'mnum', size: NUM, align: 'left', baseline: 'middle', color: roseTint }, rpmItems);
-
-        /* the numeral nearest the marker, brightened (guide section 2) */
-        function activeNumeral(id, b, items, frac) {
+        /* a text layer whose words and place follow the state:
+           fn(state) -> { str, face, size, x, y, align, color } or null */
+        function dyn(id, z, b, fn) {
             layers.push({
-                id: id, z: 21, shader: 'text', x: b.x, y: b.y, w: b.w, h: b.h,
+                id: id, z: z, shader: 'text', x: b.x, y: b.y, w: b.w, h: b.h,
                 uniforms: function (s) {
-                    var it = items[Math.round(frac(s) * (items.length - 1))];
-                    var L = Text.layout(atlas, it.str, { face: 'mnum', size: NUM, x: it.x - b.x, y: it.y - b.y,
-                                                          align: it.align, baseline: 'middle' });
+                    var o = fn(s);
+                    if (!o || o.str === null || o.str === undefined || o.str === '') return null;
+                    var L = Text.layout(atlas, String(o.str), { face: o.face, size: o.size,
+                        x: o.x - b.x, y: o.y - b.y, align: o.align || 'left' });
                     if (!L) return null;
+                    var col = o.color || K.white;
                     return { u_g: L.g, u_quad: L.p, u_count: L.count, u_sharp: L.sharp,
-                             u_color: [K.digits[0], K.digits[1], K.digits[2], 1],
-                             u_glowCol: K.digits, u_glow: 0, u_outline: 0, u_outCol: K.digits };
+                             u_color: [col[0], col[1], col[2], 1], u_glowCol: col, u_glow: 0,
+                             u_outline: 0, u_outCol: col };
                 }
             });
         }
-        activeNumeral('speedScaleOn', box(140, 30, 392, 628), speedItems, function (s) { return M.speedFrac(s.speed, units); });
-        activeNumeral('rpmScaleOn', box(1528, 30, 1766, 628), rpmItems,
-            function (s) { return Math.max(0, Math.min(1, (s.rpm || 0) / S.scaleMaxRpm)); });
+        /* a symbol of the "mi" face, its box's corner at an artboard point */
+        function icon(id, z, ch, x, y, w, h, color, show) {
+            var b = box(x - 2, y - 2, x + w + 2, y + h + 2);
+            statics(id, z, b, { face: 'mi', size: 32 * SC, align: 'left', color: color, show: show },
+                [{ str: ch, x: X(x), y: Y(y) }]);
+        }
 
-        statics('speedTitle', 20, box(320, 42, 470, 80),
-            { face: 'labelL', size: 15 / CAP, align: 'centre', color: K.secondary },
-            [{ str: imperial ? 'mph' : 'km/h', x: 393, y: 70 }]);
-        statics('rpmTitle', 20, box(1380, 42, 1600, 80),
-            { face: 'labelL', size: 15 / CAP, align: 'right', color: roseTint },
-            [{ str: '1/min x 1000', x: 1586, y: 70 }]);
+        /* ---------------------------------------------------- the back glass */
+        shape('back', 1, 'mback',
+            { x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT + S.bottomExtra },
+            function (s) {
+                var ce = centreOf(s);
+                return { u_open: ce.mode === 'map' || ce.mode === 'camera' ? ce.open : 0,
+                         u_bg: K.bg, u_bgLift: K.bgLift };
+            },
+            /* belowCut: the glass may be asked to run under the car's own
+               bottom strip, so black shows there instead of BMW's art */
+            { belowCut: true });
 
-        /* ------------------------------------------------- speed and gear */
-        txt('speed', 30, box(300, 238, 600, 348),
-            { face: 'mnum', size: 66 / CAP, align: 'right', x: 580, y: 328, color: K.digits },
+        /* --------------------------------------------------------- the plates */
+        function plateLook() { return { u_tint: K.plateTint, u_hair: K.hair }; }
+        shape('platesL', 2, 'mplatesL', box(300, 100, 898, 486), plateLook);
+        shape('platesR', 2, 'mplatesR', box(958, 100, 1505, 486), plateLook);
+
+        /* the footer's four-pane panel */
+        if (S.mPanel !== 'off') {
+            shape('footPanel', 2, 'mfoot', box(722, 531, 1074, 589), function () {
+                return { u_pane: K.pane, u_paneFoot: K.paneFoot };
+            });
+        }
+
+        /* ---------------------------------------- rails and the centre lines */
+        shape('rails', 6, 'mrails', box(356, 505, 1452, 555), function () {
+            return { u_blue: K.railBlue, u_red: K.railRed, u_blueGlow: K.glowBlue, u_redGlow: K.glowRed };
+        });
+        shape('centreLines', 6, 'mdiag', box(724, 144, 1000, 522), function () {
+            return { u_cyan: K.diagCyan, u_red: K.diagRed };
+        });
+
+        /* ----------------------------------------------------------- the dials */
+        function dial(id, b, side, look, val, zone, warn) {
+            shape(id, 10, 'mgauge', b, function (s) {
+                return {
+                    u_side: side, u_val: val(s),
+                    u_rimHi: look.rimHi, u_rimLo: look.rimLo, u_line: look.line, u_lineLo: look.lineLo,
+                    u_chan: look.chan,
+                    u_fill: look.fill, u_fillHot: look.fillHot, u_tick: look.tick, u_hot: look.hot,
+                    u_zone: zone, u_warn: warn ? warn(s) : 0
+                };
+            });
+        }
+        dial('speedDial', box(186, 64, 634, 523), 0, K.L, speedTicks, [0, 0, 0, 0]);
+        /* the red field from the redline to the top of the scale, and the
+           amber one just before it */
+        var red = Math.min(M.SCALE.n - 0.3, S.rpmRedline / 1000);
+        dial('revDial', box(M.mirror(634), 64, M.mirror(186), 523), 1, K.R, revTicks,
+            [red + 0.09, M.SCALE.n - 0.04, red - 0.33, red - 0.05],
+            function (s) { return flashRail ? (s.limiter || 0) : 0; });
+
+        /* --------------------------------------------------- fuel and oil */
+        function strip(id, b, side, fn) {
+            shape(id, 12, 'mstrip', b, function (s) {
+                var v = fn(s);
+                return { u_side: side, u_level: v === null ? 0 : clamp01(v), u_on: v === null ? 0 : 1,
+                         u_lit: K.segLit, u_dim: K.segDim, u_ink: K.soft,
+                         u_hotCol: K.hot, u_coldCol: K.cold, u_lowCol: K.segLow };
+            });
+        }
+        strip('fuelStrip', box(344, 340, 470, 501), 0, function (s) {
+            var f = s.pods && s.pods.fuel;
+            return f && f.text !== '--' ? f.frac : null;
+        });
+        /* the oil scale runs between its own end marks: 50 to 150 C, or
+           120 to 300 F - round numbers either way, each at its true height */
+        strip('oilStrip', box(M.mirror(470), 340, M.mirror(344), 501), 1, function (s) {
+            var t = oilC(s);
+            if (t === null) return null;
+            return metric ? (t - 50) / 100 : (t * 1.8 + 32 - 120) / 180;
+        });
+
+        /* ------------------------------------------------- the scale numerals */
+        /*
+         * Each numeral stands level with its tick, hard against the rail.
+         * The shader works out which tick a glyph belongs to from its own
+         * height, and lights the ones either side of the value.
+         */
+        function scale(id, b, face, h, items, val, col) {
+            var size = fig(h);
+            var placed = Text.place(atlas, items.map(function (it) {
+                return { str: it.str, x: it.x - b.x, y: it.y - b.y, align: it.align };
+            }), { face: face, size: size });
+            var art = artOf(b);
+            layers.push({
+                id: id, z: 20, shader: 'mnum', x: b.x, y: b.y, w: b.w, h: b.h,
+                uniforms: function (s) {
+                    return { u_art: art, u_g: placed.g, u_quad: placed.p,
+                             u_cfg: [placed.count, placed.sharp, val(s), 0.045],
+                             u_col: col, u_colOn: K.white };
+                }
+            });
+        }
+        function speedItem(k) {
+            var str = String(M.SPEED_SCALE[units][k]);
+            var h = NUM_H.speed;
+            /* right-aligned: the pen ends a bearing past the ink */
+            return { str: str, align: 'right',
+                     x: X(SPEED_EDGE[k] + bearing('mw', str.charAt(str.length - 1)) * h),
+                     y: Y(M.tickY(k) + h / 2) };
+        }
+        function revItem(k) {
+            var str = String(k), h = NUM_H.rev;
+            return { str: str, align: 'left', x: X(REV_EDGE[k] - bearing('mw', str.charAt(0)) * h),
+                     y: Y(M.tickY(k) + h / 2) };
+        }
+        /* twelve glyphs a layer: the speed scale takes two */
+        scale('speedScaleA', box(104.5, 80, 268, 266), 'mw', NUM_H.speed,
+            [8, 7, 6, 5].map(speedItem), speedTicks, K.blueNum);
+        scale('speedScaleB', box(128, 282, 350, 522), 'mw', NUM_H.speed,
+            [4, 3, 2, 1, 0].map(speedItem), speedTicks, K.blueNum);
+        scale('revScale', box(1462, 78, 1668, 524), 'mw', NUM_H.rev,
+            [8, 7, 6, 5, 4, 3, 2, 1, 0].map(revItem), revTicks, K.redNum);
+
+        statics('speedTitle', 20, box(302, 36, 380, 72),
+            { face: 'ms', size: words(24.8), align: 'left', color: K.blueTitle },
+            [{ str: metric ? 'km/h' : 'mph', x: X(309.5), y: Y(64.6) }]);
+        statics('revTitle', 20, box(1356, 34, 1530, 70),
+            { face: 'ms', size: words(26.1), align: 'left', color: K.redTitle },
+            [{ str: '1/min x 1000', x: X(1364.5), y: Y(62.4) }]);
+
+        /* --------------------------------------------------- speed and gear */
+        /* the figures stand on the black band between the plates, the speed
+           flush right over its unit, both units always shown */
+        var BIG = 51.6;
+        txt('speed', 30, box(372, 234, 616, 304),
+            { face: 'mw', size: fig(BIG), align: 'right', x: X(603.0 + 0.1025 * BIG), y: Y(295.0), color: K.white },
             function (s) { return String(Math.round(Math.max(0, s.speed || 0))); });
-        statics('speedUnit', 30, box(470, 332, 600, 374),
-            { face: 'labelL', size: 19 / CAP, align: 'right', color: K.blueHi },
-            [{ str: imperial ? 'mph' : 'km/h', x: 580, y: 362 }]);
-        /* kept narrow so it stays clear of the M cars' KOMBI box at 1223-1394 */
-        txt('gear', 30, box(1400, 254, 1566, 364),
-            { face: 'mnum', size: 66 / CAP, align: 'centre', x: 1480, y: 344, color: K.digits },
+        statics('speedUnit', 30, box(520, 296, 616, 330),
+            { face: 'ms', size: words(25.5), align: 'right', color: K.unit },
+            [{ str: metric ? 'km/h' : 'mph', x: X(606.0), y: Y(321.2) }]);
+        var SMALL = 25.3;
+        txt('speed2', 30, box(480, 332, 616, 372),
+            { face: 'mw', size: fig(SMALL), align: 'right', x: X(607.2 + 0.1025 * SMALL), y: Y(364.3), color: K.white },
+            function (s) {
+                var v = Math.max(0, s.speed || 0);
+                return String(Math.round(metric ? v / KM_PER_MI : v * KM_PER_MI));
+            });
+        statics('speed2Unit', 30, box(520, 364, 616, 398),
+            { face: 'ms', size: words(25.5), align: 'right', color: K.unit2 },
+            [{ str: metric ? 'mph' : 'km/h', x: X(607.5), y: Y(388.2) }]);
+
+        txt('gear', 30, box(1228, 234, 1390, 304),
+            { face: 'mw', size: fig(50.8), align: 'centre', x: X(1308.8), y: Y(294.4), color: K.white },
             function (s) { return s.gear || 'P'; });
 
-        /* ------------------------------------- fuel and oil bar labels */
-        var SEC = 16 / CAP;
-        statics('fuelLabels', 30, box(422, 384, 510, 572),
-            { face: 'label', size: SEC, align: 'left', baseline: 'middle', color: K.secondary },
-            [{ str: '1', x: 430, y: 404 }, { str: '1/2', x: 430, y: 478 },
-             { str: '0', x: 430, y: 552 }]);
-        statics('oilLabels', 30, box(1404, 384, 1500, 572),
-            { face: 'label', size: SEC, align: 'right', baseline: 'middle', color: K.secondary },
-            imperial ? [{ str: '300', x: 1490, y: 404 }, { str: '°F', x: 1490, y: 438 },
-                        { str: '210', x: 1490, y: 478 }, { str: '120', x: 1490, y: 552 }]
-                     : [{ str: '150', x: 1490, y: 404 }, { str: '°C', x: 1490, y: 438 },
-                        { str: '100', x: 1490, y: 478 }, { str: '50', x: 1490, y: 552 }]);
+        /* ------------------------------------------- the strips' labels */
+        var LBL = 17.1;
+        statics('fuelLabels', 30, box(378, 338, 500, 502),
+            { face: 'mn', size: fig(LBL), align: 'left', color: K.soft },
+            [{ str: '1', x: X(383.0 + 0.05 * LBL), y: Y(361.0) },
+             { str: '1/2', x: X(427.0 + 0.05 * LBL), y: Y(429.2) },
+             { str: '0', x: X(473.6 - 0.075 * LBL), y: Y(497.2) }]);
+        icon('fuelIcon', 30, 'f', 455.0, 443.0, 32, 24, K.soft);
+        var oilMarks = metric ? ['150', '100', '50'] : ['300', '210', '120'];
+        statics('oilLabels', 30, box(1272, 338, 1428, 502),
+            { face: 'mn', size: fig(LBL), align: 'right', color: K.soft },
+            [{ str: oilMarks[0], x: X(1421.0 + 0.075 * LBL), y: Y(360.2) },
+             { str: oilMarks[1], x: X(1377.3 + 0.075 * LBL), y: Y(429.6) },
+             { str: oilMarks[2], x: X(1335.3 + 0.075 * LBL), y: Y(498.0) }]);
+        statics('oilUnit', 30, box(1364, 368, 1404, 404),
+            { face: 'ms', size: words(26.1), align: 'left', color: K.soft },
+            [{ str: metric ? '°C' : '°F', x: X(1370.0), y: Y(397.0) }]);
+        icon('oilIcon', 30, 'o', 1319.0, 440.0, 42, 28, K.oilIcon);
 
-        /* the M mark beside the badge stripes, and the readiness word */
-        statics('badgeM', 30, box(80, 586, 150, 628),
-            { face: 'mnum', size: 20 / CAP, align: 'left', baseline: 'middle', color: K.digits },
-            [{ str: 'M', x: 92, y: 607 }]);
-        txt('ready', 30, box(1400, 582, 1540, 622),
-            { face: 'label', size: 17 / CAP, align: 'right', x: 1530, y: 606,
-              color: K.secondary },
-            function (s) { return (s.rpm || 0) > 0 ? 'READY' : null; });
+        /* ------------------------------------------------------- the footer */
+        icon('mMark', 30, 'm', 157.0, 496.0, 80, 28, K.soft);
 
-        /* --------------------------------------------- lower status rail */
-        var FOOT = 622;
-        txt('clock', 30, box(140, 590, 330, 636),
-            { face: 'display', size: 24 / CAP, align: 'left', x: 152, y: FOOT, color: K.digits },
-            function (s) { return s.clockText; });
-        txt('range', 30, box(410, 590, 630, 636),
-            { face: 'label', size: 24 / CAP, align: 'left', x: 422, y: FOOT, color: K.digits },
-            function (s) { return (s.rangeText === '--' ? '--' : s.rangeText) + (imperial ? ' MI' : ' KM'); });
-        txt('mode', 30, box(840, 592, 1080, 632),
-            { face: 'label', size: 21 / CAP, align: 'centre', x: 960, y: 618, color: K.digits },
-            function (s) { return s.modeLabel || null; });
-        txt('ambient', 30, box(1640, 590, 1880, 636),
-            { face: 'label', size: 24 / CAP, align: 'right', x: 1866, y: FOOT, color: K.digits },
-            function (s) {
-                if (s.ambientText === '--') return '--';
-                var t = s.ambientText;
-                return (t.charAt(0) === '-' ? t : '+' + t) + (imperial ? '°F' : '°C');
+        var FOOT_H = 23.0, FOOT_Y = 585.0;
+        var clockPen = X(130.0 + 0.05 * FOOT_H);
+        txt('clock', 30, box(122, 554, 262, 594),
+            { face: 'mn', size: fig(FOOT_H), align: 'left', x: clockPen, y: Y(FOOT_Y), color: K.soft },
+            function (s) { return s.clockText && s.clockText !== '--' ? s.clockText : null; });
+        /* am / pm follows the figures, however many there are */
+        dyn('clockHalf', 30, box(180, 556, 300, 598), function (s) {
+            if (!S.clock12 || !s.clockText || s.clockText === '--' || !s.clockHalf) return null;
+            var w = Text.measure(atlas, 'mn', s.clockText, fig(FOOT_H), 0);
+            return { str: s.clockHalf, face: 'ms', size: words(25.5), x: clockPen + w + 5.3 * SC,
+                     y: Y(FOOT_Y - 0.6), color: K.soft };
+        });
+
+        icon('rangeIcon', 30, 'r', 339.0, 560.0, 32, 25, K.soft,
+            function (s) { return s.rangeText && s.rangeText !== '--'; });
+        var rangePen = X(382.0 - 0.075 * FOOT_H);
+        txt('range', 30, box(374, 552, 480, 592),
+            { face: 'mn', size: fig(FOOT_H), align: 'left', x: rangePen, y: Y(FOOT_Y - 1.2), color: K.soft },
+            function (s) { return s.rangeText && s.rangeText !== '--' ? s.rangeText : null; });
+        dyn('rangeUnit', 30, box(400, 554, 530, 594), function (s) {
+            if (!s.rangeText || s.rangeText === '--') return null;
+            var w = Text.measure(atlas, 'mn', s.rangeText, fig(FOOT_H), 0);
+            return { str: metric ? 'km' : 'mi', face: 'ms', size: words(26.0), x: rangePen + w + 6.3 * SC,
+                     y: Y(FOOT_Y - 1.4), color: K.soft };
+        });
+
+        /* the drive's name on the panel: 4WD as the frame shows it, or the
+           car's own name for the driving mode */
+        if (S.mPanel === '4wd' || S.mPanel === '2wd') {
+            statics('driveFig', 30, box(900, 542, 942, 574),
+                { face: 'mw', size: fig(18.0), align: 'left', color: K.white },
+                [{ str: S.mPanel.charAt(0), x: X(911.0 - 0.1025 * 18.0), y: Y(568.2) }]);
+            statics('driveWord', 30, box(934, 542, 982, 576),
+                { face: 'mb', size: fig(18.0), align: 'left', color: K.white },
+                [{ str: 'WD', x: X(938.0), y: Y(568.2) }]);
+        } else if (S.mPanel === 'mode') {
+            /* as tall as "4WD" where it fits; a long name is set smaller,
+               so it stays on its own pane */
+            dyn('driveMode', 30, box(892, 542, 992, 576), function (s) {
+                if (!s.modeLabel) return null;
+                var h = 17.0, room = 82.0;
+                var w = Text.measure(atlas, 'mb', s.modeLabel, fig(h), 0) / SC;
+                if (w > room) h = h * room / w;
+                return { str: s.modeLabel, face: 'mb', size: fig(h), align: 'centre',
+                         x: X(942.0), y: Y(559.2 + h / 2), color: K.white };
             });
+        }
+
+        /* outside temperature, flush right before its unit */
+        txt('ambient', 30, box(1560, 554, 1680, 594),
+            { face: 'mn', size: fig(FOOT_H), align: 'right', x: X(1674.3 + 0.075 * FOOT_H), y: Y(FOOT_Y + 1.6),
+              color: K.soft },
+            function (s) {
+                if (!s.ambientText || s.ambientText === '--') return null;
+                var t = s.ambientText;
+                return t.charAt(0) === '-' ? t : '+' + t;
+            });
+        statics('ambientUnit', 30, box(1676, 558, 1716, 596),
+            { face: 'ms', size: words(26.1), align: 'left', color: K.soft,
+              show: function (s) { return s.ambientText && s.ambientText !== '--'; } },
+            [{ str: metric ? '°C' : '°F', x: X(1682.0), y: Y(FOOT_Y + 2.6) }]);
+
+        /* ------------------------------------- the reference frame's lamps */
+        if (fixture) {
+            icon('lampBrake', 30, 'b', 68.0, 475.0, 46, 40, K.lampRed);
+            icon('lampLights', 30, 'l', 53.0, 350.0, 48, 24, K.lampLights);
+            icon('lampBelt', 30, 's', 1080.0, 537.0, 32, 46, K.lampBelt);
+            icon('carBody', 30, 'c', 1116.0, 533.0, 134, 54, K.carBody);
+            icon('carSeats', 31, 't', 1116.0, 533.0, 134, 54, K.carSeat);
+            icon('carEdge', 32, 'e', 1116.0, 533.0, 134, 54, K.carEdge);
+            var lb = box(M.FOOT.limit.x - 36, M.FOOT.limit.y - 36, M.FOOT.limit.x + 36, M.FOOT.limit.y + 36);
+            layers.push({
+                id: 'limitSign', z: 30, shader: 'mbadge', x: lb.x, y: lb.y, w: lb.w, h: lb.h,
+                uniforms: function () {
+                    return { u_disc: K.limitDisc, u_ring: K.limitRing,
+                             u_r: [M.FOOT.limit.r * SC, M.FOOT.limit.ring * SC] };
+                }
+            });
+            statics('limitWord', 31, box(574, 544, 632, 570),
+                { face: 'ms', size: words(19.3), align: 'centre', color: K.limitInk, tracking: -0.3 },
+                [{ str: 'LIMIT', x: X(603.2), y: Y(564.2) }]);
+        }
 
         /* ---------------------------------------- the centre, next turn */
-        function turn(s) { var c = centreOf(s); return c.mode === 'turn' ? turnOf(c.maneuver) : null; }
-        var arrow = box(895, 196, 1025, 326);
+        function turn(s) { var ce = centreOf(s); return ce.mode === 'turn' ? turnOf(ce.maneuver) : null; }
+        var arrow = box(792, 118, 892, 218);
         layers.push({
             id: 'turnArrow', z: 26, shader: 'tturn',
             x: arrow.x, y: arrow.y, w: arrow.w, h: arrow.h,
             uniforms: function (s) {
                 var t = turn(s);
                 if (!t) return null;
-                return { u_kind: t.kind, u_angle: t.angle, u_col: K.digits, u_ring: K.secondary };
+                return { u_kind: t.kind, u_angle: t.angle, u_col: K.white, u_ring: K.unit2 };
             }
         });
-        txt('turnDist', 27, box(740, 330, 1180, 410),
-            { face: 'labelL', size: 42 / CAP, align: 'centre', x: 960, y: 392, color: K.digits },
+        txt('turnDist', 27, box(896, 124, 1150, 184),
+            { face: 'ms', size: words(46), align: 'left', x: X(906), y: Y(172), color: K.white },
             function (s) { return turn(s) ? (centreOf(s).maneuver.text || null) : null; });
-        txt('turnSay', 27, box(760, 412, 1160, 456),
-            { face: 'label', size: 23 / CAP, align: 'centre', x: 960, y: 444, color: K.blueHi },
+        txt('turnSay', 27, box(896, 184, 1150, 222),
+            { face: 'label', size: words(30), align: 'left', x: X(908), y: Y(212), color: K.unit, tracking: 1 },
             function (s) { var t = turn(s); return t ? t.say : null; });
 
         /* ---------------------------------------------- the limiter flash */
@@ -280,31 +454,23 @@
                 x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT,
                 uniforms: function (s) {
                     return { u_on: s.limiter || 0, u_rate: S.flashRate,
-                             u_col: K.red, u_strength: S.flashStrength };
+                             u_col: K.R.rimHi, u_strength: S.flashStrength,
+                             u_style: S.flashStyleIndex, u_spread: S.flashSpread, u_burst: 0 };
                 }
             });
         }
 
-        var C = M.CENTRE;
+        var wb = M.windowBox();
+        var win = box(wb.x0, wb.y0, wb.x1, wb.y1);
         return { id: 'track', name: 'M', layers: layers, profile: P, settings: S,
-                 /* the holiday dressing: snow outside the rails, the tree
+                 /* the holiday dressing: snow outside the dials, the tree
                     right of the rev scale (src/theme/overlays.js) */
-                 places: { snow: [[0, 0, 250, 646], [1670, 0, 250, 646]], tree: [1772, 328, 140, 176] },
-                 palette: K, imperial: imperial, hasCentre: true, fit: FIT,
-                 window: { x: X(C.x0), y: Y(C.y0), w: D(C.x1 - C.x0), h: D(C.y1 - C.y0) } };
+                 places: { snow: [[0, 0, 300, 646], [1620, 0, 300, 646]], tree: [1776, 352, 136, 172],
+                           clearOf: /^(speedScale|revScale|lamp|mMark|clock|ambient)/ },
+                 palette: K, imperial: !metric, hasCentre: true, art: A,
+                 window: { x: win.x, y: win.y, w: win.w, h: win.h } };
     }
 
-    /* The guide's feather (section 3): the source's alpha at design point
-       (x, y) with the window fully open. The shader computes the same. */
-    function revealAt(x, y) {
-        var c = M.CENTRE;
-        var hx = (c.x1 - c.x0) / 2, hy = (c.y1 - c.y0) / 2;
-        var ax = Math.abs(x - (c.x0 + c.x1) / 2), ay = Math.abs(y - (c.y0 + c.y1) / 2);
-        var d = -Math.max(Math.max(ax - hx, ay - hy), (ax + ay - (hx + hy - c.chamfer)) * Math.SQRT1_2);
-        var t = Math.max(0, Math.min(1, d / c.feather));
-        return t * t * (3 - 2 * t);
-    }
-
-    return { build: build, FIT: FIT, MAP_WINDOW: MAP_WINDOW, TOKENS: TOKENS,
-             turnOf: turnOf, revealAt: revealAt, X: X, Y: Y, D: D };
+    return { build: build, MAP_WINDOW: MAP_WINDOW, turnOf: turnOf, revealAt: M.revealAt,
+             SPEED_EDGE: SPEED_EDGE, REV_EDGE: REV_EDGE, X: X, Y: Y };
 }));

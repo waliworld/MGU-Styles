@@ -18,6 +18,8 @@ fetch saira           5.0.18 saira-latin-700-normal
 fetch chakra-petch    5.0.13 chakra-petch-latin-700-normal
 fetch saira-semi-condensed 5.0.13 saira-semi-condensed-latin-700-normal
 fetch michroma        5.0.13 michroma-latin-400-normal
+fetch inter-tight     5.0.16 inter-tight-latin-400-normal
+fetch barlow-semi-condensed 5.0.13 barlow-semi-condensed-latin-700-normal
 echo "converting to ttf:"
 python3 - "$DIR" <<'PY'
 import sys, pathlib

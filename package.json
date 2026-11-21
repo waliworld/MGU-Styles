@@ -1,15 +1,16 @@
 {
   "name": "mgu-styles",
-  "version": "0.1.0",
-  "description": "Toro - a Lamborghini-style instrument cluster for BMW iDrive 7 (MGU)",
+  "version": "0.5.0",
+  "description": "MGU Styles - Toro (Lamborghini) and M (BMW M View) instrument clusters for BMW iDrive 7 (MGU)",
   "license": "UNLICENSED",
   "private": true,
   "scripts": {
     "test": "node --test test/*.test.js && node tools/stage-app.js --check && npm run compile-check",
     "car-sim": "node tools/car-sim.js && node tools/car-sim-replay.js",
-    "compile-check": "node tools/shot.js build/compile-check.png \"t=5&freeze=1\" && node tools/shot.js build/compile-track.png \"t=5&freeze=1&style=track&show=map\" && node tools/shot.js build/compile-turn.png \"t=5&freeze=1&style=track&turn=uturn\" && node tools/shot.js build/compile-extras.png \"t=5&freeze=1&holiday=on&intro=on&since=3&shiftStyle=gt3\" && node tools/shot.js build/compile-blade.png \"t=5&freeze=1&shiftStyle=blade&rpm=7000\"",
+    "compile-check": "node tools/shot.js build/compile-check.png \"t=5&freeze=1\" && node tools/shot.js build/compile-track.png \"t=5&freeze=1&style=track&show=map\" && node tools/shot.js build/compile-turn.png \"t=5&freeze=1&style=track&turn=uturn\" && node tools/shot.js build/compile-extras.png \"t=5&freeze=1&holiday=on&intro=on&since=3&shiftStyle=gt3\" && node tools/shot.js build/compile-blade.png \"t=5&freeze=1&shiftStyle=blade&rpm=7000\" && node tools/shot.js build/compile-m.png \"fixture=m&freeze=1&strip=off\" && node tools/shot.js build/compile-m-drive.png \"t=6&freeze=1&style=track&mPanel=mode&drive=ADAPTIVE&holiday=on&clock12=on\"",
     "shot": "node tools/shot.js build/shot.png \"t=9&freeze=1&strip=off\"",
     "atlas": "python3 tools/bake-atlas.py",
-    "fonts": "sh tools/fetch-fonts.sh"
+    "fonts": "sh tools/fetch-fonts.sh",
+    "m-compare": "python3 tools/m-compare.py"
   }
 }

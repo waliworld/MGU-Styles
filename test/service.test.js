@@ -212,8 +212,8 @@ test('Track: the centre is asked for only while our layers are up, and given bac
     await wait(300);
     assert.strictEqual(c.asked[c.asked.length - 1], 'waze');
     assert.strictEqual(h.svc.centre().waze, 'Waze map showing');
-    const frame = h.svc.driver() && h.svc.theme().layers.find((L) => L.id === 'frame');
-    assert.ok(frame, 'the Track frame is up');
+    const glass = h.svc.driver() && h.svc.theme().layers.find((L) => L.id === 'back');
+    assert.ok(glass, 'the M style\'s back glass, with its window, is up');
     h.condition('FAHRBEREITSCHAFT_BEENDEN');
     await wait(300);
     assert.strictEqual(c.asked[c.asked.length - 1], 'off', 'key-off gives the map back');

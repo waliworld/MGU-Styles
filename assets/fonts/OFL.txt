@@ -1,14 +1,22 @@
-The SDF atlas in this folder (atlas.png / atlas.json) is baked from four
-typefaces, all under the SIL Open Font License, Version 1.1:
+The SDF atlas (atlas.png / atlas.json, atlas_data.js in the package) is
+baked from these typefaces, all under the SIL Open Font License,
+Version 1.1:
 
-  Saira            Copyright 2016 The Saira Project Authors
+  Saira, Saira Semi Condensed
+                   Copyright 2016 The Saira Project Authors
                    https://github.com/Omnibus-Type/Saira
-  Barlow Condensed Copyright 2017 The Barlow Project Authors
+  Barlow Condensed, Barlow Semi Condensed
+                   Copyright 2017 The Barlow Project Authors
                    https://github.com/jpt/barlow
   Chakra Petch     Copyright 2018 The Chakra Petch Project Authors
                    https://github.com/m4rc1e/Chakra-Petch
   Michroma         Copyright 2011 The Michroma Project Authors
                    https://github.com/googlefonts/Michroma-font
+  Inter Tight      Copyright 2022 The Inter Project Authors
+                   https://github.com/rsms/inter-tight
+
+It also holds figures and symbols drawn for this project (the faces mw, mn
+and mi, tools/mglyphs.py), which are not taken from any font.
 
 The baked atlas is a derivative of those fonts and is distributed under the
 same licence, reproduced in full below.

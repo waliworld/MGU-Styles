@@ -189,6 +189,8 @@ exports.value = (iface, field, t) => {
   if (iface === FES) return { actualValueModeDrivingExperience: 'SPORT_EXPERT' };
   if (iface === CDS2 && field === 'statusLateralAccelerationMassCenter') return { lateralAccelerationCentreOfGravity: Math.round((65 + 0.4 * 9.80665 * Math.sin(t / 700)) / 0.002) };
   if (iface === CDS2) return { longitudinalAccelerationCentreOfGravity: Math.round((65 + 0.3 * 9.80665) / 0.002) };
+  /* the cluster's own clock: the car's time of day, which the head unit (on UTC) does not have */
+  if (iface === KI && field === 'statusShowTimeDate') return { displayHour: 12, displayMinute: 4, displaySecond: 0, statusDisplayClockTimeDate: 1 };
   if (iface === KI) return { range: 412, fluidLevelFuelTank: 41, mileageKilometre: 18420 };
   if (iface === ENV) return { temperatureExterior: Math.round((21.5 + 40) / 0.5) };
   return undefined;

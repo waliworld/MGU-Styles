@@ -104,21 +104,30 @@ function dialSketch(cv, cx, cy, r, accent) {
     cv.line(n[0], n[1], m[0], m[1], 2.5, accent);
 }
 
-/* A small drawing of the M layout: the two chevron rails, lit part way. */
+/* A small drawing of the M View: the two dials' rails, the centre lines and
+   the readouts, from the same geometry the cluster is drawn with. */
 function mSketch(cv, x, y, w) {
-    const s = w / 1920;
-    const P = (p) => [x + p[0] * s, y + p[1] * s];
-    const rail = (pts, col, dim, upto) => {
+    const s = w / MGeom.ART.w, D = MGeom.DIAL;
+    const P = (px, py) => [x + px * s, y + py * s];
+    const path = (pts, width, col) => {
         for (let i = 1; i < pts.length; i++) {
-            const a = P(pts[i - 1]), b = P(pts[i]);
-            cv.line(a[0], a[1], b[0], b[1], 6, i <= upto ? col : dim);
+            const a = P(pts[i - 1][0], pts[i - 1][1]), b = P(pts[i][0], pts[i][1]);
+            cv.line(a[0], a[1], b[0], b[1], width, col);
         }
     };
-    cv.roundRect(x + 440 * s, y + 108 * s, 1040 * s, 478 * s, 8, '#0a1320');
-    rail(MGeom.RAILS.left.rail, '#56c8ff', '#1c4f94', 3);
-    rail(MGeom.RAILS.right.rail, '#ff586c', '#6e1622', 4);
-    cv.text('76', x + 205 * s, y + 378 * s, 80, INK, { literal: true });
-    cv.text('6', x + 1620 * s, y + 388 * s, 80, INK, { literal: true });
+    const vertex = MGeom.cross(D.rimUp, D.rimLow), bend = MGeom.cross(D.conUp, D.conLow);
+    const rim = [[MGeom.at(D.rimUp, D.rimTop), D.rimTop], vertex, [MGeom.at(D.rimLow, D.rimBottom), D.rimBottom]];
+    const con = [[D.topX1, D.topY0], [MGeom.at(D.conUp, D.topY0), D.topY0], bend, [MGeom.at(D.conLow, D.conBottom), D.conBottom]];
+    const flip = (pts) => pts.map((p) => [MGeom.mirror(p[0]), p[1]]);
+    cv.roundRect(x, y, w, MGeom.ART.h * s, 8, '#05070d');
+    path(rim, 5, '#8fc6ea'); path(con, 1.5, '#a8cbf0');
+    path(flip(rim), 5, '#dc3840'); path(flip(con), 1.5, '#d65458');
+    path([[D.tabLeft, D.railTop + 3], [MGeom.DIAG.blueRailEnd, D.railTop + 3]], 3, '#62b4ea');
+    path([[MGeom.DIAG.redRailStart, D.railTop + 3], [MGeom.mirror(D.tabLeft), D.railTop + 3]], 3, '#d2343c');
+    path([MGeom.DIAG.cyan.p0, MGeom.DIAG.cyan.p1, MGeom.DIAG.cyan.p2], 1.5, '#b0d4f4');
+    path([MGeom.DIAG.red.p0, MGeom.DIAG.red.p1], 1.5, '#e4485a');
+    cv.text('76', x + 520 * s, y + 296 * s, 50 * s * 1.5, INK, { literal: true });
+    cv.text('6', x + 1284 * s, y + 296 * s, 50 * s * 1.5, INK, { literal: true });
 }
 
 /* The Toro backgrounds' own marks behind the dial sketch. */
@@ -167,7 +176,7 @@ const DESIGNS = [
     { name: 'Toro', sub: 'Lamborghini Huracan, genuine', style: 'toro', background: 'genuine' },
     { name: 'Toro', sub: 'Lamborghini, modern hex lattice', style: 'toro', background: 'modern' },
     { name: 'Toro', sub: 'Lamborghini Revuelto', style: 'toro', background: 'revuelto' },
-    { name: 'M', sub: 'BMW M, iDrive 8 style', style: 'track' }
+    { name: 'M', sub: 'BMW M View, iDrive 8', style: 'track' }
 ];
 function designIndex(style, background) {
     if (style === 'track') return 3;
@@ -283,7 +292,7 @@ mgu.run({
             cv.roundRect(774, 66, 708, 392, 12, FIELD);
             const accent = { arancio: '#ff6a1a', giallo: '#ffd117', rosso: '#ff2e1c', verde: '#2ee07a',
                              blu: '#3394ff', viola: '#b073ff', bianco: '#ebf2fb', magenta: '#ff2bd6' }[settings.get('accent')] || '#ff6a1a';
-            if (track) mSketch(cv, 786, 112, 684);
+            if (track) mSketch(cv, 786, 140, 684);
             else {
                 toroBackdrop(cv, D.background, 774, 66, 708, 392, accent);
                 dialSketch(cv, 1128, 436, 300, accent);
