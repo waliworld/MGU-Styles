@@ -279,11 +279,15 @@ async function main() {
         const s = snapshot(r.state, at);
         s.what = what;
         s.wazeTarget = nb.waze.target;
-        /* Toro: how far its background has opened over the map */
+        /* Toro: how far its background has opened over the map; the M
+           styles: how far their window has (the back glass's u_open) */
         s.holeOpen = 0;
+        s.windowOpen = 0;
         Object.keys(r.state.layers).forEach((ref) => {
             const u = r.state.layers[ref].uniforms.u_holeOpen;
             if (u) s.holeOpen = u[0];
+            const w = r.state.layers[ref].uniforms.u_open;
+            if (w) s.windowOpen = Math.max(s.windowOpen, w[0]);
         });
         s.theme = THEME;
         shots.push(s);
@@ -332,13 +336,18 @@ async function main() {
             if (!(shots[4].holeOpen > 0.5)) problems.push('Toro did not open over the map while driving');
             if (shots[1].holeOpen > 0) problems.push('Toro opened before Waze was there');
         }
+        if (THEME === 'track' || THEME === 'mplus') {
+            console.log('  window over the map: ' + shots.map((x) => x.windowOpen.toFixed(2)).join(' '));
+            if (!(shots[4].windowOpen > 0.5)) problems.push('the M window did not open over the map while driving');
+            if (shots[1].windowOpen > 0) problems.push('the M window opened before Waze was there');
+        }
         const toPanel = nb.waze.cmds.filter((c) => c.target === 'panel');
         if (!toPanel.length) problems.push('Waze was never moved into the cluster');
         else if (toPanel[0].t - start < 4000) problems.push('Waze was moved before the car was on');
         if (nb.waze.target !== 'map') problems.push('Waze was not given back at key-off');
         if (shots[3].wazeTarget !== 'panel') problems.push('Waze not in the panel while driving');
     }
-    if (THEME === 'track') {
+    if (THEME === 'track' || THEME === 'mplus') {
         console.log('  turn view: ' + nb.tv.connects + ' polls, at most ' + nb.tv.maxOpen + ' connection open');
         if (nb.tv.maxOpen > 1 || nb.tv.open > 0) problems.push('a Turn View connection was held open');
     }

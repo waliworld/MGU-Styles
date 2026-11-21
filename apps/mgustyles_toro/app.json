@@ -2,9 +2,9 @@
   "id": "mgustyles_toro",
   "title": "MGU Styles",
   "vendor": "MGU-Styles",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "loggingId": "TORO",
-  "description": "Custom instrument clusters drawn over the whole iDrive 7 cluster: Toro, after the Lamborghini Huracan, and M, BMW M's iDrive 8 M View rebuilt from a reference frame, with the Waze map or Turn View's camera between its dials. Everything is set up here; off until you turn it on; BMW's warnings and bottom strip always stay BMW's.",
+  "description": "Custom instrument clusters drawn over the whole iDrive 7 cluster: Toro, after the Lamborghini Huracan; M Sport, BMW M's iDrive 8 M View rebuilt from a reference frame; and M Sport Plus, the same dials round the M stripes with the Waze map in the centre. Everything is set up here; off until you turn it on; BMW's warnings and bottom strip always stay BMW's.",
   "autostart": true,
   "startType": "autostart",
   "iconGlyph": "gauge",
@@ -150,7 +150,11 @@
         ],
         [
           "track",
-          "M (BMW M View, iDrive 8)"
+          "M Sport (BMW M View, iDrive 8)"
+        ],
+        [
+          "mplus",
+          "M Sport Plus (M stripes, Waze in the centre)"
         ]
       ]
     },
@@ -223,6 +227,26 @@
         [
           "off",
           "Nothing"
+        ]
+      ]
+    },
+    {
+      "key": "mPop",
+      "label": "M / Numbers at the needle",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "As the style has them (M Sport Plus grows them)"
+        ],
+        [
+          "on",
+          "Grow as the needle passes"
+        ],
+        [
+          "off",
+          "Stay the same size"
         ]
       ]
     },

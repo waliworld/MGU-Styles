@@ -13,7 +13,9 @@
      * kit keeps that name for its own screen theme and resets it); each builds the same
      * shape: { id, name, layers, settings, ... } (src/theme/lambo.js).
      */
-    var THEMES = { toro: Toro, track: Track };
+    /* track: M Sport (the id it has always had in saved settings);
+       mplus: M Sport Plus, the same style with the other middle */
+    var THEMES = { toro: Toro, track: Track, mplus: Track.plus };
 
     function idOf(settings) {
         var t = settings && settings.style;

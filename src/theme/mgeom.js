@@ -243,7 +243,137 @@
         return { x0: x0, y0: y0, x1: x1, y1: y1 };
     }
 
+    /* =========================================================== M Sport Plus */
+    /*
+     * The same dials with another middle: the centre of a second picture
+     * (docs/ref/m-plus-reference.jpg, 2576 x 967, a clean capture of the M
+     * setup screen), laid into this artboard. That picture is a little
+     * taller for its width than the M View photograph, so it comes across
+     * by two scales - 0.702 across, about the dials' axis, and 1 / 1.4952
+     * down, top line on top line and rail on rail - which carry its fine
+     * contour onto ours to within two units everywhere. Its edges were
+     * fitted the same way (residuals under half a pixel: it is a render,
+     * not a photograph), and every diagonal in it has one slope, 0.5278
+     * here. docs/ref/M-PLUS-MEASUREMENTS.md has the working.
+     *
+     * What changes from M Sport: the plates (seven, with a blue and a red
+     * M stripe and a lattice of fine lines across them), the lower rails
+     * (they meet in the middle, there being no centre lines), and the
+     * window for the map: the area the owner marked on the centre plate
+     * (docs/ref/m-plus-waze-area.jpg).
+     */
+    var SLOPE = 0.5278;             /* every diagonal: x per unit down */
+    var PLUS = {
+        slope: SLOPE,
+        top: 107.0, bottom: 467.3,  /* the plates' common top and foot */
+        PLATES: {
+            /* (corners as measured, then set on the one lean: none moved more than 1.5) */
+            A: { v: [[385.6, 107.0], [464.5, 107.0], [339.6, 343.7], [297.2, 274.4]], r: [19.2, 0, 0, 24.7] },
+            B: { v: [[474.5, 107.0], [561.6, 107.0], [615.2, 208.6], [596.3, 244.5], [401.9, 244.5]],
+                 r: [0, 33.9, 0, 0, 0] },
+            B2: { v: [[490.3, 252.2], [592.5, 252.2], [541.4, 349.0]], r: [0, 0, 0] },
+            C: { v: [[677.1, 107.0], [1262.0, 107.0], [1071.8, 467.3], [603.6, 467.3], [545.3, 356.8]],
+                 r: [0, 0, 0, 35.3, 0] },
+            D: { v: [[1271.0, 107.0], [1415.2, 107.0], [1449.6, 172.1], [1424.1, 220.4], [1211.1, 220.4]],
+                 r: [0, 23.0, 0, 0, 0] },
+            F: { v: [[1453.8, 179.7], [1495.0, 257.8], [1444.6, 257.8], [1428.6, 227.5]], r: [0, 0, 0, 0] },
+            E: { v: [[1157.1, 322.8], [1370.7, 322.8], [1294.4, 467.3], [1080.9, 467.3]], r: [0, 0, 35.3, 0] }
+        },
+        /* a plate's colour by height, the same for all seven: [y, r, g, b] */
+        LIGHT: [[110, 32, 67, 132], [228, 25, 47, 87], [346, 23, 38, 78], [404, 23, 46, 90]],
+        /* the fine lighter lines over the plates: [x0, y0, x1, y1]. They
+           form triangles and stop on each other; a line is not seen in the
+           black between two plates */
+        LATTICE: [
+            [819.2, 107.0, 629.1, 467.3],        /* L1: down the centre plate, leaning left */
+            [962.3, 107.0, 1152.4, 467.3],       /* L2: leaning right, on into the lower right plate */
+            [1191.7, 107.0, 1338.0, 384.3],      /* L3: through the upper right plate and the lower */
+            [537.8, 252.2, 640.6, 445.4],        /* L4: from under the speed to L1 */
+            [583.3, 148.3, 533.0, 243.7],        /* L5: in the plate over the speed */
+            [906.1, 402.3, 871.8, 467.3],        /* L6 */
+            [1020.4, 217.2, 1473.6, 217.2],      /* H1: level, from L2 out to the right */
+            [533.0, 243.7, 747.1, 243.7],        /* H2: level, from L5's foot to L1 */
+            [906.1, 402.3, 1106.5, 402.3]        /* H3: level, from L6 to the plate's edge */
+        ],
+        latticeW: 2.5,
+        /* the two M stripes on the centre plate: bands leaning with the
+           diagonals, x = b - SLOPE * y, from b0 to b1. They are strongest
+           a fifth of the way down (peak) and fade out both ways. */
+        STRIPES: { blue: [996.7, 1052.9], red: [1110.9, 1166.8], rise: 80.0, peak: 173.0, gone: 380.0 },
+        /* the lower rails: no centre lines here, so they run in to a gap
+           about the axis, each cut on the diagonals' lean */
+        RAILS: { blueEnd: 854.4, redStart: 952.8, y: 516.2 },
+        /*
+         * The map's window: the marked part of the centre plate, clockwise.
+         * Its right side stands in from the plate's right edge, parallel to
+         * it. Its left side is the marker's own line - steeper than the
+         * plate's edge, which is what keeps the picture out from under the
+         * two speeds - down to the plate's lower left edge, and along that
+         * to the foot. The picture comes in over `feather` from `inset`
+         * inside this outline, on a curve with no corner at either end
+         * (6t^5 - 15t^4 + 10t^3), and the outline's corners are rounded so
+         * the fade turns them evenly.
+         */
+        WINDOW: {
+            poly: [[719.6, 107.0], [1203.4, 107.0], [1013.2, 467.3], [603.6, 467.3], [592.0, 445.3]],
+            r: [40, 40, 40, 10, 10],
+            inset: 6, feather: 40
+        }
+    };
+    /* the distance to a convex outline with rounded corners, negative
+       inside: what the shaders' outline compiler computes (mcluster.js) */
+    function roundDist(poly, radii, x, y) {
+        var k = poly.length, d = -1e9, i, e = [];
+        for (i = 0; i < k; i++) {
+            var a = poly[i], b = poly[(i + 1) % k];
+            var ex = b[0] - a[0], ey = b[1] - a[1], len = Math.sqrt(ex * ex + ey * ey);
+            e.push({ a: a, t: [ex / len, ey / len], n: [ey / len, -ex / len] });
+            d = Math.max(d, (x - a[0]) * e[i].n[0] + (y - a[1]) * e[i].n[1]);
+        }
+        for (i = 0; i < k; i++) {
+            var r = radii && radii[i];
+            if (!r) continue;
+            var pe = e[(i + k - 1) % k], ce = e[i];
+            var c = 1 + pe.n[0] * ce.n[0] + pe.n[1] * ce.n[1];
+            var qx = x - (poly[i][0] - r * (pe.n[0] + ce.n[0]) / c);
+            var qy = y - (poly[i][1] - r * (pe.n[1] + ce.n[1]) / c);
+            if (qx * pe.t[0] + qy * pe.t[1] > 0 && qx * ce.t[0] + qy * ce.t[1] < 0) {
+                d = Math.max(d, Math.sqrt(qx * qx + qy * qy) - r);
+            }
+        }
+        return d;
+    }
+    /* the fade's curve: level at both ends, and its slope too */
+    function smoother(t) {
+        t = Math.max(0, Math.min(1, t));
+        return t * t * t * (t * (t * 6 - 15) + 10);
+    }
+    function plusWindowDist(x, y) { return roundDist(PLUS.WINDOW.poly, PLUS.WINDOW.r, x, y); }
+    /*
+     * The picture's strength at an artboard point, the window fully open:
+     * what reaches the eye through both layers. The glass has a hole only
+     * where the window's outline and the centre plate both cover it, two
+     * units in (so nothing shows past the plate's rounded corner); inside
+     * that the plate thins out on the curve.
+     */
+    function plusRevealAt(x, y) {
+        var C = PLUS.PLATES.C, w = plusWindowDist(x, y);
+        if (Math.max(w, roundDist(C.v, C.r, x, y)) + 2 >= 0) return 0;
+        return smoother((-w - PLUS.WINDOW.inset) / PLUS.WINDOW.feather);
+    }
+    function boxOf(poly) {
+        var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+        poly.forEach(function (v) {
+            x0 = Math.min(x0, v[0]); x1 = Math.max(x1, v[0]);
+            y0 = Math.min(y0, v[1]); y1 = Math.max(y1, v[1]);
+        });
+        return { x0: x0, y0: y0, x1: x1, y1: y1 };
+    }
+    function plusWindowBox() { return boxOf(PLUS.WINDOW.poly); }
+
     return {
+        PLUS: PLUS, roundDist: roundDist, smoother: smoother,
+        plusWindowDist: plusWindowDist, plusRevealAt: plusRevealAt, plusWindowBox: plusWindowBox,
         ART: ART, PANEL_FIT: PANEL_FIT, setFit: setFit, AX: AX, px: px, py: py, pd: pd, box: box, mirror: mirror,
         SCALE: SCALE, tickY: tickY, SPEED_SCALE: SPEED_SCALE, speedTicks: speedTicks, rpmTicks: rpmTicks,
         DIAL: DIAL, at: at, cross: cross, shift: shift, rimOuterX: rimOuterX, contourX: contourX,

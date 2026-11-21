@@ -33,6 +33,14 @@
      * appear here only in the reference fixture (`mFixture`, the preview and
      * the comparison tool) - never as an imitation on the road.
      *
+     * Two styles are built here. "M Sport" is that M View, as the
+     * photograph has it. "M Sport Plus" is the same dials, figures, strips
+     * and footer with another middle - the centre of a second picture
+     * (docs/ref/m-plus-reference.jpg): seven plates with the blue and red M
+     * stripes and a lattice of fine lines, the lower rails meeting in the
+     * middle, and the map in the centre plate, the plate thinning out into
+     * it. Its scale numerals also swell as the marker passes them.
+     *
      * Not affiliated with BMW AG; a reference-matched reconstruction for
      * the owner's own car.
      */
@@ -62,6 +70,8 @@
         bg: c(6, 5, 11), bgLift: c(13, 13, 22),
         plateTint: [0.235, 0.515, 1.0], hair: c(14, 24, 40),
         pane: c(9, 18, 46), paneFoot: c(21, 42, 79),
+        /* M Sport Plus: the lattice's light and the two M stripes */
+        lattice: c(30, 44, 78), stripeBlue: c(65, 138, 247), stripeRed: c(199, 56, 71),
         L: { rimHi: c(143, 198, 234), rimLo: c(105, 172, 220), line: c(162, 198, 238), lineLo: c(124, 168, 214),
              chan: c(14, 30, 64),
              fill: c(98, 180, 234), fillHot: c(133, 196, 239), tick: c(112, 148, 206), hot: 0.72 },
@@ -116,8 +126,15 @@
         return face === 'mw' ? 0.1025 : 0.075;
     }
 
-    function build(atlas, profileId, settings) {
+    /* how much a scale numeral grows when the marker is level with it: a
+       fifth, which is what fits between the rim and the car's tyre-pressure
+       telltale at the tightest numeral (150 km/h, 100 mph) */
+    var GROW = 0.20;
+
+    /* variant: undefined, M Sport; 'plus', M Sport Plus */
+    function build(atlas, profileId, settings, variant) {
         var SC = A.s;                 /* target pixels per artboard unit, for this build */
+        var plus = variant === 'plus';
         var P = Panel.profile(profileId);
         var S = Palette.resolve(settings, P);
         S.modeLabel = 'bmw';          /* BMW's own names, should the panel show the mode */
@@ -126,6 +143,10 @@
             ? settings.centre : 'waze';
         S.mPanel = ['4wd', '2wd', 'mode', 'off'].indexOf(settings && settings.mPanel) >= 0
             ? settings.mPanel : '4wd';
+        /* the numerals at the marker: as the style has them unless asked
+           (M Sport keeps them the car's size, M Sport Plus grows them) */
+        S.mPop = ['on', 'off'].indexOf(settings && settings.mPop) >= 0 ? settings.mPop : 'auto';
+        var grow = S.mPop === 'on' || (S.mPop === 'auto' && plus) ? GROW : 0;
         var fixture = !!(settings && settings.mFixture);
         var metric = S.units === 'metric';
         var units = metric ? 'metric' : 'imperial';
@@ -178,21 +199,35 @@
         }
 
         /* ---------------------------------------------------- the back glass */
-        shape('back', 1, 'mback',
+        function openOf(s) {
+            var ce = centreOf(s);
+            return ce.mode === 'map' || ce.mode === 'camera' ? ce.open : 0;
+        }
+        shape('back', 1, plus ? 'mpback' : 'mback',
             { x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT + S.bottomExtra },
-            function (s) {
-                var ce = centreOf(s);
-                return { u_open: ce.mode === 'map' || ce.mode === 'camera' ? ce.open : 0,
-                         u_bg: K.bg, u_bgLift: K.bgLift };
-            },
+            function (s) { return { u_open: openOf(s), u_bg: K.bg, u_bgLift: K.bgLift }; },
             /* belowCut: the glass may be asked to run under the car's own
                bottom strip, so black shows there instead of BMW's art */
             { belowCut: true });
 
         /* --------------------------------------------------------- the plates */
-        function plateLook() { return { u_tint: K.plateTint, u_hair: K.hair }; }
-        shape('platesL', 2, 'mplatesL', box(300, 100, 898, 486), plateLook);
-        shape('platesR', 2, 'mplatesR', box(958, 100, 1505, 486), plateLook);
+        if (plus) {
+            /* three layers: the plates by the speed, the centre one with its
+               stripes and the map's window, the plates by the gear */
+            var sideLook = function () { return { u_hair: K.lattice }; };
+            shape('platesL', 2, 'mpsideL', box(292, 103, 620, 352), sideLook);
+            shape('platesC', 2, 'mpcentre', box(541, 103, 1267, 472), function (s) {
+                var ce = centreOf(s);
+                return { u_hair: K.lattice, u_blue: K.stripeBlue, u_red: K.stripeRed, u_open: openOf(s),
+                         /* a turn card is read over the stripes: they stand back for it */
+                         u_calm: ce.mode === 'turn' && turnOf(ce.maneuver) ? 1 : 0 };
+            });
+            shape('platesR', 2, 'mpsideR', box(1076, 103, 1500, 472), sideLook);
+        } else {
+            var plateLook = function () { return { u_tint: K.plateTint, u_hair: K.hair }; };
+            shape('platesL', 2, 'mplatesL', box(300, 100, 898, 486), plateLook);
+            shape('platesR', 2, 'mplatesR', box(958, 100, 1505, 486), plateLook);
+        }
 
         /* the footer's four-pane panel */
         if (S.mPanel !== 'off') {
@@ -202,12 +237,15 @@
         }
 
         /* ---------------------------------------- rails and the centre lines */
-        shape('rails', 6, 'mrails', box(356, 505, 1452, 555), function () {
+        shape('rails', 6, plus ? 'mprails' : 'mrails', box(356, 505, 1452, 555), function () {
             return { u_blue: K.railBlue, u_red: K.railRed, u_blueGlow: K.glowBlue, u_redGlow: K.glowRed };
         });
-        shape('centreLines', 6, 'mdiag', box(724, 144, 1000, 522), function () {
-            return { u_cyan: K.diagCyan, u_red: K.diagRed };
-        });
+        /* the two fine lines through the middle are the M View's alone */
+        if (!plus) {
+            shape('centreLines', 6, 'mdiag', box(724, 144, 1000, 522), function () {
+                return { u_cyan: K.diagCyan, u_red: K.diagRed };
+            });
+        }
 
         /* ----------------------------------------------------------- the dials */
         function dial(id, b, side, look, val, zone, warn) {
@@ -262,12 +300,38 @@
                 return { str: it.str, x: it.x - b.x, y: it.y - b.y, align: it.align };
             }), { face: face, size: size });
             var art = artOf(b);
+            /*
+             * The point each numeral grows about, for every glyph of it (a
+             * vec4 a glyph, as every uniform array is sent: x, y, 0, 0):
+             * level with its tick, at its own middle - unless growing that
+             * way would carry it under the car's tyre-pressure telltale, in
+             * which case it grows from a point nearer that side, and so
+             * away from it.
+             */
+            var mid = [], g = 0;
+            var pad = (atlas.faces[face].glyphs['0'].h - CAP) / 2 * size;   /* a glyph's box is this much wider than its ink */
+            var tyre = Panel.TELLTALES[0];
+            items.forEach(function (it) {
+                var n = String(it.str).length, last = (g + n - 1) * 4;
+                var x0 = placed.p[g * 4] + pad, x1 = placed.p[last] + placed.p[last + 2] - pad;
+                var y0 = placed.p[g * 4 + 1] + pad, y1 = y0 + placed.p[g * 4 + 3] - 2 * pad;
+                var m = (x0 + x1) / 2;
+                if (grow > 0) {
+                    var rise = grow * (y1 - y0) / 2;
+                    var beside = b.y + y1 + rise > tyre.y && b.y + y0 - rise < tyre.y + tyre.h;
+                    var limit = tyre.x + tyre.w + 2 - b.x;
+                    if (beside && x0 > limit && x0 - grow * (m - x0) < limit) m = x0 + (x0 - limit) / grow;
+                }
+                for (var j = 0; j < n; j++) mid.push(m, Y(M.tickY(it.tick)) - b.y, 0, 0);
+                g += n;
+            });
+            while (mid.length < Text.MAX_GLYPHS * 4) mid.push(0);
             layers.push({
                 id: id, z: 20, shader: 'mnum', x: b.x, y: b.y, w: b.w, h: b.h,
                 uniforms: function (s) {
                     return { u_art: art, u_g: placed.g, u_quad: placed.p,
                              u_cfg: [placed.count, placed.sharp, val(s), 0.045],
-                             u_col: col, u_colOn: K.white };
+                             u_col: col, u_colOn: K.white, u_ax: mid, u_grow: grow };
                 }
             });
         }
@@ -275,21 +339,23 @@
             var str = String(M.SPEED_SCALE[units][k]);
             var h = NUM_H.speed;
             /* right-aligned: the pen ends a bearing past the ink */
-            return { str: str, align: 'right',
+            return { str: str, align: 'right', tick: k,
                      x: X(SPEED_EDGE[k] + bearing('mw', str.charAt(str.length - 1)) * h),
                      y: Y(M.tickY(k) + h / 2) };
         }
         function revItem(k) {
             var str = String(k), h = NUM_H.rev;
-            return { str: str, align: 'left', x: X(REV_EDGE[k] - bearing('mw', str.charAt(0)) * h),
+            return { str: str, align: 'left', tick: k, x: X(REV_EDGE[k] - bearing('mw', str.charAt(0)) * h),
                      y: Y(M.tickY(k) + h / 2) };
         }
-        /* twelve glyphs a layer: the speed scale takes two */
-        scale('speedScaleA', box(104.5, 80, 268, 266), 'mw', NUM_H.speed,
+        /* twelve glyphs a layer: the speed scale takes two. Where the
+           numerals grow, their layers are that much roomier. */
+        var roomy = grow > 0;
+        scale('speedScaleA', roomy ? box(95, 76, 276, 272) : box(104.5, 80, 268, 266), 'mw', NUM_H.speed,
             [8, 7, 6, 5].map(speedItem), speedTicks, K.blueNum);
-        scale('speedScaleB', box(128, 282, 350, 522), 'mw', NUM_H.speed,
+        scale('speedScaleB', roomy ? box(119, 278, 358, 526) : box(128, 282, 350, 522), 'mw', NUM_H.speed,
             [4, 3, 2, 1, 0].map(speedItem), speedTicks, K.blueNum);
-        scale('revScale', box(1462, 78, 1668, 524), 'mw', NUM_H.rev,
+        scale('revScale', roomy ? box(1454, 74, 1676, 528) : box(1462, 78, 1668, 524), 'mw', NUM_H.rev,
             [8, 7, 6, 5, 4, 3, 2, 1, 0].map(revItem), revTicks, K.redNum);
 
         statics('speedTitle', 20, box(302, 36, 380, 72),
@@ -461,9 +527,10 @@
             });
         }
 
-        var wb = M.windowBox();
+        var wb = plus ? M.plusWindowBox() : M.windowBox();
         var win = box(wb.x0, wb.y0, wb.x1, wb.y1);
-        return { id: 'track', name: 'M', layers: layers, profile: P, settings: S,
+        return { id: plus ? 'mplus' : 'track', name: plus ? 'M Sport Plus' : 'M Sport',
+                 layers: layers, profile: P, settings: S, grow: grow,
                  /* the holiday dressing: snow outside the dials, the tree
                     right of the rev scale (src/theme/overlays.js) */
                  places: { snow: [[0, 0, 300, 646], [1620, 0, 300, 646]], tree: [1776, 352, 136, 172],
@@ -473,5 +540,8 @@
     }
 
     return { build: build, MAP_WINDOW: MAP_WINDOW, turnOf: turnOf, revealAt: M.revealAt,
+             plusRevealAt: M.plusRevealAt, GROW: GROW,
+             /* M Sport Plus: the same build with the other middle */
+             plus: { build: function (atlas, profileId, settings) { return build(atlas, profileId, settings, 'plus'); } },
              SPEED_EDGE: SPEED_EDGE, REV_EDGE: REV_EDGE, X: X, Y: Y };
 }));

@@ -31,6 +31,11 @@
         return s.indexOf('.') < 0 && s.indexOf('e') < 0 ? s + '.0' : s;
     }
     function v2(a) { return 'vec2(' + n(a[0]) + ', ' + n(a[1]) + ')'; }
+    /* a slope or a cosine, to five places */
+    function fine(v) {
+        var t = String(Math.round(v * 100000) / 100000);
+        return t.indexOf('.') < 0 && t.indexOf('e') < 0 ? t + '.0' : t;
+    }
     /* a unit vector, written finely: a thousandth off a direction is a
        tenth of a unit at the far end of a plate's edge */
     function u2(a) {
@@ -210,37 +215,42 @@
         return [a, DG.red.p0[0] - a * DG.red.p0[1]];
     }());
 
-    var mrails = [
-        HEAD,
-        'uniform vec3 u_blue;',
-        'uniform vec3 u_red;',
-        'uniform vec3 u_blueGlow;',
-        'uniform vec3 u_redGlow;',
-        'void main() {',
-        '  vec2 p = art();',
-        '  float isR = step(AX + 44.0, p.x);',                 /* past the gap between the two rails */
-        '  float xm = mix(p.x, 2.0 * AX - p.x, isR);',         /* the same place on the left rail */
-        '  float dy = max(' + n(D.railTop) + ' - p.y, p.y - ' + n(D.railBottom) + ');',
-        /* each rail runs from under its dial's base to where its centre line lands */
-        '  float endB = ' + n(cyanBack[0]) + ' * p.y + ' + n(cyanBack[1] + DG.cyan.w / 2) + ';',
-        '  float endR = ' + n(redLine[0]) + ' * p.y + ' + n(redLine[1] - DG.red.w / 2) + ';',
-        '  float dB = max(dy, max(' + n(D.tabStep[0] + 4.0) + ' - p.x, p.x - endB));',
-        '  float dR = max(dy, max(endR - p.x, p.x - ' + n(M.mirror(D.tabStep[0] + 4.0)) + '));',
-        '',
-        /* the light each rail throws on the glass under it: a level top
-           edge, fading straight down, deepest and strongest under the dial */
-        '  float gx = clamp((xm - ' + n(G.x0) + ') / ' + n(G.x1 - G.x0) + ', 0.0, 1.0);',
-        '  float yb = ' + n(G.bottom) + ' - (xm - ' + n(G.x0 + 14.0) + ') * 0.0885;',
-        '  float fall = 1.0 - clamp((p.y - ' + n(G.top + 0.5) + ') / max(yb - ' + n(G.top + 0.5) + ', 1.0), 0.0, 1.0);',
-        '  float lean = ' + n(G.x0 + 6.0) + ' - (p.y - ' + n(G.top) + ') * 0.43;',
-        '  float g = ac(' + n(G.top) + ' - p.y) * fall * 1.05 * (1.0 - pow(gx, 1.6)) * ac(lean - xm);',
-        '',
-        '  vec4 c = vec4(mix(u_blueGlow, u_redGlow, isR), g);',
-        '  c = over(vec4(u_blue, ac(dB)), c);',
-        '  c = over(vec4(u_red, ac(dR)), c);',
-        '  gl_FragColor = c;',
-        '}'
-    ].join('\n');
+    /* endB / endR: GLSL for where the blue rail ends and the red one starts, at p.y */
+    function railsSrc(endB, endR) {
+        return [
+            HEAD,
+            'uniform vec3 u_blue;',
+            'uniform vec3 u_red;',
+            'uniform vec3 u_blueGlow;',
+            'uniform vec3 u_redGlow;',
+            'void main() {',
+            '  vec2 p = art();',
+            '  float isR = step(AX + 44.0, p.x);',                 /* past the gap between the two rails */
+            '  float xm = mix(p.x, 2.0 * AX - p.x, isR);',         /* the same place on the left rail */
+            '  float dy = max(' + n(D.railTop) + ' - p.y, p.y - ' + n(D.railBottom) + ');',
+            '  float endB = ' + endB + ';',
+            '  float endR = ' + endR + ';',
+            '  float dB = max(dy, max(' + n(D.tabStep[0] + 4.0) + ' - p.x, p.x - endB));',
+            '  float dR = max(dy, max(endR - p.x, p.x - ' + n(M.mirror(D.tabStep[0] + 4.0)) + '));',
+            '',
+            /* the light each rail throws on the glass under it: a level top
+               edge, fading straight down, deepest and strongest under the dial */
+            '  float gx = clamp((xm - ' + n(G.x0) + ') / ' + n(G.x1 - G.x0) + ', 0.0, 1.0);',
+            '  float yb = ' + n(G.bottom) + ' - (xm - ' + n(G.x0 + 14.0) + ') * 0.0885;',
+            '  float fall = 1.0 - clamp((p.y - ' + n(G.top + 0.5) + ') / max(yb - ' + n(G.top + 0.5) + ', 1.0), 0.0, 1.0);',
+            '  float lean = ' + n(G.x0 + 6.0) + ' - (p.y - ' + n(G.top) + ') * 0.43;',
+            '  float g = ac(' + n(G.top) + ' - p.y) * fall * 1.05 * (1.0 - pow(gx, 1.6)) * ac(lean - xm);',
+            '',
+            '  vec4 c = vec4(mix(u_blueGlow, u_redGlow, isR), g);',
+            '  c = over(vec4(u_blue, ac(dB)), c);',
+            '  c = over(vec4(u_red, ac(dR)), c);',
+            '  gl_FragColor = c;',
+            '}'
+        ].join('\n');
+    }
+    /* M Sport: each rail runs from under its dial's base to where its centre line lands */
+    var mrails = railsSrc(n(cyanBack[0]) + ' * p.y + ' + n(cyanBack[1] + DG.cyan.w / 2),
+                          n(redLine[0]) + ' * p.y + ' + n(redLine[1] - DG.red.w / 2));
 
     var mdiag = [
         HEAD,
@@ -397,6 +407,8 @@
         'uniform vec4 u_cfg;',       /* count, sharpness, the value in ticks, extra weight when lit */
         'uniform vec3 u_col;',
         'uniform vec3 u_colOn;',
+        'uniform vec4 u_ax[12];',    /* each glyph's numeral: the point it grows about (xy, layer px) */
+        'uniform float u_grow;',     /* how much a numeral grows as the marker comes level: 0, not at all */
         'void main() {',
         '  vec2 p = px();',
         '  float a = 0.0;',
@@ -404,15 +416,21 @@
         '  for (int i = 0; i < 12; i++) {',
         '    float on = step(float(i) + 0.5, u_cfg.x);',
         '    vec4 r = u_quad[i];',
-        '    vec2 q = (p - r.xy) / max(r.zw, vec2(1.0));',
-        '    float inR = on * step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);',
         /* the tick this glyph belongs to, from where its middle is */
         '    float gy = u_art.y + (r.y + r.w * 0.5) / u_art.z;',
         '    float k = floor((Y0 - gy) / DY + 0.5);',
+        /* the numeral swells about its own middle as the marker comes
+           level with it and settles as it goes by: full size a tick away */
+        '    float near = clamp(1.0 - abs(k - u_cfg.z), 0.0, 1.0);',
+        '    float s = 1.0 + u_grow * near * near * (3.0 - 2.0 * near);',
+        '    vec2 an = u_ax[i].xy;',
+        '    vec2 pp = u_grow > 0.0 ? an + (p - an) / s : p;',
+        '    vec2 q = (pp - r.xy) / max(r.zw, vec2(1.0));',
+        '    float inR = on * step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);',
         '    float lit = smoothstep(0.0, 0.25, 1.0 - abs(k - u_cfg.z));',
         '    vec4 g = u_g[i];',
         '    float raw = texture2D(u_atlas, g.xy + clamp(q, 0.0, 1.0) * g.zw).r;',
-        '    float cv = clamp((raw - 0.5 + u_cfg.w * lit) * u_cfg.y + 0.5, 0.0, 1.0) * inR;',
+        '    float cv = clamp((raw - 0.5 + u_cfg.w * lit) * u_cfg.y * s + 0.5, 0.0, 1.0) * inR;',
         '    acc += mix(u_col, u_colOn, lit) * cv;',
         '    a += cv;',
         '  }',
@@ -491,8 +509,114 @@
         '}'
     ].join('\n');
 
+    /* ====================================================== M Sport Plus */
+    /*
+     * The other middle (M.PLUS): seven plates with one fall of light, the
+     * blue and the red M stripe on the centre one, a lattice of fine lines
+     * across them all, and the map's window - which here is in the centre
+     * plate itself, so the plate thins out towards the picture.
+     */
+    var PL = M.PLUS, PW = PL.WINDOW, PWB = M.plusWindowBox();
+    var COSD = 1 / Math.sqrt(1 + PL.slope * PL.slope);       /* level -> across a diagonal */
+    function rgb3(c) { return rgb(c[1], c[2], c[3]); }
+    var LT = PL.LIGHT;
+    var plusCommon = [
+        /* a plate's colour at a height */
+        'vec3 plateCol(float y) {',
+        '  vec3 c = mix(' + rgb3(LT[0]) + ', ' + rgb3(LT[1]) + ', clamp((y - ' + n(LT[0][0]) + ') / ' + n(LT[1][0] - LT[0][0]) + ', 0.0, 1.0));',
+        '  c = mix(c, ' + rgb3(LT[2]) + ', clamp((y - ' + n(LT[1][0]) + ') / ' + n(LT[2][0] - LT[1][0]) + ', 0.0, 1.0));',
+        '  return mix(c, ' + rgb3(LT[3]) + ', clamp((y - ' + n(LT[2][0]) + ') / ' + n(LT[3][0] - LT[2][0]) + ', 0.0, 1.0));',
+        '}',
+        /* how far to the nearest of the lattice's lines */
+        'float lattice(vec2 p) {',
+        '  float d = 1000.0;',
+        PL.LATTICE.map(function (L) {
+            return '  d = min(d, sdSegment(p, ' + v2([L[0], L[1]]) + ', ' + v2([L[2], L[3]]) + ', 0.0));';
+        }).join('\n'),
+        '  return d;',
+        '}',
+        /* the window's fade: level at both ends, and its slope too */
+        'float smoother(float t) { return t * t * t * (t * (t * 6.0 - 15.0) + 10.0); }'
+    ].join('\n');
+
+    function plusPlates(names, centre) {
+        var src = [HEAD, 'uniform vec3 u_hair;'];        /* the light the lattice's lines add */
+        if (centre) {
+            src.push('uniform float u_open;',            /* 0..1: how far the map's window is open */
+                     'uniform float u_calm;',            /* 1: the stripes stand back (a turn card is over them) */
+                     'uniform vec3 u_blue;',             /* the two M stripes */
+                     'uniform vec3 u_red;');
+        }
+        names.forEach(function (id) { src.push(chain('pp' + id, PL.PLATES[id].v, PL.PLATES[id].r, true)); });
+        if (centre) src.push(chain('pwin', PW.poly, PW.r, true));
+        src.push(plusCommon, 'void main() {', '  vec2 p = art();');
+        src.push('  float d = ' + names.map(function (id) { return 'pp' + id + '(p)'; })
+            .reduce(function (acc, t) { return acc ? 'min(' + acc + ', ' + t + ')' : t; }, '') + ';');
+        src.push('  vec3 plate = plateCol(p.y);', '  vec3 col = plate;');
+        if (centre) {
+            var S = PL.STRIPES;
+            src.push(
+                /* the stripes: bands on the diagonals' lean, strongest a fifth
+                   of the way down the plate and fading out above and below */
+                '  float sx = p.x + ' + fine(PL.slope) + ' * p.y;',
+                '  float lit = smoothstep(' + n(S.rise) + ', ' + n(S.peak) + ', p.y) * (1.0 - smoothstep(' + n(S.peak) + ', ' + n(S.gone) + ', p.y));',
+                '  lit *= 1.0 - 0.8 * u_calm;',
+                '  col = mix(col, u_blue, lit * ac(max(' + n(S.blue[0]) + ' - sx, sx - ' + n(S.blue[1]) + ') * ' + fine(COSD) + '));',
+                '  col = mix(col, u_red, 0.9 * lit * ac(max(' + n(S.red[0]) + ' - sx, sx - ' + n(S.red[1]) + ') * ' + fine(COSD) + '));');
+        }
+        src.push(
+            /* the lattice, a little stronger where the plate is lighter */
+            '  col += u_hair * ac(lattice(p) - ' + n(PL.latticeW / 2) + ') * (0.35 + 1.7 * plate.b);',
+            '  float a = ac(d);');
+        if (centre) {
+            src.push(
+                /* the window: the plate thins out to nothing over the picture */
+                '  if (u_open > 0.001) {',
+                '    float t = clamp((-pwin(p) - ' + n(PW.inset) + ') / ' + n(PW.feather) + ', 0.0, 1.0);',
+                '    a *= 1.0 - u_open * smoother(t);',
+                '  }');
+        }
+        src.push('  gl_FragColor = vec4(col, a);', '}');
+        return src.join('\n');
+    }
+    var mpsideL = plusPlates(['A', 'B', 'B2'], false);
+    var mpcentre = plusPlates(['C'], true);
+    var mpsideR = plusPlates(['D', 'F', 'E'], false);
+
+    /*
+     * Its back glass. The hole is the window's own outline where the
+     * centre plate covers it, drawn in two units, so its edge is always
+     * under plate the picture has not yet begun to thin: the fade is the
+     * plate's alone, and the map comes up through it with nothing dark
+     * between and nothing showing past the plate.
+     */
+    var mpback = [
+        HEAD,
+        'uniform float u_open;',
+        'uniform vec3 u_bg;',
+        'uniform vec3 u_bgLift;',
+        chain('pwin', PW.poly, PW.r, true),
+        chain('ppC', PL.PLATES.C.v, PL.PLATES.C.r, true),
+        'void main() {',
+        '  vec2 p = art();',
+        '  float r = length((p - vec2(AX, 250.0)) / vec2(560.0, 330.0));',
+        '  vec3 col = mix(u_bgLift, u_bg, smoothstep(0.0, 1.0, r));',
+        '  float a = 1.0;',
+        '  if (u_open > 0.001 && p.x > ' + n(PWB.x0) + ' && p.x < ' + n(PWB.x1) + ' && p.y > ' + n(PWB.y0) + ' && p.y < ' + n(PWB.y1) + ') {',
+        '    a = 1.0 - ac(max(pwin(p), ppC(p)) + 2.0);',
+        '  }',
+        '  gl_FragColor = vec4(col, a);',
+        '}'
+    ].join('\n');
+
+    /* its rails: they run in to a gap about the axis, cut on the diagonals' lean */
+    var PR = PL.RAILS;
+    var mprails = railsSrc(n(PR.blueEnd) + ' - (p.y - ' + n(PR.y) + ') * ' + fine(PL.slope),
+                           n(PR.redStart) + ' + (p.y - ' + n(PR.y) + ') * ' + fine(PL.slope));
+
     var out = { mback: mback, mplatesL: mplatesL, mplatesR: mplatesR, mgauge: mgauge, mrails: mrails,
-                mdiag: mdiag, mstrip: mstrip, mfoot: mfoot, mnum: mnum, mbadge: mbadge, tturn: tturn };
+                mdiag: mdiag, mstrip: mstrip, mfoot: mfoot, mnum: mnum, mbadge: mbadge, tturn: tturn,
+                mpback: mpback, mpsideL: mpsideL, mpcentre: mpcentre, mpsideR: mpsideR, mprails: mprails };
     /* the outline compiler, for the tests: not a shader, so not listed with them */
     Object.defineProperty(out, 'chain', { value: chain, enumerable: false });
     return out;

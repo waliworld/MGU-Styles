@@ -68,6 +68,25 @@ function read(L, u) {
 }
 const says = (t, id, st) => read(layer(t, id), layer(t, id).uniforms(st, 0));
 const hits = (r, z) => r.x < z.x + z.w && r.x + r.w > z.x && r.y < z.y + z.h && r.y + r.h > z.y;
+/* both M styles: the M View, and the same dials round the other middle */
+const M_STYLES = ['track', 'mplus'];
+/*
+ * A scale layer's glyph boxes with the marker level with each numeral in
+ * turn - every numeral at its largest - by the shader's own sums: the tick
+ * from the glyph's height, the size about the numeral's anchor.
+ */
+function grownQuads(L, u) {
+    const out = [], s = 1 + u.u_grow;
+    for (let g = 0; g < u.u_cfg[0]; g++) {
+        const [x, y, w, h] = u.u_quad.slice(g * 4, g * 4 + 4);
+        const k = Math.floor((M.SCALE.y0 - (u.u_art[1] + (y + h / 2) / u.u_art[2])) / M.SCALE.dy + 0.5);
+        const ax = u.u_ax[g * 4], ay = u.u_ax[g * 4 + 1];
+        out.push({ x: L.x + ax + (x - ax) * s, y: L.y + ay + (y - ay) * s, w: w * s, h: h * s, k });
+    }
+    return out;
+}
+/* everything a text layer can put ink on in a state: its glyphs, and for a scale its numerals grown */
+const inkOf = (L, u) => (L.shader === 'mnum' ? quads(L, u).concat(grownQuads(L, u)) : quads(L, u));
 
 /* ------------------------------------------------------------ the registry */
 
@@ -75,8 +94,11 @@ test('the registry picks the style, Toro by default', () => {
     assert.strictEqual(Themes.build(atlas, 'x3m40i', {}).id, 'toro');
     assert.strictEqual(Themes.build(atlas, 'x3m40i', { style: 'nonsense' }).id, 'toro');
     assert.strictEqual(build().id, 'track');
-    assert.strictEqual(build().name, 'M');
+    assert.strictEqual(build().name, 'M Sport', 'the M View keeps the id saved settings already hold');
     assert.ok(build().hasCentre);
+    const plus = build({ style: 'mplus' });
+    assert.deepStrictEqual([plus.id, plus.name, plus.hasCentre], ['mplus', 'M Sport Plus', true]);
+    assert.deepStrictEqual(Object.keys(Themes.THEMES), ['toro', 'track', 'mplus']);
 });
 
 /* ---------------------------------------------------- the artboard's fit */
@@ -257,7 +279,7 @@ test('the back glass sits above the hosted map (z 0) and is the only see-through
     assert.strictEqual(back.uniforms(state(t, {})).u_open, 0, 'shut when the centre says nothing');
     /* only the glass has a window in it */
     for (const [id, src] of Object.entries(mShaders)) {
-        assert.strictEqual(/u_open/.test(src), id === 'mback', id);
+        assert.strictEqual(/u_open/.test(src), ['mback', 'mpback', 'mpcentre'].includes(id), id);
     }
 });
 
@@ -284,10 +306,10 @@ test('no readout stands where the picture shows', () => {
 
 test('M: nothing below the cut, nothing off the panel, nothing under a factory box', () => {
     /* what the car lays over us is decoration's to lose, never a reading's */
-    const DECOR = /^(back|plates[LR]|centreLines|flash|snow\d)$/;
-    for (const id of Object.keys(Panel.PROFILES)) {
+    const DECOR = /^(back|plates[LCR]|centreLines|flash|snow\d)$/;
+    for (const style of M_STYLES) for (const id of Object.keys(Panel.PROFILES)) {
         const zones = Panel.keepClear(id).filter((z) => z.id !== 'bottomStrip');
-        const t = build({ profile: id, mFixture: true, holiday: true, clock12: true });
+        const t = build({ style, profile: id, mFixture: true, holiday: true, clock12: true, mPop: 'on' });
         const st = state(t, { rpm: 3000, speedKmh: 330, gear: 'M8', driveMode: 'SPORT_PLUS', fuelPct: 40, oilTempC: 100,
                               rangeKm: 999, ambientC: -22.5, clock: { h: 23, m: 59 } });
         for (const L of t.layers) {
@@ -299,7 +321,7 @@ test('M: nothing below the cut, nothing off the panel, nothing under a factory b
             if (DECOR.test(L.id)) continue;
             /* a text layer is judged by its glyphs, anything else by its box */
             let ink = [L];
-            if (isText(L)) { const u = L.uniforms(st, 0); ink = u ? quads(L, u) : []; }
+            if (isText(L)) { const u = L.uniforms(st, 0); ink = u ? inkOf(L, u) : []; }
             for (const z of zones) {
                 /*
                  * The rev dial's layer is wide because it carries the level
@@ -307,7 +329,7 @@ test('M: nothing below the cut, nothing off the panel, nothing under a factory b
                  * dial's rail, far to the right of it (checked below).
                  */
                 if (z.id === 'mBoxB' && L.id === 'revDial') continue;
-                assert.ok(!ink.some((r) => hits(r, z)), `${id}/${L.id} under ${z.name}`);
+                assert.ok(!ink.some((r) => hits(r, z)), `${style}/${id}/${L.id} under ${z.name}`);
             }
         }
     }
@@ -322,15 +344,15 @@ test('M: nothing below the cut, nothing off the panel, nothing under a factory b
 });
 
 test('no glyph is hidden behind the cut corners of the glass', () => {
-    for (const units of ['imperial', 'metric']) {
-        const t = build({ units, mFixture: true, clock12: true });
+    for (const style of M_STYLES) for (const units of ['imperial', 'metric']) {
+        const t = build({ style, units, mFixture: true, clock12: true, mPop: 'on' });
         const st = state(t, { rpm: 3000, speedKmh: 330, gear: 'M8', fuelPct: 40, oilTempC: 100, rangeKm: 999,
                               ambientC: -22.5, clock: { h: 23, m: 59 } });
         for (const L of t.layers.filter(isText)) {
             const u = L.uniforms(st, 0);
-            for (const q of (u ? quads(L, u) : [])) {
+            for (const q of (u ? inkOf(L, u) : [])) {
                 for (const [x, y] of [[q.x, q.y], [q.x + q.w, q.y], [q.x, q.y + q.h], [q.x + q.w, q.y + q.h]]) {
-                    assert.ok(!Panel.inCutCorner(x, y), `${L.id} (${units}) in a cut corner`);
+                    assert.ok(!Panel.inCutCorner(x, y), `${style}/${L.id} (${units}) in a cut corner`);
                 }
             }
         }
@@ -339,7 +361,8 @@ test('no glyph is hidden behind the cut corners of the glass', () => {
 
 test('M shaders fit the budget and avoid what the head unit refuses', () => {
     assert.deepStrictEqual(Object.keys(mShaders).sort(),
-        ['mback', 'mbadge', 'mdiag', 'mfoot', 'mgauge', 'mnum', 'mplatesL', 'mplatesR', 'mrails', 'mstrip', 'tturn'],
+        ['mback', 'mbadge', 'mdiag', 'mfoot', 'mgauge', 'mnum', 'mpback', 'mpcentre', 'mplatesL', 'mplatesR', 'mprails',
+         'mpsideL', 'mpsideR', 'mrails', 'mstrip', 'tturn'],
         'shaders only: the outline compiler is not listed with them');
     for (const [id, src] of Object.entries(mShaders)) {
         let vectors = 3;                      /* u_size, u_time, u_keep from the prelude */
@@ -354,15 +377,19 @@ test('M shaders fit the budget and avoid what the head unit refuses', () => {
     }
 });
 
-test('with everything switched on the M style stays inside the layer budget', () => {
-    const t = build({ mFixture: true, holiday: true, revFlash: 'both', intro: true, clock12: true });
-    assert.ok(t.layers.length <= 64, `${t.layers.length} layers`);
-    assert.strictEqual(new Set(t.layers.map((L) => L.id)).size, t.layers.length, 'no two layers share a name');
+test('with everything switched on the M styles stay inside the layer budget', () => {
+    for (const style of M_STYLES) {
+        const t = build({ style, mFixture: true, holiday: true, revFlash: 'both', intro: true, clock12: true });
+        assert.ok(t.layers.length <= 64, `${style}: ${t.layers.length} layers`);
+        assert.strictEqual(new Set(t.layers.map((L) => L.id)).size, t.layers.length, 'no two layers share a name');
+    }
 });
 
 test('every M layer is given exactly the uniforms its shader declares', () => {
     const BUILT_IN = ['u_size', 'u_time', 'u_keep', 'u_atlas', 'u_atlasSize'];
-    for (const cfg of [{ mFixture: true, revFlash: 'both', clock12: true }, { mPanel: 'mode', units: 'metric', clock12: true }]) {
+    for (const cfg of [{ mFixture: true, revFlash: 'both', clock12: true }, { mPanel: 'mode', units: 'metric', clock12: true },
+                       { style: 'mplus', mFixture: true, revFlash: 'both', clock12: true },
+                       { style: 'mplus', mPanel: 'mode', units: 'metric', clock12: true, mPop: 'off' }]) {
         const t = build(cfg);
         const st = state(t, { rpm: 7100, speedKmh: 120, gear: 'D', driveMode: 'SPORT', fuelPct: 40, oilTempC: 100,
                               rangeKm: 207, ambientC: 12.5, clock: { h: 12, m: 4 } }, { centre: CENTRES[3] });
@@ -378,11 +405,47 @@ test('every M layer is given exactly the uniforms its shader declares', () => {
     }
 });
 
+test('every uniform is sent in the shape its shader declares (floats, vectors, and arrays only of vec4)', () => {
+    /*
+     * The car's driver and the preview both type a value by its length:
+     * one number a float, 2 / 3 / 4 a vector, anything longer an array of
+     * vec4. A float array would arrive as nothing at all.
+     */
+    const want = { float: 1, vec2: 2, vec3: 3, vec4: 4 };
+    for (const cfg of [{ style: 'toro' }, { style: 'toro', holiday: true, intro: true, background: 'modern' },
+                       { mFixture: true, revFlash: 'both', clock12: true }, { style: 'mplus', revFlash: 'both', clock12: true }]) {
+        const t = Themes.build(atlas, 'x3m40i', Object.assign({ style: 'track' }, cfg));
+        const st = state(t, { rpm: 7100, speedKmh: 120, gear: 'D', driveMode: 'SPORT', fuelPct: 40, oilTempC: 100, oilPressBar: 4,
+                              rangeKm: 207, ambientC: 12.5, clock: { h: 12, m: 4 }, gLat: 0.2, gLon: 0.1 },
+                         { centre: CENTRES[3], sinceOn: 3, now: 5000 });
+        for (const L of t.layers) {
+            const src = allShaders[L.shader], u = L.uniforms ? L.uniforms(st, 0) : null;
+            if (!src || !u) continue;
+            for (const [name, v] of Object.entries(u)) {
+                const m = src.match(new RegExp('uniform\\s+(\\w+)\\s+' + name + '(?:\\[(\\d+)\\])?\\s*;'));
+                if (!m) continue;                                   /* declared-or-not is another test's business */
+                const len = typeof v === 'number' || typeof v === 'boolean' ? 1 : v.length;
+                if (m[2]) {
+                    assert.strictEqual(m[1], 'vec4', `${cfg.style || 'track'}/${L.id}.${name}: an array must be of vec4`);
+                    assert.strictEqual(len, 4 * Number(m[2]), `${L.id}.${name}: ${len} numbers for vec4[${m[2]}]`);
+                } else {
+                    assert.strictEqual(len, want[m[1]], `${cfg.style || 'track'}/${L.id}.${name}: ${len} numbers for a ${m[1]}`);
+                }
+            }
+        }
+    }
+    /* and no shader of ours declares an array of anything else */
+    for (const [id, src] of Object.entries(allShaders)) {
+        for (const m of src.matchAll(/uniform\s+(\w+)\s+\w+\[\d+\]/g)) assert.strictEqual(m[1], 'vec4', id + ' declares an array of ' + m[1]);
+    }
+});
+
 test('every M layer gives finite uniforms and keeps its glyphs inside, in every centre mode', () => {
     const bad = new Set();
-    for (const units of ['imperial', 'metric']) {
+    for (const style of M_STYLES) for (const units of ['imperial', 'metric']) {
         for (const mPanel of ['4wd', 'mode']) {
-            const t = build({ units, mPanel, mFixture: true, clock12: mPanel === 'mode' });
+            /* the numerals grow in M Sport Plus by default; here in M Sport too, with the driving-mode panel */
+            const t = build({ style, units, mPanel, mFixture: true, clock12: mPanel === 'mode', mPop: mPanel === 'mode' ? 'on' : 'auto' });
             const sim = Sim.create(PROFILE);
             for (let i = 0; i < 1200; i++) {
                 sim.step(1 / 60);
@@ -402,10 +465,10 @@ test('every M layer gives finite uniforms and keeps its glyphs inside, in every 
                                 }
                                 if (!isText(L)) continue;
                                 assert.ok(countOf(L, u) <= Text.MAX_GLYPHS);
-                                for (const q of quads(L, u)) {
+                                for (const q of inkOf(L, u)) {
                                     if (q.x >= L.x - 1 && q.y >= L.y - 1 && q.x + q.w <= L.x + L.w + 1 &&
                                         q.y + q.h <= L.y + L.h + 1) continue;
-                                    bad.add(`${L.id} (${units}, gear ${gear}, speed ${speed}): glyph outside ${L.w}x${L.h}`);
+                                    bad.add(`${style}/${L.id} (${units}, gear ${gear}, speed ${speed}): glyph outside ${L.w}x${L.h}`);
                                 }
                             }
                         }
@@ -732,6 +795,312 @@ test('the holiday dressing keeps off the M style\'s instruments', () => {
             assert.ok(boxes.some((b) => x0 >= b[0] - 0.5 && y0 >= b[1] - 0.5 && x1 <= b[0] + b[2] + 0.5 && y1 <= b[1] + b[3] + 0.5),
                 `${L.id} is kept clear by ${id}`);
         }
+    }
+});
+
+/* ------------------------------------------------------- M Sport Plus */
+
+const PLUS = M.PLUS;
+const plusBuild = (cfg) => build(Object.assign({ style: 'mplus' }, cfg));
+const artOfPanel = (x, y) => [(x - M.ART.ox) / M.ART.s, (y - M.ART.oy) / M.ART.s];
+const BUSY = { rpm: 3000, speedKmh: 330, gear: 'M8', driveMode: 'SPORT_PLUS', fuelPct: 40, oilTempC: 100, rangeKm: 999,
+               ambientC: -22.5, clock: { h: 23, m: 59 } };
+
+test('M Sport Plus is M Sport with another middle, and nothing else', () => {
+    /* the middle: the glass (its window), the plates, the rails' inner ends, the centre lines */
+    const MIDDLE = /^(back|plates[LCR]|rails|centreLines)$/;
+    for (const cfg of [{ units: 'metric', mFixture: true, clock12: true }, { units: 'imperial', mPanel: 'mode', revFlash: 'both' }]) {
+        /* numerals as the car has them in both, so only the middle can differ */
+        const a = build(Object.assign({ mPop: 'off' }, cfg)), b = plusBuild(Object.assign({ mPop: 'off' }, cfg));
+        const rest = (t) => t.layers.filter((L) => !MIDDLE.test(L.id));
+        assert.deepStrictEqual(rest(b).map((L) => L.id), rest(a).map((L) => L.id), 'the same layers, in the same order');
+        assert.deepStrictEqual(a.layers.filter((L) => MIDDLE.test(L.id)).map((L) => L.id),
+            ['back', 'platesL', 'platesR', 'rails', 'centreLines']);
+        assert.deepStrictEqual(b.layers.filter((L) => MIDDLE.test(L.id)).map((L) => L.id),
+            ['back', 'platesL', 'platesC', 'platesR', 'rails'], 'no centre lines: the rails meet instead');
+        for (const centre of [CENTRES[0], CENTRES[1], CENTRES[4]]) {
+            const sa = state(a, BUSY, { centre, limiter: 1 }), sb = state(b, BUSY, { centre, limiter: 1 });
+            rest(a).forEach((L, i) => {
+                const N = rest(b)[i];
+                assert.deepStrictEqual([N.x, N.y, N.w, N.h, N.z, N.shader], [L.x, L.y, L.w, L.h, L.z, L.shader], L.id + ' is where it was');
+                assert.deepStrictEqual(N.uniforms(sb, 0), L.uniforms(sa, 0), L.id + ' shows what it showed');
+            });
+        }
+    }
+    /* and M Sport itself draws with the shaders it always had */
+    const shadersOf = (t) => [...new Set(t.layers.map((L) => L.shader))].sort();
+    assert.deepStrictEqual(shadersOf(build({ revFlash: 'both', mFixture: true })),
+        ['flash', 'mback', 'mbadge', 'mdiag', 'mfoot', 'mgauge', 'mnum', 'mplatesL', 'mplatesR', 'mrails', 'mstrip', 'text', 'tturn']);
+    assert.deepStrictEqual(shadersOf(plusBuild({ revFlash: 'both' })),
+        ['flash', 'mfoot', 'mgauge', 'mnum', 'mpback', 'mpcentre', 'mprails', 'mpsideL', 'mpsideR', 'mstrip', 'text', 'tturn']);
+});
+
+test('Plus plates: clockwise convex slabs on one lean, apart from each other, inside the dials', () => {
+    const ids = Object.keys(PLUS.PLATES);
+    assert.deepStrictEqual(ids, ['A', 'B', 'B2', 'C', 'D', 'F', 'E']);
+    for (const id of ids) {
+        const P = PLUS.PLATES[id], k = P.v.length, f = outline(P.v, P.r, true);
+        const cx = P.v.reduce((a, v) => a + v[0], 0) / k, cy = P.v.reduce((a, v) => a + v[1], 0) / k;
+        assert.ok(f([cx, cy]) < -10 && M.convexDist(P.v, cx, cy) < -10, `${id}: clockwise, its middle inside`);
+        for (let i = 0; i < k; i++) {
+            const a = P.v[(i + k - 1) % k], b = P.v[i], c = P.v[(i + 1) % k];
+            assert.ok((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) > 0, `${id}: corner ${i} is convex`);
+            /* every edge is level or on the one lean (the foot of the left plate follows its dial instead) */
+            const dx = c[0] - b[0], dy = c[1] - b[1];
+            if (Math.abs(dy) > 1 && !(id === 'A' && i === 2)) {
+                assert.ok(Math.abs(Math.abs(dx / dy) - PLUS.slope) < 0.012, `${id} edge ${i}: ${dx / dy}`);
+            }
+            /* the shader's outline and the plain sums agree, corner by corner */
+            const u = [a[0] - b[0], a[1] - b[1]], w = [c[0] - b[0], c[1] - b[1]];
+            const cos = (u[0] * w[0] + u[1] * w[1]) / (Math.hypot(u[0], u[1]) * Math.hypot(w[0], w[1]));
+            const want = P.r[i] * (1 / Math.sin(Math.acos(cos) / 2) - 1);
+            assert.ok(Math.abs(f(b) - want) < 0.05 && Math.abs(M.roundDist(P.v, P.r, b[0], b[1]) - want) < 1e-9, `${id} corner ${i}`);
+        }
+        /* inside the dials: clear of both fine contours, under the top line, over the rails */
+        for (const v of P.v) {
+            assert.ok(v[0] > M.contourX(v[1]) + 20 && v[0] < M.mirror(M.contourX(v[1])) - 20, `${id} keeps off the dials`);
+            assert.ok(v[1] >= PLUS.top && v[1] <= PLUS.bottom && PLUS.top > M.DIAL.topY1 + 20 && PLUS.bottom < M.DIAL.railTop - 20);
+        }
+    }
+    /* no two plates share a point; the black between neighbours is at least a few units */
+    for (let y = 100; y < 475; y += 2.5) {
+        for (let x = 290; x < 1500; x += 2.5) {
+            const near = ids.filter((id) => M.roundDist(PLUS.PLATES[id].v, PLUS.PLATES[id].r, x, y) < 2.5);
+            assert.ok(near.length <= 1, `plates ${near} meet at ${x}, ${y}`);
+        }
+    }
+    /* the shaders are written from these numbers */
+    for (const [sh, set] of [['mpsideL', ['A', 'B', 'B2']], ['mpcentre', ['C']], ['mpsideR', ['D', 'F', 'E']]]) {
+        for (const id of set) assert.ok(mShaders[sh].includes(mShaders.chain('pp' + id, PLUS.PLATES[id].v, PLUS.PLATES[id].r, true)), sh + ' ' + id);
+    }
+    /* and every plate is inside its layer */
+    const t = plusBuild();
+    for (const [lid, set] of [['platesL', ['A', 'B', 'B2']], ['platesC', ['C']], ['platesR', ['D', 'F', 'E']]]) {
+        const L = layer(t, lid);
+        for (const id of set) for (const v of PLUS.PLATES[id].v) {
+            assert.ok(M.px(v[0]) >= L.x && M.px(v[0]) <= L.x + L.w && M.py(v[1]) >= L.y && M.py(v[1]) <= L.y + L.h, `${id} in ${lid}`);
+        }
+    }
+});
+
+test('Plus lattice and stripes: fine lines on the plates\' lean, two bands on the centre plate', () => {
+    for (const [i, L] of PLUS.LATTICE.entries()) {
+        const dx = L[2] - L[0], dy = L[3] - L[1];
+        assert.ok(dy === 0 || Math.abs(Math.abs(dx / dy) - PLUS.slope) < 0.012, `line ${i} is level or on the lean`);
+        assert.ok(Math.min(L[1], L[3]) >= PLUS.top - 0.01 && Math.max(L[1], L[3]) <= PLUS.bottom + 0.01, `line ${i} within the plates' height`);
+        /* a line starts and stops on a plate (it is not seen in the black between) */
+        for (const [x, y] of [[L[0], L[1]], [L[2], L[3]]]) {
+            const d = Math.min(...Object.values(PLUS.PLATES).map((P) => M.roundDist(P.v, P.r, x, y)));
+            assert.ok(d < 4, `line ${i} ends ${d.toFixed(1)} from a plate`);
+        }
+    }
+    const num = (v) => (v % 1 ? String(v) : v + '.0');
+    for (const sh of ['mpsideL', 'mpcentre', 'mpsideR']) {
+        for (const L of PLUS.LATTICE) {
+            assert.ok(mShaders[sh].includes(`sdSegment(p, vec2(${num(L[0])}, ${num(L[1])}), vec2(${num(L[2])}, ${num(L[3])}), 0.0)`),
+                sh + ' draws every line');
+        }
+    }
+    /* the stripes: equal bands with a band of plate between, inside the centre plate at their strongest */
+    const S = PLUS.STRIPES, C = PLUS.PLATES.C;
+    const wb = S.blue[1] - S.blue[0], wr = S.red[1] - S.red[0], gap = S.red[0] - S.blue[1];
+    assert.ok(Math.abs(wb - wr) < 1 && Math.abs(gap - wb) < 3, 'blue, plate, red: three bands alike');
+    for (const b of [S.blue[0], S.blue[1], S.red[0], S.red[1]]) {
+        assert.ok(M.roundDist(C.v, C.r, b - PLUS.slope * S.peak, S.peak) < -10, 'a stripe edge at its strongest is on the centre plate');
+    }
+    assert.ok(S.rise < PLUS.top && S.peak > PLUS.top && S.gone < PLUS.bottom, 'already showing at the plate\'s top, gone before its foot');
+    /* they stand back for a turn card, which is read over them */
+    const t = plusBuild(), Cn = layer(t, 'platesC');
+    assert.strictEqual(Cn.uniforms(state(t, {}, { centre: CENTRES[0] })).u_calm, 0);
+    assert.strictEqual(Cn.uniforms(state(t, {}, { centre: CENTRES[1] })).u_calm, 0);
+    assert.strictEqual(Cn.uniforms(state(t, {}, { centre: CENTRES[3] })).u_calm, 1);
+    assert.match(mShaders.mpcentre, /lit \*= 1\.0 - 0\.8 \* u_calm;/);
+    for (const id of ['turnArrow', 'turnDist', 'turnSay']) {
+        const L = layer(t, id), w = t.window;
+        assert.ok(L.x >= w.x && L.y >= w.y && L.x + L.w <= w.x + w.w && L.y + L.h <= w.y + w.h, id + ' on the centre plate');
+    }
+});
+
+test('Plus rails meet in the middle, each cut on the lean', () => {
+    const R = PLUS.RAILS;
+    assert.ok(Math.abs((R.blueEnd + R.redStart) / 2 - M.AX) < 0.5, 'the gap is about the dials\' axis');
+    assert.ok(R.redStart - R.blueEnd > 60 && R.redStart - R.blueEnd < 140);
+    assert.ok(R.y > M.DIAL.railTop && R.y < M.DIAL.railBottom);
+    assert.ok(mShaders.mprails.includes(`float endB = ${R.blueEnd} - (p.y - ${R.y}) * ${PLUS.slope};`));
+    assert.ok(mShaders.mprails.includes(`float endR = ${R.redStart} + (p.y - ${R.y}) * ${PLUS.slope};`));
+    /* everything else about the rails is M Sport's own source */
+    const strip = (src) => src.split('\n').filter((l) => !/float end[BR] =/.test(l)).join('\n');
+    assert.strictEqual(strip(mShaders.mprails), strip(mShaders.mrails));
+});
+
+test('Plus window: the map comes up through the centre plate on a curve with no corner in it', () => {
+    const W = PLUS.WINDOW, C = PLUS.PLATES.C;
+    /* the curve: level at both ends, and its slope too; half-way at half */
+    assert.deepStrictEqual([M.smoother(-1), M.smoother(0), M.smoother(0.5), M.smoother(1), M.smoother(2)], [0, 0, 0.5, 1, 1]);
+    for (const e of [1e-3, 1e-2]) {
+        assert.ok(M.smoother(e) < 12 * e * e * e && 1 - M.smoother(1 - e) < 12 * e * e * e, 'no corner where the fade starts or ends');
+    }
+    for (let t = 0; t < 1; t += 0.01) assert.ok(M.smoother(t + 0.01) > M.smoother(t), 'it only ever rises');
+    /* down from the top edge, far from the sides */
+    const top = W.poly[0][1], x = 950;
+    for (const d of [-4, 0, W.inset, W.inset + W.feather / 4, W.inset + W.feather / 2, W.inset + W.feather, 90]) {
+        const want = M.smoother((d - W.inset) / W.feather);
+        assert.ok(Math.abs(Track.plusRevealAt(x, top + d) - want) < 1e-9, `${d} in from the top`);
+    }
+    assert.strictEqual(Track.plusRevealAt(M.AX, 280), 1, 'wide open in the middle');
+    assert.ok(W.feather >= 36, 'a wide fade, not a line');
+    /* the fade is as wide all round: across each straight side, the same curve */
+    for (let i = 0; i < 3; i++) {
+        const a = W.poly[i], b = W.poly[i + 1], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]), nx = -(b[1] - a[1]) / len, ny = (b[0] - a[0]) / len;      /* inward */
+        for (const d of [W.inset + W.feather / 4, W.inset + W.feather / 2, W.inset + 0.75 * W.feather]) {
+            assert.ok(Math.abs(Track.plusRevealAt(mx + nx * d, my + ny * d) - M.smoother((d - W.inset) / W.feather)) < 1e-6, `side ${i}, ${d} in`);
+        }
+    }
+    /* the corners are rounded: a point inside the sharp corner but outside its arc shows nothing */
+    assert.ok(W.r.every((r) => r >= 10));
+    const tr = W.poly[1];
+    assert.strictEqual(Track.plusRevealAt(tr[0] - 30, tr[1] + 12), 0, 'the fade turns the corner, it does not point into it');
+
+    /* where it shows: only on the centre plate, well inside it; never on another plate or in the black */
+    let shown = 0;
+    for (let y = 95; y < 480; y += 2) {
+        for (let xx = 280; xx < 1510; xx += 2) {
+            const r = Track.plusRevealAt(xx, y);
+            if (r <= 0) continue;
+            shown++;
+            assert.ok(M.roundDist(C.v, C.r, xx, y) < -2 && M.plusWindowDist(xx, y) < -W.inset,
+                `the picture at ${xx}, ${y} is off the centre plate`);
+        }
+    }
+    assert.ok(shown > 20000, 'a real window: ' + shown + ' samples');
+    /* the glass's hole is always under plate the picture has not begun to thin */
+    for (let y = 100; y < 475; y += 1.5) {
+        for (let xx = 540; xx < 1270; xx += 1.5) {
+            const hole = Math.max(M.plusWindowDist(xx, y), M.roundDist(C.v, C.r, xx, y)) + 2;      /* the shader's own sum */
+            if (hole >= 0.5 || hole < -1.5) continue;                                              /* on the hole's edge */
+            assert.ok(M.roundDist(C.v, C.r, xx, y) < -1, 'the hole\'s edge is under the plate');
+            assert.ok(Track.plusRevealAt(xx, y) < 0.004, 'where the plate is still whole');
+        }
+    }
+    /* the shaders work it out from the same outline and numbers */
+    const win = mShaders.chain('pwin', W.poly, W.r, true);
+    assert.ok(mShaders.mpcentre.includes(win) && mShaders.mpback.includes(win));
+    assert.ok(mShaders.mpcentre.includes(`float t = clamp((-pwin(p) - ${W.inset}.0) / ${W.feather}.0, 0.0, 1.0);`));
+    assert.ok(mShaders.mpcentre.includes('a *= 1.0 - u_open * smoother(t);'));
+    assert.ok(mShaders.mpcentre.includes('float smoother(float t) { return t * t * t * (t * (t * 6.0 - 15.0) + 10.0); }'));
+    assert.ok(mShaders.mpback.includes('a = 1.0 - ac(max(pwin(p), ppC(p)) + 2.0);'));
+    assert.ok(mShaders.mpback.includes(mShaders.chain('ppC', C.v, C.r, true)));
+});
+
+test('Plus window: on the panel it is inside BMW\'s map window, opens with the map, and no readout stands in it', () => {
+    const t = plusBuild(), m = Track.MAP_WINDOW, w = t.window;
+    assert.ok(w.x >= m.x && w.x + w.w <= m.x + m.w && w.y + w.h <= m.y + m.h, JSON.stringify(w));
+    /* its outline starts a little above BMW's window; the picture itself never does */
+    for (let y = 100; y < 640; y += 1) {
+        for (let x = 380; x < 1540; x += 3) {
+            const [ax, ay] = artOfPanel(x + 0.5, y + 0.5);
+            if (Track.plusRevealAt(ax, ay) > 0) {
+                assert.ok(x >= m.x && x < m.x + m.w && y >= m.y && y < m.y + m.h, `the picture at ${x}, ${y} is outside BMW's map window`);
+            }
+        }
+    }
+    /* the glass and the centre plate open together, by the centre's mode */
+    for (const id of ['back', 'platesC']) {
+        const open = (centre) => layer(t, id).uniforms(state(t, {}, { centre })).u_open;
+        assert.deepStrictEqual([open(CENTRES[0]), open(CENTRES[1]), open(CENTRES[2]), open(CENTRES[3])], [0, 1, 0.5, 0], id);
+        assert.strictEqual(layer(t, id).uniforms(state(t, {})).u_open, 0);
+    }
+    assert.ok(t.layers.every((L) => L.z >= layer(t, 'back').z), 'nothing of ours under the glass');
+    /* no figure, word or symbol where the picture shows - grown numerals included */
+    for (const units of ['imperial', 'metric']) {
+        const tt = plusBuild({ units, mFixture: true, clock12: true });
+        const st = state(tt, BUSY, { centre: CENTRES[1] });
+        for (const L of tt.layers.filter(isText)) {
+            const u = L.uniforms(st, 0);
+            for (const q of (u ? inkOf(L, u) : [])) {
+                for (const [x, y] of [[q.x, q.y], [q.x + q.w, q.y], [q.x, q.y + q.h], [q.x + q.w, q.y + q.h], [q.x + q.w / 2, q.y + q.h / 2]]) {
+                    const [ax, ay] = artOfPanel(x, y);
+                    assert.strictEqual(Track.plusRevealAt(ax, ay), 0, `${L.id} over the map at ${Math.round(x)}, ${Math.round(y)}`);
+                }
+            }
+        }
+    }
+});
+
+/* -------------------------------------------------- numerals at the marker */
+
+test('the numerals grow as the marker passes: on in M Sport Plus, the car\'s size in M Sport, a setting in both', () => {
+    const grow = (cfg) => { const t = build(cfg); return layer(t, 'revScale').uniforms(state(t, {})).u_grow; };
+    assert.strictEqual(grow({}), 0, 'M Sport: as the car has them');
+    assert.strictEqual(grow({ style: 'mplus' }), Track.GROW);
+    assert.strictEqual(grow({ mPop: 'on' }), Track.GROW);
+    assert.strictEqual(grow({ style: 'mplus', mPop: 'off' }), 0);
+    assert.strictEqual(grow({ mPop: 'nonsense' }), 0);
+    assert.ok(Track.GROW >= 0.15 && Track.GROW <= 0.3, 'enough to see, not enough to crowd the rim');
+    /* the shader's rule: full size a tick away, largest with the marker level, smooth between */
+    assert.match(mShaders.mnum, /float near = clamp\(1\.0 - abs\(k - u_cfg\.z\), 0\.0, 1\.0\);/);
+    assert.match(mShaders.mnum, /float s = 1\.0 \+ u_grow \* near \* near \* \(3\.0 - 2\.0 \* near\);/);
+    assert.match(mShaders.mnum, /vec2 pp = u_grow > 0\.0 \? an \+ \(p - an\) \/ s : p;/, 'with no growth a numeral is drawn exactly as before');
+    /* a numeral grows about one point, all of its figures together, from inside itself */
+    for (const units of ['imperial', 'metric']) {
+        const t = plusBuild({ units });
+        for (const id of ['speedScaleA', 'speedScaleB', 'revScale']) {
+            const L = layer(t, id), u = L.uniforms(state(t, {}), 0), q = quads(L, u), big = grownQuads(L, u);
+            assert.strictEqual(u.u_ax.length, Text.MAX_GLYPHS * 4, 'a vec4 a glyph, as every uniform array is sent');
+            const byTick = {};
+            big.forEach((g, i) => { (byTick[g.k] = byTick[g.k] || []).push(i); });
+            for (const [k, is] of Object.entries(byTick)) {
+                assert.strictEqual(new Set(is.map((i) => u.u_ax[i * 4])).size, 1, `${id} tick ${k}: one anchor`);
+                const x0 = Math.min(...is.map((i) => q[i].x)), x1 = Math.max(...is.map((i) => q[i].x + q[i].w));
+                assert.ok(L.x + u.u_ax[is[0] * 4] > x0 && L.x + u.u_ax[is[0] * 4] < x1, `${id} tick ${k}: anchored inside itself`);
+                /* and level with its own tick: the shader's tick for the glyph, and the layout's, agree */
+                for (const i of is) assert.ok(Math.abs(L.y + u.u_ax[i * 4 + 1] - M.py(M.tickY(Number(k)))) < 1e-6, `${id} tick ${k}: level`);
+                /* it stays level with its tick: as much above as below */
+                for (const i of is) {
+                    assert.ok(Math.abs((big[i].y + big[i].h / 2) - (q[i].y + q[i].h / 2)) < 0.05);
+                    assert.ok(Math.abs(big[i].h / q[i].h - (1 + Track.GROW)) < 1e-9);
+                }
+                /* grown, it is still clear of its rail: left of the speed dial's rim, right of the rev dial's */
+                const ay = M.tickY(Number(k));
+                if (id === 'revScale') {
+                    assert.ok(Math.min(...is.map((i) => big[i].x)) > M.px(M.mirror(M.rimOuterX(ay))) + 4, `${id} tick ${k} off the rim`);
+                } else {
+                    assert.ok(Math.max(...is.map((i) => big[i].x + big[i].w)) < M.px(M.rimOuterX(ay)) + 4.5, `${id} tick ${k} off the rim`);
+                }
+            }
+        }
+        /* beside the tyre-pressure telltale the numeral grows away from it, not into it */
+        const A = layer(t, 'speedScaleA'), uA = A.uniforms(state(t, {}), 0), tyre = Panel.TELLTALES.find((z) => z.id === 'tyre');
+        const five = grownQuads(A, uA).filter((g) => g.k === 5);
+        assert.ok(five.length === 3 && five.every((g) => !hits(g, tyre)), 'the numeral beside the telltale keeps out of it');
+        const plain = quads(A, uA).filter((_, i) => grownQuads(A, uA)[i].k === 5);
+        const midOf = (qs) => (Math.min(...qs.map((g) => g.x)) + Math.max(...qs.map((g) => g.x + g.w))) / 2;
+        assert.ok(A.x + uA.u_ax[9 * 4] < midOf(plain) - 3, 'its anchor is nearer the telltale than its middle is');
+        /* every other numeral grows about its own middle */
+        const R = layer(t, 'revScale'), uR = R.uniforms(state(t, {}), 0), qR = quads(R, uR);
+        qR.forEach((g, i) => assert.ok(Math.abs(R.x + uR.u_ax[i * 4] - (g.x + g.w / 2)) < 1e-6));
+    }
+});
+
+/* ---------------------------------------------------------------- the 7 */
+
+test('the 7: its leg hangs from the squared end of its bar, in both cuts', () => {
+    const zlib = require('zlib'), fs = require('fs'), path = require('path');
+    const px = zlib.gunzipSync(fs.readFileSync(path.join(__dirname, '..', 'assets', 'fonts', 'atlas.r8.gz')));
+    assert.strictEqual(px.length, atlas.size * atlas.size);
+    for (const face of ['mw', 'mn']) {
+        const g = atlas.faces[face].glyphs['7'], zero = atlas.faces[face].glyphs['0'];
+        assert.deepStrictEqual([g.tw, g.th], [zero.tw, zero.th], face + ': as wide and as tall as its neighbours');
+        const H = 0.70 * atlas.emPx, pad = (g.th - H) / 2, W = g.tw - 2 * pad;
+        /* ink at a point of the figure's own box (in figure heights), from the distance field */
+        const ink = (fx, fy) => px[(g.v + Math.round(pad + fy * H)) * atlas.size + g.u + Math.round(pad + fx * H)] > 127;
+        const w = W / H;
+        assert.ok(ink(0.06, 0.09) && ink(w / 2, 0.09) && ink(w - 0.06, 0.09), face + ': a bar the full width');
+        assert.ok(ink(w - 0.05, 0.215), face + ': the bar\'s right end runs on down, square');
+        assert.ok(!ink(w - 0.52, 0.215), face + ': and nothing hangs from the bar further left (the old leg did)');
+        assert.ok(!ink(w - 0.03, 0.42), face + ': then the leg leans away from that side');
+        assert.ok(ink(0.36, 0.93) && !ink(0.08, 0.93) && !ink(w - 0.35, 0.93), face + ': down to a foot left of the middle');
     }
 });
 

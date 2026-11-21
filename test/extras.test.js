@@ -128,7 +128,7 @@ test('the cluster shakes at the limiter, played by the renderer, and settles aft
 /* ----------------------------------------------------------- extras */
 
 test('holiday: snow down both sides and a tree, behind the instruments', () => {
-    for (const style of ['toro', 'track']) {
+    for (const style of ['toro', 'track', 'mplus']) {
         const th = Themes.build(atlas, 'x3m40i', { style, holiday: true });
         const ids = th.layers.map((L) => L.id);
         assert.ok(ids.includes('snow0') && ids.includes('snow1') && ids.includes('tree'), style);

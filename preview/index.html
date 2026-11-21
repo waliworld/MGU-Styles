@@ -85,7 +85,7 @@
     var cfg = { units: units };
     if (mFixture) { cfg.style = 'track'; cfg.centre = 'off'; cfg.clock12 = true; cfg.mFixture = true; cfg.rpmRedline = 7000; }
     ['accent', 'accentScope', 'litColour', 'revFlash', 'flashStyle', 'flashColour',
-     'mode', 'background', 'style', 'centre', 'mPanel', 'shiftStyle', 'shake',
+     'mode', 'background', 'style', 'centre', 'mPanel', 'mPop', 'shiftStyle', 'shake',
      'introText'].forEach(function (k) {
       if (params.get(k)) cfg[k] = params.get(k);
     });

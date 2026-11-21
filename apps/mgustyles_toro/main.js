@@ -104,9 +104,10 @@ function dialSketch(cv, cx, cy, r, accent) {
     cv.line(n[0], n[1], m[0], m[1], 2.5, accent);
 }
 
-/* A small drawing of the M View: the two dials' rails, the centre lines and
-   the readouts, from the same geometry the cluster is drawn with. */
-function mSketch(cv, x, y, w) {
+/* A small drawing of an M style: the two dials' rails, its middle (the M
+   View's centre lines, or M Sport Plus's plate and stripes) and the
+   readouts, from the same geometry the cluster is drawn with. */
+function mSketch(cv, x, y, w, plus) {
     const s = w / MGeom.ART.w, D = MGeom.DIAL;
     const P = (px, py) => [x + px * s, y + py * s];
     const path = (pts, width, col) => {
@@ -122,10 +123,24 @@ function mSketch(cv, x, y, w) {
     cv.roundRect(x, y, w, MGeom.ART.h * s, 8, '#05070d');
     path(rim, 5, '#8fc6ea'); path(con, 1.5, '#a8cbf0');
     path(flip(rim), 5, '#dc3840'); path(flip(con), 1.5, '#d65458');
-    path([[D.tabLeft, D.railTop + 3], [MGeom.DIAG.blueRailEnd, D.railTop + 3]], 3, '#62b4ea');
-    path([[MGeom.DIAG.redRailStart, D.railTop + 3], [MGeom.mirror(D.tabLeft), D.railTop + 3]], 3, '#d2343c');
-    path([MGeom.DIAG.cyan.p0, MGeom.DIAG.cyan.p1, MGeom.DIAG.cyan.p2], 1.5, '#b0d4f4');
-    path([MGeom.DIAG.red.p0, MGeom.DIAG.red.p1], 1.5, '#e4485a');
+    if (plus) {
+        const L = MGeom.PLUS, C = L.PLATES.C.v, T = L.STRIPES;
+        /* the rails meet in the middle; the centre plate, its two stripes */
+        path([[D.tabLeft, D.railTop + 3], [L.RAILS.blueEnd, D.railTop + 3]], 3, '#62b4ea');
+        path([[L.RAILS.redStart, D.railTop + 3], [MGeom.mirror(D.tabLeft), D.railTop + 3]], 3, '#d2343c');
+        path(C.concat([C[0]]), 1.5, '#3a5f9c');
+        const stripe = (b, col) => {
+            const m = (b[0] + b[1]) / 2;
+            path([[m - L.slope * (L.top + 12), L.top + 12], [m - L.slope * 330, 330]], (b[1] - b[0]) * s * 0.8, col);
+        };
+        stripe(T.blue, '#418af7');
+        stripe(T.red, '#c73847');
+    } else {
+        path([[D.tabLeft, D.railTop + 3], [MGeom.DIAG.blueRailEnd, D.railTop + 3]], 3, '#62b4ea');
+        path([[MGeom.DIAG.redRailStart, D.railTop + 3], [MGeom.mirror(D.tabLeft), D.railTop + 3]], 3, '#d2343c');
+        path([MGeom.DIAG.cyan.p0, MGeom.DIAG.cyan.p1, MGeom.DIAG.cyan.p2], 1.5, '#b0d4f4');
+        path([MGeom.DIAG.red.p0, MGeom.DIAG.red.p1], 1.5, '#e4485a');
+    }
     cv.text('76', x + 520 * s, y + 296 * s, 50 * s * 1.5, INK, { literal: true });
     cv.text('6', x + 1284 * s, y + 296 * s, 50 * s * 1.5, INK, { literal: true });
 }
@@ -176,11 +191,11 @@ const DESIGNS = [
     { name: 'Toro', sub: 'Lamborghini Huracan, genuine', style: 'toro', background: 'genuine' },
     { name: 'Toro', sub: 'Lamborghini, modern hex lattice', style: 'toro', background: 'modern' },
     { name: 'Toro', sub: 'Lamborghini Revuelto', style: 'toro', background: 'revuelto' },
-    { name: 'M', sub: 'BMW M View, iDrive 8', style: 'track' }
+    { name: 'M Sport', sub: 'BMW M View, iDrive 8', style: 'track' },
+    { name: 'M Sport Plus', sub: 'M stripes, Waze in the centre', style: 'mplus' }
 ];
 function designIndex(style, background) {
-    if (style === 'track') return 3;
-    const i = DESIGNS.findIndex((d) => d.style === 'toro' && d.background === background);
+    const i = DESIGNS.findIndex((d) => d.style === style && (d.style !== 'toro' || d.background === background));
     return i < 0 ? 0 : i;
 }
 
@@ -233,7 +248,8 @@ mgu.run({
             const status = background ? background.status()
                 : 'The cluster service did not start - see Logs';
             const on = settings.get('enabled') === true;
-            const track = settings.get('style') === 'track';
+            const style = settings.get('style');
+            const track = style === 'track' || style === 'mplus';     /* either M style */
             const centre = background && background.centre ? background.centre() : null;
             const feed = background && background.feed ? background.feed() : null;
             const sig = JSON.stringify([status, on, centre, feed, settingsOf(settings, ctx.spec)]);
@@ -257,7 +273,7 @@ mgu.run({
              */
             /* left: what it is, and what it is doing */
             cv.roundRect(16, 44, 640, 470, 16, CARD);
-            label(track ? 'M' : 'TORO', 44, 104, 48, INK);
+            label(D.name.toUpperCase(), 44, 104, 48, INK);
             fitLabel(D.sub, 44, 138, 20, 580, DIM);
             cv.roundRect(44, 158, 584, 62, 10, FIELD);
             cv.circle(74, 189, 9, statusColour(status));
@@ -292,7 +308,7 @@ mgu.run({
             cv.roundRect(774, 66, 708, 392, 12, FIELD);
             const accent = { arancio: '#ff6a1a', giallo: '#ffd117', rosso: '#ff2e1c', verde: '#2ee07a',
                              blu: '#3394ff', viola: '#b073ff', bianco: '#ebf2fb', magenta: '#ff2bd6' }[settings.get('accent')] || '#ff6a1a';
-            if (track) mSketch(cv, 786, 140, 684);
+            if (track) mSketch(cv, 786, 140, 684, style === 'mplus');
             else {
                 toroBackdrop(cv, D.background, 774, 66, 708, 392, accent);
                 dialSketch(cv, 1128, 436, 300, accent);

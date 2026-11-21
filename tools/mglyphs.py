@@ -110,14 +110,19 @@ class Ink:
 # ------------------------------------------------------------------ the figures
 
 class Face:
-    def __init__(self, W, sv, sh, r, ri, lb, rb, one_w, four_w):
+    def __init__(self, W, sv, sh, r, ri, lb, rb, one_w, four_w, seven):
         self.W, self.sv, self.sh, self.r, self.ri = W, sv, sh, r, ri
         self.lb, self.rb = lb, rb
         self.one_w, self.four_w = one_w, four_w
+        # the 7's leg: its level width, how far down the bar's squared right
+        # end it leaves from, and where its left edge meets the foot
+        self.seven = seven
 
 
-WIDE = Face(W=1.265, sv=0.34, sh=0.19, r=0.155, ri=0.035, lb=0.1025, rb=0.1025, one_w=0.77, four_w=1.36)
-NORM = Face(W=0.935, sv=0.255, sh=0.17, r=0.125, ri=0.03, lb=0.075, rb=0.075, one_w=0.60, four_w=1.03)
+WIDE = Face(W=1.265, sv=0.34, sh=0.19, r=0.155, ri=0.035, lb=0.1025, rb=0.1025, one_w=0.77, four_w=1.36,
+            seven=(0.345, 0.25, 0.205))
+NORM = Face(W=0.935, sv=0.255, sh=0.17, r=0.125, ri=0.03, lb=0.075, rb=0.075, one_w=0.60, four_w=1.03,
+            seven=(0.275, 0.25, 0.175))
 
 
 def figure(F, ch):
@@ -164,9 +169,13 @@ def figure(F, ch):
         if ch == "9":
             g = g[::-1, ::-1]
     elif ch == "7":
-        dw = sv * 1.02                           # the leg, measured level
-        foot = W * 0.20
-        g = R(0, 0, W, sh) | P([(W - dw, 0), (W, 0), (foot + dw, 1), (foot, 1)])
+        # The bar runs the full width and ends square on the right; the leg
+        # hangs from that end - leaving it a little below the bar - and
+        # leans back to a level foot. (It was first drawn from the top
+        # corner, which stood it too upright and too far left.)
+        dw, yj, foot = F.seven
+        lean = (foot + dw - W) / (1.0 - yj)      # x per unit down
+        g = R(0, 0, W, sh) | P([(W - dw - yj * lean, 0), (W, 0), (W, yj), (foot + dw, 1), (foot, 1)])
         g &= ~k.corner_cut(W, 0, r * 0.45, "tr")
         lb = lb * 0.5
     elif ch == "4":

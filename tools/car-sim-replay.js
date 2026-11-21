@@ -42,7 +42,7 @@ function sh(type, src, name) {
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) errors.push(name + ': ' + gl.getShaderInfoLog(s));
   return s;
 }
-if (snap.theme === 'track' && snap.wazeTarget === 'panel') {
+if ((snap.theme === 'track' || snap.theme === 'mplus') && snap.wazeTarget === 'panel') {
   snap.layers.push({ ref: 0, visible: true, binds: {}, uniforms: { u_size: [1088, 480], u_kind: [1] },
                      msg: { class: 'content', z: 0, x: 416, y: 120, w: 1088, h: 480, fs: ${JSON.stringify(FIXTURE)} } });
 }
