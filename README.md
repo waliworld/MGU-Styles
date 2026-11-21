@@ -228,7 +228,8 @@ to the cluster within half a second.
 | Refresh rate | 60 · 45 · 30 · 20 frames a second (default 60) |
 | Needles between the car's updates | glide smoothly · glide quickly · jump to each reading — the car sends readings a few times a second; gliding hides the steps |
 | Start at every startup | on: comes up with the car every time · off: each start begins with BMW's own, **Cluster on / off** brings it up for that drive |
-| Boost gauge | on / off — left, above the oil gauges: bold blades and a figure that grows a step with every psi |
+| Boost gauge | on / off — level with the speed, left of the gear: the figure grows a step with every psi, a faint hanging wedge to its right sweeps right to left |
+| Rev number at the needle | outline · bold, filled in colour |
 | Oil gauges (far left) | on / off — temperature and pressure (turbo pressure until BeeM-Flash supplies oil pressure) |
 | Units | mph, °F, psi · km/h, °C, bar |
 | Clock | 24-hour · 12-hour |

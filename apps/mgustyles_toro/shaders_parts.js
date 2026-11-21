@@ -411,6 +411,7 @@
         'uniform vec3 u_col;',
         'uniform vec3 u_hot;',
         'uniform vec3 u_needle;',
+        'uniform float u_alpha;',     /* the whole gauge's strength, the needle aside (0: 1) */
         'void main() {',
         '  float k = u_size.y / 100.0;',
         '  vec2 p = px() / k;',
@@ -457,8 +458,141 @@
         '  c = over(vec4(u_col, frame * 0.30), c);',
         '  c = over(vec4(sc, sa), c);',
         '  c = over(vec4(u_needle, clamp(glow, 0.0, 1.0) * 0.6), c);',
-        '  c = over(vec4(mix(u_needle, vec3(1.0), 0.15), needle), c);',
+        '  c.a *= u_alpha > 0.0 ? u_alpha : 1.0;',
+        '  c = over(vec4(mix(u_needle, vec3(1.0), 0.15), needle * (u_alpha > 0.0 ? 0.85 : 1.0)), c);',
         '  gl_FragColor = c;',
+        '}'
+    ].join('\n');
+
+    /* -------------------------------------------------------------- snow */
+    /*
+     * The holiday theme's snow: small crystal balls drifting slowly down
+     * one side of the screen - a clear body, a bright rim and a catch-light
+     * - three depths, thinning out towards the middle. All in the shader,
+     * on the renderer's clock: nothing is sent while it falls.
+     */
+    var snow = [
+        'uniform float u_side;',      /* 0: the left side (outer edge x 0), 1: the right */
+        'uniform vec3 u_tint;',
+        'float hash(vec2 q) { return fract(sin(dot(q, vec2(127.1, 311.7))) * 43758.5453); }',
+        'void main() {',
+        '  vec2 p = px();',
+        '  float e = u_side < 0.5 ? p.x / u_size.x : 1.0 - p.x / u_size.x;',
+        '  float density = 1.0 - smoothstep(0.30, 1.0, e);',
+        '  vec4 c = vec4(0.0);',
+        '  for (int i = 0; i < 3; i++) {',
+        '    float fi = float(i);',
+        '    float cell = 64.0 + fi * 40.0;',
+        '    vec2 q = p;',
+        '    q.y -= u_time * (9.0 + fi * 7.0);',
+        '    q.x += fi * 23.0;',
+        '    vec2 id = floor(q / cell);',
+        '    vec2 f = q - id * cell;',
+        '    float h = hash(id + fi * 17.0);',
+        '    float here = step(0.48, h);',
+        '    vec2 ctr = vec2(0.25 + 0.5 * hash(id + 3.1), 0.25 + 0.5 * hash(id + 7.7)) * cell;',
+        '    ctr.x += sin(u_time * 0.6 + h * 30.0) * cell * 0.10;',
+        '    float r = mix(2.6, 5.5, hash(id + 1.3)) * (0.75 + fi * 0.3);',
+        '    float d = length(f - ctr);',
+        '    float body = 1.0 - smoothstep(r - 1.0, r, d);',
+        '    float rim = exp(-pow((d - r * 0.82) / (r * 0.16 + 0.5), 2.0));',
+        '    float hl = exp(-length(f - ctr + vec2(r * 0.32, r * 0.36)) / (r * 0.18 + 0.3));',
+        '    float halo = exp(-max(d - r, 0.0) / (r * 1.1)) * 0.16;',
+        '    float a = (body * 0.16 + rim * 0.55 + hl * 0.9 + halo) * here * (0.45 + fi * 0.25);',
+        '    c = over(vec4(mix(u_tint, vec3(1.0), clamp(hl + rim * 0.4, 0.0, 1.0)), clamp(a, 0.0, 1.0)), c);',
+        '  }',
+        '  gl_FragColor = vec4(c.rgb, c.a * density);',
+        '}'
+    ].join('\n');
+
+    /* -------------------------------------------------------------- tree */
+    /*
+     * A Christmas tree drawn the way the cluster draws everything: three
+     * stacked tiers in fine glowing line over a faint fill, baubles in the
+     * accent and gold that glint in turn, a star on top.
+     */
+    var xtree = [
+        'uniform vec3 u_line;',
+        'uniform vec3 u_orn;',
+        'uniform vec3 u_star;',
+        'float sdTri(vec2 p, float w, float h) {',
+        '  vec2 n = normalize(vec2(h, -w));',
+        '  return max(dot(vec2(abs(p.x), p.y), n), p.y - h);',
+        '}',
+        'float sdStar5(vec2 p, float r, float rf) {',
+        '  const vec2 k1 = vec2(0.809016994375, -0.587785252292);',
+        '  const vec2 k2 = vec2(-0.809016994375, -0.587785252292);',
+        '  p.x = abs(p.x);',
+        '  p -= 2.0 * max(dot(k1, p), 0.0) * k1;',
+        '  p -= 2.0 * max(dot(k2, p), 0.0) * k2;',
+        '  p.x = abs(p.x);',
+        '  p.y -= r;',
+        '  vec2 ba = rf * vec2(-k1.y, k1.x) - vec2(0.0, 1.0);',
+        '  float h = clamp(dot(p, ba) / dot(ba, ba), 0.0, r);',
+        '  return length(p - ba * h) * sign(p.y * ba.x - p.x * ba.y);',
+        '}',
+        'void main() {',
+        '  float k = u_size.y / 200.0;',
+        '  vec2 p = px() / k;',
+        '  vec2 q = vec2(p.x - u_size.x / k * 0.5, p.y);',
+        '  vec4 c = vec4(0.0);',
+        '  float fill = 0.0, line = 0.0;',
+        '  for (int i = 0; i < 3; i++) {',
+        '    float fi = float(i);',
+        '    float d = sdTri(q - vec2(0.0, 26.0 + fi * 38.0), 30.0 + fi * 17.0, 62.0 + fi * 10.0);',
+        '    fill = max(fill, 1.0 - smoothstep(-0.5, 0.5, d));',
+        '    line = max(line, exp(-abs(d) * 0.9 * k) + 0.30 * exp(-abs(d) * 0.35 * k));',
+        '  }',
+        '  float trunk = 1.0 - smoothstep(-0.5, 0.5, sdBox(q - vec2(0.0, 178.0), vec2(9.0, 10.0)));',
+        '  c = over(vec4(u_line, fill * 0.10 + trunk * 0.35), c);',
+        '  c = over(vec4(u_line, clamp(line, 0.0, 1.0) * 0.9), c);',
+        /* baubles: fixed places on the tiers, each glinting in turn */
+        '  for (int j = 0; j < 9; j++) {',
+        '    float fj = float(j);',
+        '    float tier = floor(fj / 3.0);',
+        '    float s = mod(fj, 3.0) - 1.0;',
+        '    vec2 at = vec2(s * (14.0 + tier * 15.0) + (tier - 1.0) * 3.0, 70.0 + tier * 44.0 - abs(s) * 6.0);',
+        '    float tw = 0.55 + 0.45 * sin(u_time * 2.2 + fj * 1.7);',
+        '    float d = length(q - at);',
+        '    vec3 oc = mod(fj, 2.0) < 0.5 ? u_orn : u_star;',
+        '    float a = (1.0 - smoothstep(3.2, 4.2, d)) + exp(-d * 0.35) * 0.6 * tw;',
+        '    c = over(vec4(mix(oc, vec3(1.0), (1.0 - smoothstep(0.0, 2.0, d)) * tw * 0.7), clamp(a, 0.0, 1.0)), c);',
+        '  }',
+        /* the star */
+        '  vec2 sp = q - vec2(0.0, 18.0);',
+        '  float sd = sdStar5(vec2(sp.x, -sp.y), 13.0, 0.45);',
+        '  float pulse = 0.75 + 0.25 * sin(u_time * 1.6);',
+        '  float star = 1.0 - smoothstep(-0.5, 0.5, sd);',
+        '  float sglow = exp(-max(sd, 0.0) * 0.30) * 0.7 * pulse;',
+        '  c = over(vec4(mix(u_star, vec3(1.0), star * 0.35), clamp(star + sglow, 0.0, 1.0)), c);',
+        '  gl_FragColor = c;',
+        '}'
+    ].join('\n');
+
+    /* -------------------------------------------------------------- veil */
+    /*
+     * The start-up message's backdrop: black over the cluster, with a fine
+     * accent line drawn out from the middle under the words and a glow
+     * that breathes once. u_a fades the whole of it into the cluster.
+     */
+    var veil = [
+        'uniform float u_a;',
+        'uniform float u_t;',         /* seconds since it came up */
+        'uniform float u_lineY;',     /* the accent line, panel px */
+        'uniform vec3 u_col;',
+        'void main() {',
+        '  vec2 p = px();',
+        '  vec2 c = u_size * 0.5;',
+        '  float grow = smoothstep(0.3, 2.2, u_t);',
+        '  float reach = u_size.x * 0.30 * grow;',
+        '  float ly = abs(p.y - u_lineY);',
+        '  float along = 1.0 - smoothstep(reach * 0.6, reach, abs(p.x - c.x));',
+        '  float line = cov(ly - 0.8) * along;',
+        '  float lglow = exp(-ly / 6.0) * along * 0.35;',
+        '  float breathe = 0.5 + 0.5 * sin(u_t * 1.3 - 1.57);',
+        '  float bloom = exp(-length((p - vec2(c.x, u_lineY - 60.0)) / vec2(620.0, 160.0))) * 0.10 * breathe;',
+        '  vec3 col = u_col * (line + lglow + bloom);',
+        '  gl_FragColor = vec4(col, u_a);',
         '}'
     ].join('\n');
 
@@ -641,7 +775,7 @@
         '}'
     ].join('\n');
 
-    return { boostblades: boostblades, snow: snow, xtree: xtree, veil: veil, hgauge: hgauge, text: text, plate: plate, marker: marker, gearband: gearband,
+    return { snow: snow, xtree: xtree, veil: veil, hgauge: hgauge, text: text, plate: plate, marker: marker, gearband: gearband,
              gauge: gauge, gforce: gforce, icon: icon, vbar: vbar, boost: boost,
              gmeter: gmeter, hairline: hairline };
 }));

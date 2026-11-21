@@ -84,7 +84,7 @@
      'facets', 'introSeconds'].forEach(function (k) {
       if (params.get(k)) cfg[k] = parseFloat(params.get(k));
     });
-    ['shiftLights', 'showBoost', 'showAuxLeft', 'showZeroNumeral', 'holiday', 'intro'].forEach(function (k) {
+    ['shiftLights', 'showBoost', 'showAuxLeft', 'showZeroNumeral', 'holiday', 'intro', 'numeralFill'].forEach(function (k) {
       if (params.get(k) === 'off') cfg[k] = false;
       if (params.get(k) === 'on') cfg[k] = true;
     });

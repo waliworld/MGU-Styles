@@ -227,11 +227,12 @@
         'uniform vec3 u_colOff;',
         'uniform vec3 u_colOn;',
         'uniform vec3 u_colRed;',
-        'uniform vec3 u_colPop;',
+        'uniform vec4 u_colPop;',    /* rgb; w: 1 fills the numeral at the needle */
         '',
         'void main() {',
         '  vec2 p = px();',
-        '  float cover = 0.0, ring = 0.0, halo = 0.0, accW = 0.0;',
+        '  float cover = 0.0, ring = 0.0, halo = 0.0, accW = 0.0, fillA = 0.0;',
+        '  vec3 fillC = vec3(0.0);',
         '  vec3 acc = vec3(0.0);',
         '  for (int i = 0; i < 12; i++) {',
         '    float on = step(float(i) + 0.5, u_cfg.x);',
@@ -257,7 +258,10 @@
         '    vec3 white = mix(u_colOff, u_colOn, lit);',
         '    vec3 reds = mix(u_colRed * 0.55, u_colRed, lit);',
         '    vec3 cc = mix(white, reds, red);',
-        '    vec3 popc = mix(u_colPop, mix(u_colRed, vec3(1.0), 0.35), red);',
+        '    vec3 popc = mix(u_colPop.rgb, mix(u_colRed, vec3(1.0), 0.35), red);',
+        /* filled: the numeral the needle is passing turns solid, bold */
+        '    float fl = cv * smoothstep(0.35, 0.75, pop) * u_colPop.w;',
+        '    if (fl > fillA) { fillA = fl; fillC = popc; }',
         '    cc = mix(cc, popc, pop);',
         '    acc += cc * rv;',
         '    accW += rv;',
@@ -269,8 +273,9 @@
         /* Hollow: keep the stroke, drop the middle, leave the field showing. */
         '  float stroke = max(ring - cover, 0.0);',
         '  float aura = halo * (1.0 - ring) * 0.45;',
-        '  float a = clamp(stroke + aura, 0.0, 1.0);',
-        '  gl_FragColor = vec4(a > 0.0 ? (col * stroke + col * aura) / a : vec3(0.0), a);',
+        '  float a = clamp(stroke + aura + fillA, 0.0, 1.0);',
+        '  vec3 rgb = col * (stroke + aura) + fillC * fillA;',
+        '  gl_FragColor = vec4(a > 0.0 ? rgb / max(stroke + aura + fillA, 0.0001) : vec3(0.0), a);',
         '}'
     ].join('\n');
 

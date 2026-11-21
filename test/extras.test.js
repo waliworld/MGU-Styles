@@ -240,14 +240,19 @@ test('the G peak is held a few seconds as a line, then fades away', () => {
     assert.ok(Math.abs(smaller.u_peak[0] - 1.1) < 1e-9, 'a harder one replaces it at once');
 });
 
-test('the boost figure grows a step with each psi, and its blades fill with it', () => {
+test('boost: level with the speed, a step bigger each psi, its gauge sweeping right to left', () => {
     const th = Toro.build(atlas, 'x3m40i', {});
-    const num = find(th, 'boostNum'), bl = find(th, 'boostBlades');
+    const num = find(th, 'boostNum'), gauge = find(th, 'boostGauge'), speed = find(th, 'speed');
     const at = (psi) => Object.assign(stateAt(4000), { boostPsi: psi });
-    const height = (psi) => { const q = num.uniforms(at(psi)).u_quad; return q[3]; };
+    const height = (psi) => num.uniforms(at(psi)).u_quad[3];
     assert.ok(height(10) > height(5) && height(20) > height(10));
     assert.strictEqual(height(10.2), height(10.9), 'steps, not a creep');
-    assert.strictEqual(num.uniforms(at(-6)) && num.uniforms(at(-6)).u_count, 1, 'vacuum reads 0');
-    assert.ok(bl.uniforms(at(15)).u_frac > bl.uniforms(at(5)).u_frac);
-    assert.ok(bl.y >= 357 || bl.x >= 136, 'clear of the tyre-pressure telltale');
+    assert.strictEqual(num.uniforms(at(-6)).u_count, 1, 'vacuum reads 0');
+    /* the same baseline as the speed: the bottoms of their figures line up */
+    const bottom = (L, st) => { const q = L.uniforms(st).u_quad; return L.y + q[1] + q[3]; };
+    assert.ok(Math.abs(bottom(num, at(16)) - bottom(speed, at(16))) < 8, 'level with the speed');
+    const u = gauge.uniforms(at(15));
+    assert.strictEqual(u.u_dir, -1);
+    assert.ok(u.u_alpha < 0.6, 'faint');
+    assert.ok(gauge.x > num.x + num.w - 40, 'right of the figure');
 });

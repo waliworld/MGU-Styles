@@ -80,7 +80,8 @@ view** (Turn View's own requirement).
 |---|---|---|
 | F1 | Drive with Refresh rate 60 and needles *Glide smoothly* | The dial, speed and gauges move continuously, no steps; a downshift's blip still shows at once. Try 30 and *Jump* to compare |
 | F2 | Side gauges | Left pair reads left to right, right pair right to left; each wedge hangs from its scale, deepest at the high numbers |
-| F3 | Boost under load | The figure above the oil gauges grows a step with each psi; the blades fill with a white-hot leading blade. Nothing under the tyre-pressure light's corner |
+| F3 | Boost under load | Level with the speed, left of the gear: the figure grows a step with each psi; the faint wedge to its right sweeps right to left |
+| F5 | Settings → Rev number at the needle: Bold, filled | The number the needle is passing turns solid in the accent colour; Outline goes back to the hollow look |
 | F4 | G meter in a right-hand bend, then braking | The point moves right in the bend and down under braking; the hardest load stays as a red line for about 3 s, then fades |
 
 ## Report back

@@ -75,6 +75,8 @@
            the car's updates (src/car/smooth.js): smooth | light | off */
         refreshHz: 60,
         smoothing: 'smooth',
+        /* the dial numeral the needle is passing: outline, or bold filled */
+        numeralFill: false,
         holiday: false,          /* snow falling down the sides and a tree in a corner */
         /* a message over the cluster at every start, fading into it */
         intro: false,
@@ -201,6 +203,7 @@
         if (s.shakePx === undefined) { s.shake = DEFAULTS.shake; s.shakePx = 6; }
         s.refreshHz = Math.round(clampNum(s.refreshHz, 15, 60, DEFAULTS.refreshHz));
         if (['smooth', 'light', 'off'].indexOf(s.smoothing) < 0) s.smoothing = DEFAULTS.smoothing;
+        s.numeralFill = s.numeralFill === true || s.numeralFill === 'filled';
         s.holiday = s.holiday === true;
         s.intro = s.intro === true;
         s.introSeconds = clampNum(s.introSeconds, 3, 30, DEFAULTS.introSeconds);

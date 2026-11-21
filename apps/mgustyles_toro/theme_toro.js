@@ -265,7 +265,8 @@
                                GC.secondaryWhite[2] * 0.62],
                     u_colOn: GC.primaryWhite,
                     u_colRed: GC.corsaRed,
-                    u_colPop: C.accent
+                    /* the accent, and whether the numeral at the needle fills */
+                    u_colPop: [C.accent[0], C.accent[1], C.accent[2], S.numeralFill ? 1 : 0]
                 };
             }
         });
@@ -548,50 +549,44 @@
          */
         if (P.boost && S.showBoost) {
             /*
-             * Boost, on the left with the oil gauges, above them: a bold
-             * figure that grows a step with every psi (every tenth of a bar)
-             * as boost builds, over a row of bold leaning blades
-             * lit up to the boost with the blade at the boost white-hot
-             * (shader 'boostblades'). No box: it sits on the background
-             * like the rest. Vacuum reads 0.
+             * Boost, level with the speed: the same figure and unit as the
+             * speed's, on the left of the gear's foot, growing a step with
+             * every psi (tenth of a bar) as boost builds, and to its right a
+             * faint hanging wedge gauge whose needle sweeps right to left,
+             * deepest at the top of the range beside the figure.
              */
             var bTop = imperial ? Math.ceil(P.boostMaxPsi / 10) * 10
                 : Math.ceil(P.boostMaxPsi / 14.503774 * 10) / 10;
-            var bSteps = imperial ? bTop / 2 : Math.round(bTop * 10);   /* a blade each 2 psi / 0.1 bar */
+            var bSteps = imperial ? bTop : Math.round(bTop * 10);
             var bShown = function (s) { return Math.max(0, s.boostPsi); };     /* psi or bar, as shown */
-            /*
-             * Panel pixels, not the guide's: it has to keep to the
-             * tyre-pressure telltale's corner (x 40-136, y 260-356), which
-             * the KOMBI draws over us. Label and figure sit right of it, the
-             * blades run underneath it.
-             */
-            layers.push({
-                id: 'boostBlades', z: 26, shader: 'boostblades',
-                x: 96, y: 358, w: 316, h: 30,
-                uniforms: function (s) {
-                    return { u_frac: clamp01(bShown(s) / bTop), u_n: bSteps, u_shear: 0.30,
-                             u_lo: HOT, u_hi: GC.corsaRed, u_hot: GC.corsaRed };
-                }
-            });
-            statics('boostLbl', 26, { x: 146, y: 290, w: 96, h: 52 },
-                { face: 'label', size: 17 / 0.70, color: GC.secondaryWhite, tracking: 1.5 },
-                [{ str: 'BOOST', x: 150, y: 314 },
-                 { str: U.press, x: 150, y: 336 }]);
-            /* the figure: one step bigger for every psi (tenth of a bar), the
-               largest, at the top of the range, 1.7 times the smallest */
-            var bBase = 40 / 0.70;
-            txt('boostNum', 26, { x: 226, y: 236, w: 196, h: 124 },
-                { face: imperial ? 'gear' : 'display', align: 'right',
-                  x: 398, y: 344,
+            var base = sp.y + G.gs(92);              /* the speed's own baseline */
+            var bRight = 548;                        /* the figure's right edge */
+            var bBase = G.gs(52) / 0.70;
+            txt('boostNum', 30, { x: bRight - 196, y: base - 118, w: 220, h: 134 },
+                { face: imperial ? 'gear' : 'display', align: 'right', x: bRight, y: base,
                   size: function (s) {
                       var step = Math.floor(bShown(s) * (imperial ? 1 : 10) + 1e-6);
-                      var steps = imperial ? bTop : bSteps;
-                      return bBase * (1 + 0.7 * Math.min(1, step / steps));
+                      return bBase * (1 + 0.55 * Math.min(1, step / bSteps));
                   },
                   color: function (s) { return bShown(s) >= bTop * 0.88 ? GC.corsaRed : GC.primaryWhite; } },
                 function (s) {
                     return imperial ? String(Math.floor(bShown(s) + 1e-6)) : bShown(s).toFixed(2);
                 });
+            statics('boostUnit', 30, { x: bRight + 4, y: base - G.gs(30) - 8, w: 80, h: G.gs(38) + 8 },
+                { face: 'label', size: G.gs(28) / 0.70, align: 'left',
+                  color: GC.secondaryWhite, tracking: 0.5 },
+                [{ str: U.press, x: bRight + 8, y: base }]);
+            /* the gauge: 100 units tall on its grid, scale and wedge only */
+            var gh = 64;
+            layers.push({
+                id: 'boostGauge', z: 26, shader: 'hgauge',
+                x: bRight + 78, y: base - gh * 0.84, w: 158, h: gh,
+                uniforms: function (s) {
+                    return { u_frac: clamp01(bShown(s) / bTop), u_dir: -1, u_redZone: [0.88, 1],
+                             u_shear: -0.30, u_on: 1, u_alarm: 0, u_alpha: 0.42,
+                             u_col: GC.primaryWhite, u_hot: HOT, u_needle: GC.corsaRed };
+                }
+            });
         }
 
         var PSI_PER_BAR = 14.503774;

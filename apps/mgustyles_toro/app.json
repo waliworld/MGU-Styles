@@ -410,6 +410,22 @@
       ]
     },
     {
+      "key": "numeralFill",
+      "label": "Toro / Rev number at the needle",
+      "type": "choice",
+      "default": "outline",
+      "options": [
+        [
+          "outline",
+          "Outline"
+        ],
+        [
+          "filled",
+          "Bold, filled in colour"
+        ]
+      ]
+    },
+    {
       "key": "modeLabel",
       "label": "Look / Mode name",
       "type": "choice",
