@@ -14,7 +14,7 @@
      *                                 as the 12-glyph shader budget needs
      *
      * Positions are panel pixels; each layer draws only inside its box.
-     * style.face and style.color may be functions of the state.
+     * style.face, style.size and style.color may be functions of the state.
      */
     function create(atlas, layers, C) {
     function txt(id, z, box, style, fn) {
@@ -25,7 +25,8 @@
                 var str = fn ? fn(state) : style.str;
                 if (str === null || str === undefined || str === '') return null;
                 var L = Text.layout(atlas, String(str), {
-                    face: (typeof style.face === 'function' ? style.face(state) : style.face) || 'label', size: style.size,
+                    face: (typeof style.face === 'function' ? style.face(state) : style.face) || 'label',
+                    size: typeof style.size === 'function' ? style.size(state) : style.size,
                     x: style.x - box.x, y: style.y - box.y,
                     align: style.align || 'left', baseline: style.baseline,
                     tracking: style.tracking || 0

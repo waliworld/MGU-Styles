@@ -56,6 +56,50 @@
       "default": true
     },
     {
+      "key": "refreshHz",
+      "label": "Refresh rate",
+      "type": "choice",
+      "default": "60",
+      "options": [
+        [
+          "60",
+          "60 a second, the smoothest"
+        ],
+        [
+          "45",
+          "45 a second"
+        ],
+        [
+          "30",
+          "30 a second"
+        ],
+        [
+          "20",
+          "20 a second, the lightest"
+        ]
+      ]
+    },
+    {
+      "key": "smoothing",
+      "label": "Needles between the car's updates",
+      "type": "choice",
+      "default": "smooth",
+      "options": [
+        [
+          "smooth",
+          "Glide smoothly"
+        ],
+        [
+          "light",
+          "Glide quickly"
+        ],
+        [
+          "off",
+          "Jump to each reading"
+        ]
+      ]
+    },
+    {
       "key": "style",
       "label": "Style",
       "type": "choice",

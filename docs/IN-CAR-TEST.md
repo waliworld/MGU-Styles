@@ -74,6 +74,15 @@ view** (Turn View's own requirement).
 | N7 | Start-up message on, then key off and start again | The words show over black for the chosen time, then fade slowly into the cluster. Changing a setting while driving does not bring them back |
 | N8 | Start at every startup off, key off, start again | BMW's own cluster; **Cluster on / off** brings MGU Styles up for this drive |
 
+## New in 0.4
+
+| # | Check | Expect |
+|---|---|---|
+| F1 | Drive with Refresh rate 60 and needles *Glide smoothly* | The dial, speed and gauges move continuously, no steps; a downshift's blip still shows at once. Try 30 and *Jump* to compare |
+| F2 | Side gauges | Left pair reads left to right, right pair right to left; each wedge hangs from its scale, deepest at the high numbers |
+| F3 | Boost under load | The figure above the oil gauges grows a step with each psi; the blades fill with a white-hot leading blade. Nothing under the tyre-pressure light's corner |
+| F4 | G meter in a right-hand bend, then braking | The point moves right in the bend and down under braking; the hardest load stays as a red line for about 3 s, then fades |
+
 ## Report back
 
 For anything wrong, a phone photo of the cluster plus the item number is

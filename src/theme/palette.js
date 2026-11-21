@@ -71,6 +71,10 @@
         shiftStyle: 'toro',
         /* how hard the whole cluster shakes at the limiter: off | light | medium | hard */
         shake: 'medium',
+        /* frames a second sent to the cluster, and how readings glide between
+           the car's updates (src/car/smooth.js): smooth | light | off */
+        refreshHz: 60,
+        smoothing: 'smooth',
         holiday: false,          /* snow falling down the sides and a tree in a corner */
         /* a message over the cluster at every start, fading into it */
         intro: false,
@@ -195,6 +199,8 @@
         s.shiftStyleIndex = { gt3: 0, toro: 1, blade: 2 }[s.shiftStyle] || 0;
         s.shakePx = { off: 0, light: 3, medium: 6, hard: 10 }[s.shake];
         if (s.shakePx === undefined) { s.shake = DEFAULTS.shake; s.shakePx = 6; }
+        s.refreshHz = Math.round(clampNum(s.refreshHz, 15, 60, DEFAULTS.refreshHz));
+        if (['smooth', 'light', 'off'].indexOf(s.smoothing) < 0) s.smoothing = DEFAULTS.smoothing;
         s.holiday = s.holiday === true;
         s.intro = s.intro === true;
         s.introSeconds = clampNum(s.introSeconds, 3, 30, DEFAULTS.introSeconds);

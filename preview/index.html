@@ -122,6 +122,7 @@
       var st = MGUState.present(sim.raw(), profile, theme.settings);
       if (centre) st.centre = centre;
       /* since=S: seconds since the cluster came up (the start-up message) */
+      st.now = time * 1000;
       st.sinceOn = params.get('since') !== null ? parseFloat(params.get('since')) : time;
       if (params.get('drive')) st.modeLabel = params.get('drive');
       /* ambient=RRGGBB stands in for the car's interior light */

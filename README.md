@@ -225,8 +225,10 @@ to the cluster within half a second.
 | Colour applies to | lights and highlights · everything, gear and labels too |
 | Holiday theme | crystal snow down both sides and a Christmas tree in a clean corner |
 | Start-up message | on / off: *For my beautiful wife, Nicole Wali, I love you* (or other words, below), 6–20 s, then a slow fade into the cluster |
+| Refresh rate | 60 · 45 · 30 · 20 frames a second (default 60) |
+| Needles between the car's updates | glide smoothly · glide quickly · jump to each reading — the car sends readings a few times a second; gliding hides the steps |
 | Start at every startup | on: comes up with the car every time · off: each start begins with BMW's own, **Cluster on / off** brings it up for that drive |
-| Boost gauge | on / off |
+| Boost gauge | on / off — left, above the oil gauges: bold blades and a figure that grows a step with every psi |
 | Oil gauges (far left) | on / off — temperature and pressure (turbo pressure until BeeM-Flash supplies oil pressure) |
 | Units | mph, °F, psi · km/h, °C, bar |
 | Clock | 24-hour · 12-hour |

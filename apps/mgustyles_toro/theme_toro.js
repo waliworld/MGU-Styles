@@ -440,26 +440,25 @@
         function tLabels(cs) {
             return cs.map(function (c) { return String(Math.round(imperial ? c * 9 / 5 + 32 : c)); });
         }
+        /*
+         * The right pair reads right to left, the mirror of the left pair:
+         * each needle sweeps in from the outer edge as its reading rises.
+         */
         instrument('fuel', [1572, 422, 1882, 522], {
-            side: 'right', icon: 0, label: 'BENZINA', key: 'fuel', dir: 1,
+            side: 'right', icon: 0, label: 'BENZINA', key: 'fuel', dir: -1,
             marks: ['0', '50', '100'], red: [0, 0.12]
         });
         instrument('coolant', [1600, 538, 1910, 638], {
             side: 'right', icon: 1, label: 'TEMP. ACQUA', key: 'coolant', dir: -1,
-            marks: tLabels([50, 90, 130]), red: [0.81, 1]   /* reads 130 .. 50 left to right */
+            marks: tLabels([50, 90, 130]), red: [0.81, 1]
         });
 
         /* The far-left region the brief cannot resolve: our own readings. */
         if (S.showAuxLeft) {
-            /*
-             * The left pair mirrors the right: as the car's fuel gauge grows
-             * left to right and its water gauge right to left, oil
-             * temperature grows right to left and oil pressure left to right,
-             * each wedge tallest at its high numbers. Both sit clear of the
-             * dial's low end.
-             */
+            /* Both read left to right, each wedge deepest at its high
+               numbers; both sit clear of the dial's low end. */
             instrument('oilT', [14, 430, 304, 530], {
-                side: 'left', icon: 2, label: 'TEMP. OLIO', key: 'oilTemp', dir: -1,
+                side: 'left', icon: 2, label: 'TEMP. OLIO', key: 'oilTemp', dir: 1,
                 marks: tLabels([50, 110, 170]), red: [0.83, 1]
             });
             /*
@@ -477,28 +476,47 @@
         }
 
         /* ------------------------------------------- G-force widget */
-        var gf = B.gForce;
+        /*
+         * The load meter under the gear: a point that moves with the car's
+         * acceleration (right turn: right; accelerating: up; braking: down),
+         * the four chevrons lighting towards it, and the hardest load of the
+         * last moments drawn as a line from the middle - held for PEAK_HOLD,
+         * then fading over PEAK_FADE, and replaced at once by a harder one.
+         */
+        var gf = B.gForce, GS = 0.85;
+        var PEAK_HOLD = 3000, PEAK_FADE = 1500;
+        var peak = { x: 0, y: 0, at: -1e9 };
+        function peakOf(s) {
+            var t = typeof s.now === 'number' ? s.now : Date.now();
+            var mag = Math.sqrt(s.gX * s.gX + s.gY * s.gY);
+            var age = t - peak.at;
+            var held = age < PEAK_HOLD + PEAK_FADE ? Math.sqrt(peak.x * peak.x + peak.y * peak.y) : 0;
+            if (mag >= held && mag > 0.05) { peak.x = s.gX; peak.y = s.gY; peak.at = t; age = 0; }
+            var a = age < PEAK_HOLD ? 1 : Math.max(0, 1 - (age - PEAK_HOLD) / PEAK_FADE);
+            return { x: peak.x, y: peak.y, a: a };
+        }
         layers.push({
             id: 'gforce', z: 22, shader: 'gforce',
-            x: G.gx(gf.cx - gf.w / 2), y: G.gy(gf.cy - gf.h / 2),
-            w: G.gs(gf.w), h: G.gs(gf.h),
+            x: G.gx(gf.cx - gf.w * GS / 2), y: G.gy(gf.cy - gf.h * GS / 2),
+            w: G.gs(gf.w * GS), h: G.gs(gf.h * GS),
             uniforms: function (s) {
                 if (!s.gOk) return null;
-                return { u_g: [s.gLat, s.gLon], u_max: 1.2, u_col: GC.primaryWhite };
+                var pk = peakOf(s);
+                return { u_g: [s.gX, s.gY], u_peak: [pk.x, pk.y], u_peakA: pk.a,
+                         u_max: 1.2, u_col: GC.primaryWhite, u_acc: GC.corsaRed };
             }
         });
-        /* Four readings around it, one per direction, from one coherent
-           lateral/longitudinal state (brief section 8). */
-        [['gR', 1, 0, 'left', gf.w * 0.42, 5, function (s) { return Math.max(s.gLat, 0); }],
-         ['gL', -1, 0, 'right', -gf.w * 0.42, 5, function (s) { return Math.max(-s.gLat, 0); }],
-         ['gU', 0, -1, 'centre', 0, -gf.h * 0.52, function (s) { return Math.max(s.gLon, 0); }],
-         ['gD', 0, 1, 'centre', 0, gf.h * 0.62, function (s) { return Math.max(-s.gLon, 0); }]
+        /* Four readings around it, one per direction, from the same vector. */
+        [['gR', 'left', gf.w * GS * 0.56, 5, function (s) { return Math.max(s.gX, 0); }],
+         ['gL', 'right', -gf.w * GS * 0.56, 5, function (s) { return Math.max(-s.gX, 0); }],
+         ['gU', 'centre', 0, -gf.h * GS * 0.54, function (s) { return Math.max(s.gY, 0); }],
+         ['gD', 'centre', 0, gf.h * GS * 0.66, function (s) { return Math.max(-s.gY, 0); }]
         ].forEach(function (r) {
-            var ax = G.gx(gf.cx + r[4]), ay = G.gy(gf.cy + r[5]);
-            txt(r[0], 22, { x: ax - G.gs(46), y: ay - G.gs(20), w: G.gs(92), h: G.gs(28) },
-                { face: 'display', size: G.gs(14) / 0.70, align: r[3],
+            var ax = G.gx(gf.cx + r[2]), ay = G.gy(gf.cy + r[3]);
+            txt(r[0], 22, { x: ax - G.gs(40), y: ay - G.gs(18), w: G.gs(80), h: G.gs(24) },
+                { face: 'display', size: G.gs(12.5) / 0.70, align: r[1],
                   x: ax, y: ay, color: GC.secondaryWhite },
-                function (s) { return s.gOk ? r[6](s).toFixed(1) : '--'; });
+                function (s) { return s.gOk ? r[4](s).toFixed(1) : '--'; });
         });
 
         /*
@@ -530,23 +548,50 @@
          */
         if (P.boost && S.showBoost) {
             /*
-             * Boost, drawn as one of the side instruments: a slanted scale,
-             * a hatched wedge rising to the top of the range and a red
-             * needle. Vacuum rests on the 0. Under CORSA, left of the load
-             * indicator, where the dial's interior is open.
+             * Boost, on the left with the oil gauges, above them: a bold
+             * figure that grows a step with every psi (every tenth of a bar)
+             * as boost builds, over a row of bold leaning blades
+             * lit up to the boost with the blade at the boost white-hot
+             * (shader 'boostblades'). No box: it sits on the background
+             * like the rest. Vacuum reads 0.
              */
-            var bTop = imperial ? Math.ceil(P.boostMaxPsi / 10) * 10 : Math.round(P.boostMaxPsi / 14.503774 * 10) / 10;
-            var bPod = function (s) {
-                var v = s.boostPsi;          /* psi or bar, as shown */
-                return { frac: clamp01(v / bTop), alarm: false,
-                         text: v.toFixed(imperial ? 1 : 2) };
-            };
-            instrument('boost', [548, 440, 838, 532], {
-                side: 'left', icon: null, label: 'BOOST ' + U.press, pod: bPod, dir: 1, shear: 0.30,
-                marks: imperial ? ['0', String(bTop / 2), String(bTop)]
-                    : ['0', (bTop / 2).toFixed(1), bTop.toFixed(1)],
-                red: [0.88, 1]
+            var bTop = imperial ? Math.ceil(P.boostMaxPsi / 10) * 10
+                : Math.ceil(P.boostMaxPsi / 14.503774 * 10) / 10;
+            var bSteps = imperial ? bTop / 2 : Math.round(bTop * 10);   /* a blade each 2 psi / 0.1 bar */
+            var bShown = function (s) { return Math.max(0, s.boostPsi); };     /* psi or bar, as shown */
+            /*
+             * Panel pixels, not the guide's: it has to keep to the
+             * tyre-pressure telltale's corner (x 40-136, y 260-356), which
+             * the KOMBI draws over us. Label and figure sit right of it, the
+             * blades run underneath it.
+             */
+            layers.push({
+                id: 'boostBlades', z: 26, shader: 'boostblades',
+                x: 96, y: 358, w: 316, h: 30,
+                uniforms: function (s) {
+                    return { u_frac: clamp01(bShown(s) / bTop), u_n: bSteps, u_shear: 0.30,
+                             u_lo: HOT, u_hi: GC.corsaRed, u_hot: GC.corsaRed };
+                }
             });
+            statics('boostLbl', 26, { x: 146, y: 290, w: 96, h: 52 },
+                { face: 'label', size: 17 / 0.70, color: GC.secondaryWhite, tracking: 1.5 },
+                [{ str: 'BOOST', x: 150, y: 314 },
+                 { str: U.press, x: 150, y: 336 }]);
+            /* the figure: one step bigger for every psi (tenth of a bar), the
+               largest, at the top of the range, 1.7 times the smallest */
+            var bBase = 40 / 0.70;
+            txt('boostNum', 26, { x: 226, y: 236, w: 196, h: 124 },
+                { face: imperial ? 'gear' : 'display', align: 'right',
+                  x: 398, y: 344,
+                  size: function (s) {
+                      var step = Math.floor(bShown(s) * (imperial ? 1 : 10) + 1e-6);
+                      var steps = imperial ? bTop : bSteps;
+                      return bBase * (1 + 0.7 * Math.min(1, step / steps));
+                  },
+                  color: function (s) { return bShown(s) >= bTop * 0.88 ? GC.corsaRed : GC.primaryWhite; } },
+                function (s) {
+                    return imperial ? String(Math.floor(bShown(s) + 1e-6)) : bShown(s).toFixed(2);
+                });
         }
 
         var PSI_PER_BAR = 14.503774;

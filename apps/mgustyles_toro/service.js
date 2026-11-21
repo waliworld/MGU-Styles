@@ -23,13 +23,14 @@ var Theme = require('./theme.js');
 var Centre = require('./centre.js');
 var Feed = require('./feed.js');
 var Message = require('./message.js');
+var Smooth = require('./smooth.js');
 var Panel = require('./panel.js');
 var core = require('./shaders_core.js');
 var parts = require('./shaders_parts.js');
 var dialShaders = require('./shaders_dial.js');
 var mShaders = require('./shaders_m.js');
 
-var FRAME_MS = 33;            /* 30 Hz: past what the eye reads off a gauge */
+var FRAME_MS = 16;            /* 60 Hz by default; settings.refreshHz picks 15-60 */
 var IDLE_MS = 250;            /* while nothing is drawn */
 var SETTLE_MS = 400;          /* settings changes, while someone scrolls through them */
 
@@ -104,6 +105,12 @@ function start(host, deps) {
     var driver = null;
     var cr = deps.cr || new ClusterRenderMod.ClusterRender(deps.appId || 'wali_mgu_styles');
     var reader = Vehicle.createReader({});
+    var smoother = Smooth.create();
+    /* how long one frame is, from the refresh rate setting */
+    function frameMs() {
+        var hz = theme && theme.settings && theme.settings.refreshHz;
+        return hz ? Math.max(16, Math.round(1000 / hz)) : FRAME_MS;
+    }
     var SHADERS = shaders();
     /* the Track theme's centre: Waze and Turn View, asked for, never held */
     var centre = deps.centre || Centre.create({ log: log, dataDir: host.dataDir });
@@ -211,11 +218,15 @@ function start(host, deps) {
 
     function frame() {
         if (stopped) return;
+        var began = Date.now();
         try {
             /* anything the feed carries goes in before the frame is built */
             try {
                 var op = feed.value('oilPressure');
                 if (typeof op === 'number') reader.setOilPressureBar(op, now());
+                /* BeeM-Flash's G, when it sends it, is as good as the bus's and fresher */
+                var gl = feed.value('gLat'), gn = feed.value('gLong');
+                if (typeof gl === 'number' && typeof gn === 'number') reader.setAccel(gl, gn, now());
 
                 /* the accent follows the interior light, repainted in place
                    so the cluster never has to be rebuilt for a colour */
@@ -230,6 +241,7 @@ function start(host, deps) {
             } catch (e) { log.warn('feed: ' + e); }
 
             var raw = reader.raw(now(), settings.tankLitres || profileTank(profile));
+            if (theme) raw = smoother.apply(raw, now(), Smooth.TAU[theme.settings.smoothing] || 0);
             var car = carState(raw);
             var enabled = theme && theme.settings.enabled;
 
@@ -256,6 +268,7 @@ function start(host, deps) {
                 var st = State.present(raw, profile, theme.settings);
                 if (hasCentre) st.centre = centre.state();
                 st.sinceOn = onAt ? (now() - onAt) / 1000 : -1;
+                st.now = now();
                 driver.tick(st);
             }
 
@@ -267,7 +280,9 @@ function start(host, deps) {
         } catch (e) {
             log.warn('frame: ' + (e && e.stack || e));
         }
-        timer = setTimeout(frame, running ? FRAME_MS : IDLE_MS);
+        /* an even cadence: the frame's own work comes off the wait */
+        var wait = running ? Math.max(4, frameMs() - (Date.now() - began)) : IDLE_MS;
+        timer = setTimeout(frame, wait);
     }
 
     configure();

@@ -296,15 +296,20 @@
      * deliberately quieter than the dial (brief section 8).
      */
     var gforce = [
-        'uniform vec2 u_g;',
+        'uniform vec2 u_g;',          /* g, x right, y forward (up) */
+        'uniform vec2 u_peak;',       /* the held peak, same axes */
+        'uniform float u_peakA;',     /* the peak line's strength: held, then fading */
         'uniform float u_max;',
         'uniform vec3 u_col;',
+        'uniform vec3 u_acc;',        /* the point and the peak line */
         '',
         /* One chevron pointing along dir, lit by amount. */
         'float chevron(vec2 p, vec2 dir, float reach, float amt) {',
         '  vec2 t = vec2(-dir.y, dir.x);',
-        '  float f = dot(p, dir), s = abs(dot(p, t));',
-        '  float d = max(abs(f - reach) - 2.2, s - (reach - f) * 0.85);',
+        '  vec2 tip = dir * reach;',
+        '  float L = 8.0;',
+        '  float d = min(sdSegment(p, tip, tip - dir * L + t * L, 0.0),',
+        '                sdSegment(p, tip, tip - dir * L - t * L, 0.0)) - 1.4;',
         '  return cov(d) * (0.30 + 0.70 * amt);',
         '}',
         '',
@@ -312,17 +317,36 @@
         '  vec2 p = px() - u_size * 0.5;',
         '  float R = min(u_size.x, u_size.y) * 0.50;',
         '  vec2 g = clamp(u_g / max(u_max, 0.001), -1.0, 1.0);',
+        '  vec2 pk = clamp(u_peak / max(u_max, 0.001), -1.0, 1.0);',
+        /* panel y runs down: forward is up */
+        '  vec2 at = vec2(g.x, -g.y) * R * 0.78;',
+        '  vec2 pat = vec2(pk.x, -pk.y) * R * 0.78;',
         '',
         '  float m = 0.0;',
-        '  m = max(m, chevron(p, vec2(1.0, 0.0), R, max(g.x, 0.0)));',
-        '  m = max(m, chevron(p, vec2(-1.0, 0.0), R, max(-g.x, 0.0)));',
-        '  m = max(m, chevron(p, vec2(0.0, -1.0), R * 0.86, max(g.y, 0.0)));',
-        '  m = max(m, chevron(p, vec2(0.0, 1.0), R * 0.86, max(-g.y, 0.0)));',
+        '  float rx = u_size.x * 0.5 - 4.0, ry = u_size.y * 0.5 - 4.0;',
+        '  m = max(m, chevron(p, vec2(1.0, 0.0), rx, max(g.x, 0.0)));',
+        '  m = max(m, chevron(p, vec2(-1.0, 0.0), rx, max(-g.x, 0.0)));',
+        '  m = max(m, chevron(p, vec2(0.0, -1.0), ry, max(g.y, 0.0)));',
+        '  m = max(m, chevron(p, vec2(0.0, 1.0), ry, max(-g.y, 0.0)));',
+        /* fine cross hairs and the half-range ring */
+        '  float cross = cov(min(abs(p.x), abs(p.y)) - 0.4) * step(length(p), R * 0.78) * 0.22;',
+        '  float ring = cov(abs(length(p) - R * 0.39) - 0.5) * 0.25;',
         '',
-        /* A compact centre mark. */
-        '  float box = cov(abs(sdRound(p, vec2(R * 0.20, R * 0.18), 2.0)) - 0.9);',
-        '  float a = clamp(m + box * 0.85, 0.0, 1.0);',
-        '  gl_FragColor = vec4(u_col, a);',
+        /* the peak: a line out from the middle, held, then fading away */
+        '  float pl = sdSegment(p, vec2(0.0), pat, 0.0);',
+        '  float peak = (cov(pl - 1.1) + exp(-pl / 3.0) * 0.35) * u_peakA * step(0.02, length(pk));',
+        '  float pend = cov(length(p - pat) - 2.6) * u_peakA * step(0.02, length(pk));',
+        '',
+        /* the point itself: bold, with a glow */
+        '  float dd = length(p - at);',
+        '  float dot1 = cov(dd - 4.2);',
+        '  float glow = exp(-dd / 5.0) * 0.55;',
+        '',
+        '  vec4 c = vec4(u_col, clamp(m + cross + ring, 0.0, 1.0));',
+        '  c = over(vec4(u_acc, clamp(peak + pend, 0.0, 1.0)), c);',
+        '  c = over(vec4(u_acc, clamp(glow, 0.0, 1.0)), c);',
+        '  c = over(vec4(mix(u_acc, vec3(1.0), 0.55), dot1), c);',
+        '  gl_FragColor = c;',
         '}'
     ].join('\n');
 
@@ -366,13 +390,14 @@
     /* ------------------------------------------------------------ hgauge */
     /*
      * The Huracan's side instruments, after the car: a straight scale with
-     * ticks rising from it, under it a hatched wedge that is thin at the low
-     * end of the scale and tall at the high end, its stripes white up to the
+     * ticks rising from it, under it a hatched wedge hanging from a straight
+     * top: shallow at the low end of the scale, deepest at the high end, so
+     * its lower edge runs down from the low end's tip, its stripes white up to the
      * reading and grey beyond, the warning section always marked in
      * orange-red, and a red needle crossing both at the value.
      * Laid out on a fixed grid in the layer (100 units tall, scaled by
-     * u_size.y / 100): scale line y 52, the wedge's foot y 88 and its top
-     * between y 75 (low end) and y 56 (high end), the needle y 36..96.
+     * u_size.y / 100): scale line y 52, the wedge's top y 57 and its foot
+     * between y 70 (low end) and y 90 (high end), the needle y 36..96.
      * Everything leans by u_shear (x moves with height).
      */
     var hgauge = [
@@ -403,9 +428,10 @@
         '  float tickH = mix(5.0, 11.0, major);',
         '  float tick = cov((tx - mix(0.7, 1.0, major)) * k) * step(52.0 - tickH, p.y) * step(p.y, 52.0) * inX;',
         '',
-        /* the wedge: its top falls from y 58 at the high end to y 78 at the low */
-        '  float top = mix(75.0, 56.0, f);',
-        '  float inBar = step(top, p.y) * step(p.y, 88.0) * inX;',
+        /* the wedge: a straight top, its foot running down to the high end */
+        '  float top = 57.0;',
+        '  float foot = mix(70.0, 90.0, f);',
+        '  float inBar = step(top, p.y) * step(p.y, foot) * inX;',
         '  float sx = x + (p.y - 73.0) * 0.55;',
         '  float stripe = cov((abs(fract(sx / 7.0) - 0.5) * 7.0 - 1.6) * k) * inBar;',
         '  float hot = step(u_redZone.x, f) * step(f, u_redZone.y);',
@@ -413,8 +439,8 @@
         '  vec3 sc = mix(u_col, u_hot, hot);',
         '  float sa = stripe * mix(mix(0.22, 0.95, lit), mix(0.80, 1.0, lit), hot);',
         /* a fine outline round the wedge */
-        '  float edge = min(min(p.y - top, 88.0 - p.y), min(x - x0, x1 - x));',
-        '  float frame = cov((abs(edge) - 0.6) * k) * step(top - 1.0, p.y) * step(p.y, 89.0)',
+        '  float edge = min(min(p.y - top, (foot - p.y) * 0.995), min(x - x0, x1 - x));',
+        '  float frame = cov((abs(edge) - 0.6) * k) * step(top - 1.0, p.y) * step(p.y, foot + 1.0)',
         '              * step(x0 - 1.0, x) * step(x, x1 + 1.0);',
         '',
         /* the needle, square across the scale, leaning with it */
@@ -567,7 +593,54 @@
         '}'
     ].join('\n');
 
-    return { snow: snow, xtree: xtree, veil: veil, hgauge: hgauge, text: text, plate: plate, marker: marker, gearband: gearband,
+    /* -------------------------------------------------------- boostblades */
+    /*
+     * Boost, the Lamborghini way: a row of bold leaning blades, one a psi
+     * (or a tenth of a bar), hanging from a straight top and deepening
+     * towards the top of the range. Lit up to the boost in orange running
+     * to red, the blade at the boost itself white-hot and sharp, the one
+     * after it filling as the boost climbs into it - so it flows rather
+     * than steps. The last part of the range is marked red even unlit.
+     */
+    var boostblades = [
+        'uniform float u_frac;',      /* 0..1 of the range */
+        'uniform float u_n;',         /* blades */
+        'uniform float u_shear;',
+        'uniform vec3 u_lo;',
+        'uniform vec3 u_hi;',
+        'uniform vec3 u_hot;',
+        'void main() {',
+        '  vec2 p = px();',
+        '  float H = u_size.y;',
+        '  float x = p.x - (H * 0.5 - p.y) * u_shear;',
+        '  float W = u_size.x - H * u_shear - 4.0;',
+        '  float x0 = H * u_shear * 0.5 + 2.0;',
+        '  float pitch = W / u_n;',
+        '  float i = clamp(floor((x - x0) / pitch), 0.0, u_n - 1.0);',
+        '  float f = (i + 0.5) / u_n;',
+        '  float cx = x0 + (i + 0.5) * pitch;',
+        '  float depth = mix(0.36, 1.0, f) * H;',
+        '  float bw = pitch * 0.30;',
+        '  float d = max(abs(x - cx) - bw, max(-p.y + 1.0, p.y - depth));',
+        '  float body = cov(d);',
+        '',
+        '  float v = u_frac * u_n;',                      /* blades lit, fractional */
+        '  float fill = clamp(v - i, 0.0, 1.0);',
+        '  float lead = step(i, v) * step(v, i + 1.0);',   /* the blade the boost is in */
+        '  float lit = step(i + 1.0, v) + lead * mix(0.55, 1.0, fill);',
+        '  float red = step(0.88, f);',
+        '  vec3 col = mix(u_lo, u_hi, smoothstep(0.35, 1.0, f));',
+        '  col = mix(col, vec3(1.0), lead * 0.85);',
+        '  float glow = lead * u_frac > 0.0 ? exp(-max(d, 0.0) / 6.0) * 0.8 : 0.0;',
+        '  vec3 off = mix(vec3(0.30, 0.34, 0.38), u_hot, red);',
+        '  float a = body * mix(mix(0.20, 0.45, red), 1.0, lit);',
+        '  vec4 c = vec4(mix(off, col, lit), a);',
+        '  c = over(c, vec4(col, clamp(glow * step(0.001, u_frac), 0.0, 1.0)));',
+        '  gl_FragColor = c;',
+        '}'
+    ].join('\n');
+
+    return { boostblades: boostblades, snow: snow, xtree: xtree, veil: veil, hgauge: hgauge, text: text, plate: plate, marker: marker, gearband: gearband,
              gauge: gauge, gforce: gforce, icon: icon, vbar: vbar, boost: boost,
              gmeter: gmeter, hairline: hairline };
 }));

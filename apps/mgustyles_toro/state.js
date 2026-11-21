@@ -147,6 +147,11 @@
             boostPeakPsi: boostPeak,
             gOk: has(raw.gLat) || has(raw.gLon),
             auxIsOil: auxIsOil,
+            /* the meter's own axes: x to the right, y forward. The bus's
+               lateral is ISO (left positive), so a right-hand turn - the
+               car accelerating to the right - reads to the right */
+            gX: has(raw.gLat) ? -raw.gLat : 0,
+            gY: has(raw.gLon) ? raw.gLon : 0,
             gLat: has(raw.gLat) ? raw.gLat : 0,
             gLon: has(raw.gLon) ? raw.gLon : 0,
             gPeakLat: has(raw.gPeakLat) ? raw.gPeakLat : 0,

@@ -182,3 +182,72 @@ test('your own words: read from a USB stick and kept', () => {
     assert.strictEqual(Message.load({ roots: [path.join(tmp, 'nowhere')] }), null);
     fs.rmSync(tmp, { recursive: true });
 });
+
+/* ------------------------------------------------- fluid, G, boost */
+
+const Smooth = require('../src/car/smooth.js');
+
+test('readings glide between the car updates, the same at any frame rate', () => {
+    const run = (stepMs) => {
+        const sm = Smooth.create();
+        sm.apply({ rpm: 1000 }, 0, 90);
+        let out;
+        const n = Math.round(90 / stepMs);
+        for (let i = 1; i <= n; i++) out = sm.apply({ rpm: 4000 }, i * stepMs, 90);
+        return out.rpm;
+    };
+    const at60 = run(15), at30 = run(30);
+    assert.ok(at60 > 2800 && at60 < 3100, 'about 63% of the way after one glide time: ' + at60);
+    assert.ok(Math.abs(at60 - at30) < 40, 'frame rate does not change the motion');
+    const sm = Smooth.create();
+    sm.apply({ rpm: 3000 }, 0, 90);
+    assert.strictEqual(sm.apply({ rpm: undefined }, 16, 90).rpm, undefined, 'a lost reading is not faded out');
+    assert.strictEqual(Smooth.create().apply({ rpm: 5000, gear: '3' }, 0, 0).rpm, 5000);
+    const off = Smooth.create(); off.apply({ rpm: 1000 }, 0, 0);
+    assert.strictEqual(off.apply({ rpm: 4000 }, 16, 0).rpm, 4000, 'off: straight to it');
+});
+
+test('refresh rate and smoothing settings', () => {
+    assert.strictEqual(Palette.resolve({}, P).refreshHz, 60);
+    assert.strictEqual(Palette.resolve({ refreshHz: '30' }, P).refreshHz, 30);
+    assert.strictEqual(Palette.resolve({ refreshHz: '500' }, P).refreshHz, 60);
+    assert.strictEqual(Palette.resolve({ smoothing: 'nope' }, P).smoothing, 'smooth');
+});
+
+test('the G meter: a right-hand turn reads to the right, braking down', () => {
+    /* the bus is ISO: lateral positive to the left */
+    const right = State.present({ rpm: 2000, gLat: -0.5, gLon: -0.3 }, P, {});
+    assert.ok(right.gX > 0.49 && right.gY < -0.29);
+    const th = Toro.build(atlas, 'x3m40i', {});
+    const L = (id) => find(th, id).uniforms(Object.assign(right, { now: 0 }));
+    assert.strictEqual(L('gR').u_count > 0, true);
+    assert.deepStrictEqual(find(th, 'gforce').uniforms(Object.assign({}, right, { now: 0 })).u_g, [right.gX, right.gY]);
+});
+
+test('the G peak is held a few seconds as a line, then fades away', () => {
+    const th = Toro.build(atlas, 'x3m40i', {});
+    const g = find(th, 'gforce');
+    const st = (lat, now) => Object.assign(State.present({ rpm: 2000, gLat: lat, gLon: 0 }, P, {}), { now });
+    let u = g.uniforms(st(-0.9, 1000));
+    assert.ok(Math.abs(u.u_peak[0] - 0.9) < 1e-9 && u.u_peakA === 1);
+    u = g.uniforms(st(-0.2, 3500));
+    assert.ok(Math.abs(u.u_peak[0] - 0.9) < 1e-9 && u.u_peakA === 1, 'held');
+    u = g.uniforms(st(-0.2, 4750));
+    assert.ok(u.u_peakA > 0.3 && u.u_peakA < 0.7, 'fading: ' + u.u_peakA);
+    u = g.uniforms(st(-0.2, 7000));
+    assert.ok(Math.abs(u.u_peak[0] - 0.2) < 1e-9, 'a new, smaller peak once the old one is gone');
+    const smaller = g.uniforms(st(-1.1, 7100));
+    assert.ok(Math.abs(smaller.u_peak[0] - 1.1) < 1e-9, 'a harder one replaces it at once');
+});
+
+test('the boost figure grows a step with each psi, and its blades fill with it', () => {
+    const th = Toro.build(atlas, 'x3m40i', {});
+    const num = find(th, 'boostNum'), bl = find(th, 'boostBlades');
+    const at = (psi) => Object.assign(stateAt(4000), { boostPsi: psi });
+    const height = (psi) => { const q = num.uniforms(at(psi)).u_quad; return q[3]; };
+    assert.ok(height(10) > height(5) && height(20) > height(10));
+    assert.strictEqual(height(10.2), height(10.9), 'steps, not a creep');
+    assert.strictEqual(num.uniforms(at(-6)) && num.uniforms(at(-6)).u_count, 1, 'vacuum reads 0');
+    assert.ok(bl.uniforms(at(15)).u_frac > bl.uniforms(at(5)).u_frac);
+    assert.ok(bl.y >= 357 || bl.x >= 136, 'clear of the tyre-pressure telltale');
+});
