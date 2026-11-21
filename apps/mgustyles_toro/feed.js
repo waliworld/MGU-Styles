@@ -64,15 +64,19 @@ function create(opts) {
 
     function poll() {
         if (stopped) return;
-        var i;
+        var i, any = false;
         for (i = 0; i < paths.length; i++) {
             try {
                 var st = fs.statSync(paths[i]);
+                any = true;
                 if (!st.isFile() || st.size > MAX_BYTES) continue;
                 if (now() - st.mtime.getTime() > STALE_MS) continue;
                 if (parse(fs.readFileSync(paths[i], 'utf8'))) return;
             } catch (e) { /* no file, or half written: try the next */ }
         }
+        /* BeeM-Flash removes the file on purpose (paused, a tool on its
+           bridge, a flash running): the readings go at once, not 2.5 s later */
+        if (!any) at = 0;
     }
 
     return {

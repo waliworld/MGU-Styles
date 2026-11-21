@@ -365,19 +365,22 @@
 
     /* ------------------------------------------------------------ hgauge */
     /*
-     * The Huracan's side instruments: a slanted horizontal scale with its
-     * ticks, a hatched bar under it whose last section is orange-red, and a
-     * red needle crossing both at the value. Laid out on a fixed grid in the
-     * layer (100 px tall, scaled by u_size.y / 100):
-     *   scale line y 52, ticks up from it, the bar y 58..88, the needle
-     *   y 36..96. Everything leans by u_shear (x moves with height).
+     * The Huracan's side instruments, after the car: a straight scale with
+     * ticks rising from it, under it a hatched wedge that is thin at the low
+     * end of the scale and tall at the high end, its stripes white up to the
+     * reading and grey beyond, the warning section always marked in
+     * orange-red, and a red needle crossing both at the value.
+     * Laid out on a fixed grid in the layer (100 units tall, scaled by
+     * u_size.y / 100): scale line y 52, the wedge's foot y 88 and its top
+     * between y 75 (low end) and y 56 (high end), the needle y 36..96.
+     * Everything leans by u_shear (x moves with height).
      */
     var hgauge = [
-        'uniform float u_frac;',      /* 0..1 along the scale */
-        'uniform float u_dir;',       /* 1: grows left to right, -1: right to left */
-        'uniform vec2 u_redZone;',    /* the hot (or empty) section, as fractions */
+        'uniform float u_frac;',      /* 0..1 along the scale, low to high */
+        'uniform float u_dir;',       /* 1: the high end is on the right, -1: on the left */
+        'uniform vec2 u_redZone;',    /* the warning section, as fractions of the scale */
         'uniform float u_shear;',
-        'uniform float u_on;',        /* 0: no reading, no needle */
+        'uniform float u_on;',        /* 0: no reading, no needle, nothing filled */
         'uniform float u_alarm;',
         'uniform vec3 u_col;',
         'uniform vec3 u_hot;',
@@ -389,29 +392,30 @@
         /* undo the lean: x measured as if the gauge stood upright */
         '  float x = p.x - (63.0 - p.y) * u_shear;',
         '  float x0 = 16.0, x1 = W - 16.0;',
-        '  float f = clamp((x - x0) / (x1 - x0), 0.0, 1.0);',
-        '  if (u_dir < 0.0) f = 1.0 - f;',
+        '  float fx = clamp((x - x0) / (x1 - x0), 0.0, 1.0);',
+        '  float f = u_dir < 0.0 ? 1.0 - fx : fx;',          /* along the scale, low to high */
         '  float inX = step(x0, x) * step(x, x1);',
-        '  float px1 = 1.0 / k;',
         '',
         /* the scale line and its ticks */
         '  float line = cov((abs(p.y - 52.0) - 0.75) * k) * inX;',
-        '  float tf = f * 20.0;',
-        '  float tx = abs(fract(tf + 0.5) - 0.5) * (x1 - x0) / 20.0;',
+        '  float tx = abs(fract(f * 20.0 + 0.5) - 0.5) * (x1 - x0) / 20.0;',
         '  float major = step(abs(fract(f * 2.0 + 0.5) - 0.5) * (x1 - x0) / 2.0, 1.2);',
         '  float tickH = mix(5.0, 11.0, major);',
         '  float tick = cov((tx - mix(0.7, 1.0, major)) * k) * step(52.0 - tickH, p.y) * step(p.y, 52.0) * inX;',
         '',
-        /* the hatched bar: leaning stripes, lit up to the value */
-        '  float inBar = step(58.0, p.y) * step(p.y, 88.0) * inX;',
+        /* the wedge: its top falls from y 58 at the high end to y 78 at the low */
+        '  float top = mix(75.0, 56.0, f);',
+        '  float inBar = step(top, p.y) * step(p.y, 88.0) * inX;',
         '  float sx = x + (p.y - 73.0) * 0.55;',
         '  float stripe = cov((abs(fract(sx / 7.0) - 0.5) * 7.0 - 1.6) * k) * inBar;',
         '  float hot = step(u_redZone.x, f) * step(f, u_redZone.y);',
         '  float lit = u_on * step(f, u_frac);',
         '  vec3 sc = mix(u_col, u_hot, hot);',
-        '  float sa = stripe * mix(mix(0.20, 0.36, hot), 0.95, lit);',
-        '  float frame = cov((abs(min(min(p.y - 58.0, 88.0 - p.y), min(x - x0, x1 - x)) ) - 0.6) * k)',
-        '              * step(57.0, p.y) * step(p.y, 89.0) * step(x0 - 1.0, x) * step(x, x1 + 1.0);',
+        '  float sa = stripe * mix(mix(0.22, 0.95, lit), mix(0.80, 1.0, lit), hot);',
+        /* a fine outline round the wedge */
+        '  float edge = min(min(p.y - top, 88.0 - p.y), min(x - x0, x1 - x));',
+        '  float frame = cov((abs(edge) - 0.6) * k) * step(top - 1.0, p.y) * step(p.y, 89.0)',
+        '              * step(x0 - 1.0, x) * step(x, x1 + 1.0);',
         '',
         /* the needle, square across the scale, leaning with it */
         '  float vx = x0 + (u_dir < 0.0 ? 1.0 - u_frac : u_frac) * (x1 - x0);',
@@ -423,7 +427,7 @@
         '',
         '  vec4 c = vec4(0.0);',
         '  c = over(vec4(u_col, line * 0.75 + tick * 0.8), c);',
-        '  c = over(vec4(u_col, frame * 0.28), c);',
+        '  c = over(vec4(u_col, frame * 0.30), c);',
         '  c = over(vec4(sc, sa), c);',
         '  c = over(vec4(u_needle, clamp(glow, 0.0, 1.0) * 0.6), c);',
         '  c = over(vec4(mix(u_needle, vec3(1.0), 0.15), needle), c);',

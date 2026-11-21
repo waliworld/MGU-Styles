@@ -428,7 +428,7 @@ test('genuine and modern backgrounds', () => {
 
 test('the boost gauge stays clear of the G widget and its readings', () => {
     const theme = Theme.build(atlas, 'x3m40i', {});
-    const boost = theme.layers.filter(L => /^boost/.test(L.id));
+    const boost = theme.layers.filter(L => /_boost(_|$)/.test(L.id));
     const g = theme.layers.filter(L => L.id === 'gforce' || /^g[LRUD]$/.test(L.id));
     assert.ok(boost.length >= 3 && g.length === 5);
     const gap = 12;

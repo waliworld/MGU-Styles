@@ -124,3 +124,33 @@ test('the accent can be repainted live, without rebuilding the cluster', () => {
     assert.strictEqual(fixed.settings.accentFollowsAmbient, false);
     assert.deepStrictEqual(fixed.palette.accent.map((v) => +v.toFixed(2)), [1, 0.18, 0.62]);
 });
+
+test('a file BeeM-Flash removes takes its readings with it at once', async (t) => {
+    const f = tmpFile();
+    fs.writeFileSync(f, sample([{ key: 'oilPressure', value: 4.2 }]));
+    const feed = Feed.create({ path: f });
+    t.after(() => feed.stop());
+    feed.start();
+    assert.strictEqual(feed.value('oilPressure'), 4.2);
+    fs.unlinkSync(f);
+    await wait(Feed.POLL_MS + 80);
+    assert.strictEqual(feed.value('oilPressure'), undefined, 'not left showing for 2.5 s');
+});
+
+/* BeeM-Flash's own writer (apps/wali_datalog/clusterfeed.js), when a checkout
+   of it sits beside this one: the two ends of the contract, end to end. */
+const BEEM = path.resolve(__dirname, '../../beem-flash/apps/wali_datalog/clusterfeed.js');
+test('what BeeM-Flash writes is what MGU Styles reads', { skip: !fs.existsSync(BEEM) && 'no BeeM-Flash checkout beside this one' }, (t) => {
+    const { ClusterFeed } = require(BEEM);
+    const f = tmpFile();
+    const w = new ClusterFeed({ path: f });
+    assert.ok(w.publish([{ key: 'oilPressure', value: 4.2, unit: 'bar', label: 'Oil pressure' },
+                         { key: 'ambientRed', value: 255 }, { key: 'ambientGreen', value: 0 },
+                         { key: 'ambientBlue', value: 200 }]));
+    const feed = Feed.create({ path: f });
+    t.after(() => feed.stop());
+    feed.start();
+    assert.strictEqual(feed.value('oilPressure'), 4.2);
+    assert.deepStrictEqual([feed.value('ambientRed'), feed.value('ambientGreen'), feed.value('ambientBlue')], [255, 0, 200]);
+    w.clear();
+});

@@ -363,23 +363,24 @@
             var r = G.grect(rect);
             var k = r.h / 100;
             var left = o.side === 'left';
-            var shear = left ? 0.30 : -0.30;
+            var shear = o.shear !== undefined ? o.shear : left ? 0.30 : -0.30;
+            var podOf = o.pod || function (s) { return s.pods[o.key]; };
             var X0 = 16, X1 = r.w / k - 16;
             /* where a fraction of the scale lands, at a height in the grid */
             function at(f, y) {
                 var ff = o.dir < 0 ? 1 - f : f;
                 return r.x + k * (X0 + ff * (X1 - X0) + (63 - y) * shear);
             }
-            var iconS = 26 * k;
+            var iconS = o.icon === null ? 0 : 26 * k;
             var iconX = left ? r.x + k * (2 + (63 - 12) * shear) : r.x + r.w - k * 2 - iconS + k * (63 - 12) * shear;
-            layers.push({
+            if (o.icon !== null) layers.push({
                 id: 'icon_' + id, z: 20, shader: 'icon',
                 x: iconX, y: r.y - 10 * k, w: iconS, h: iconS,
                 uniforms: function () {
                     return { u_kind: o.icon, u_col: GC.secondaryWhite };
                 }
             });
-            var lblX = left ? iconX + iconS + 8 * k : iconX - 8 * k;
+            var lblX = left ? iconX + iconS + (iconS ? 8 * k : 0) : iconX - 8 * k;
             var lblBox = { x: r.x - 20 * k, y: r.y - 12 * k, w: r.w + 40 * k, h: 30 * k };
             function label(suffix, str, show) {
                 statics('lbl_' + id + suffix, 20, lblBox,
@@ -387,11 +388,13 @@
                       color: GC.secondaryWhite, tracking: 0.8, show: show },
                     [{ str: str, x: lblX, y: r.y + 13 * k }]);
             }
+            /* the scale's numbers in the car's orange-red italic figures */
             function numbers(suffix, marks, show) {
+                var figures = marks.every(function (m) { return /^[0-9]+$/.test(m); });
                 statics('scale_' + id + suffix, 21,
-                    { x: r.x - 30 * k, y: r.y + 20 * k, w: r.w + 60 * k, h: 26 * k },
-                    { face: 'label', size: 14 * k / 0.70, align: 'centre',
-                      color: GC.secondaryWhite, alpha: 0.9, show: show },
+                    { x: r.x - 30 * k, y: r.y + 18 * k, w: r.w + 60 * k, h: 28 * k },
+                    { face: figures ? 'dial' : 'label', size: (figures ? 15 : 14) * k / 0.70, align: 'centre',
+                      color: HOT, alpha: 0.95, show: show },
                     marks.map(function (m, i) {
                         return { str: m, x: at(i / (marks.length - 1), 34), y: r.y + 41 * k };
                     }));
@@ -410,7 +413,7 @@
                 id: 'bar_' + id, z: 21, shader: 'hgauge',
                 x: r.x, y: r.y, w: r.w, h: r.h,
                 uniforms: function (s) {
-                    var g = s.pods[o.key];
+                    var g = podOf(s);
                     var red = o.alt && s.auxIsOil ? o.alt.red : o.red;
                     return {
                         u_frac: clamp01(g.frac), u_dir: o.dir, u_redZone: red,
@@ -428,9 +431,9 @@
                 { face: 'display', size: 19 * k / 0.70, align: left ? 'right' : 'left',
                   x: valX, y: r.y + 14 * k,
                   color: function (s) {
-                      return s.pods[o.key].alarm ? GC.corsaRed : GC.primaryWhite;
+                      return podOf(s).alarm ? GC.corsaRed : GC.primaryWhite;
                   } },
-                function (s) { return s.pods[o.key].text; });
+                function (s) { return podOf(s).text; });
         }
 
         /* scale numbers in the units shown: the pods' fractions are fixed in C */
@@ -448,8 +451,15 @@
 
         /* The far-left region the brief cannot resolve: our own readings. */
         if (S.showAuxLeft) {
-            instrument('oilT', [36, 422, 346, 522], {
-                side: 'left', icon: 2, label: 'TEMP. OLIO', key: 'oilTemp', dir: 1,
+            /*
+             * The left pair mirrors the right: as the car's fuel gauge grows
+             * left to right and its water gauge right to left, oil
+             * temperature grows right to left and oil pressure left to right,
+             * each wedge tallest at its high numbers. Both sit clear of the
+             * dial's low end.
+             */
+            instrument('oilT', [14, 430, 304, 530], {
+                side: 'left', icon: 2, label: 'TEMP. OLIO', key: 'oilTemp', dir: -1,
                 marks: tLabels([50, 110, 170]), red: [0.83, 1]
             });
             /*
@@ -458,7 +468,7 @@
              * and until it does the slot shows turbo pressure, labelled as
              * what it is rather than left reading dashes.
              */
-            instrument('auxPress', [8, 538, 318, 638], {
+            instrument('auxPress', [0, 540, 290, 640], {
                 side: 'left', icon: 2, label: 'PRESS. TURBO', key: 'auxPress', dir: 1,
                 marks: imperial ? ['0', '12', '25'] : ['0', '0.8', '1.7'], red: [0.86, 1],
                 alt: { label: 'PRESS. OLIO', marks: imperial ? ['0', '70', '140'] : ['0', '5', '10'],
@@ -519,24 +529,24 @@
          * is open - well clear of the G readings and the gear's foot.
          */
         if (P.boost && S.showBoost) {
-            var bx = 575, bw = 215, by = 498, bh = 18;
-            statics('boostLbl', 26, { x: bx - 6, y: by - 30, w: 120, h: 28 },
-                { face: 'label', size: G.gs(15) / 0.70, color: GC.secondaryWhite, tracking: 1.5 },
-                [{ str: 'BOOST ' + U.press, x: bx, y: by - 9 }]);
-            layers.push({
-                id: 'boost', z: 26, shader: 'boost',
-                x: bx, y: by, w: bw, h: bh,
-                uniforms: function (s) {
-                    return {
-                        u_frac: boostFrac(s.boostPsi, bMax, bMin), u_zero: BOOST_ZERO,
-                        u_segs: 20, u_peak: boostFrac(s.boostPeakPsi, bMax, bMin)
-                    };
-                }
+            /*
+             * Boost, drawn as one of the side instruments: a slanted scale,
+             * a hatched wedge rising to the top of the range and a red
+             * needle. Vacuum rests on the 0. Under CORSA, left of the load
+             * indicator, where the dial's interior is open.
+             */
+            var bTop = imperial ? Math.ceil(P.boostMaxPsi / 10) * 10 : Math.round(P.boostMaxPsi / 14.503774 * 10) / 10;
+            var bPod = function (s) {
+                var v = s.boostPsi;          /* psi or bar, as shown */
+                return { frac: clamp01(v / bTop), alarm: false,
+                         text: v.toFixed(imperial ? 1 : 2) };
+            };
+            instrument('boost', [548, 440, 838, 532], {
+                side: 'left', icon: null, label: 'BOOST ' + U.press, pod: bPod, dir: 1, shear: 0.30,
+                marks: imperial ? ['0', String(bTop / 2), String(bTop)]
+                    : ['0', (bTop / 2).toFixed(1), bTop.toFixed(1)],
+                red: [0.88, 1]
             });
-            txt('boostVal', 26, { x: bx + bw - 90, y: by - 32, w: 96, h: 30 },
-                { face: 'display', size: G.gs(18) / 0.70, align: 'right',
-                  x: bx + bw, y: by - 9, color: GC.primaryWhite },
-                function (s) { return s.boostPsi.toFixed(imperial ? 1 : 2); });
         }
 
         var PSI_PER_BAR = 14.503774;
