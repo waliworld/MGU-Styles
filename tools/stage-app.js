@@ -43,6 +43,7 @@ const MODULES = [
     ['src/theme/index.js', 'theme.js'],
     ['src/car/cluster.js', 'cluster.js'],
     ['src/car/centre.js', 'centre.js'],
+    ['src/car/feed.js', 'feed.js'],
     ['src/car/vehicle.js', 'vehicle.js'],
     ['src/car/main.js', 'service.js'],
     ['src/car/cluster_render_client.js', 'cluster_render_client.js'],

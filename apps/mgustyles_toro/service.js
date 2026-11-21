@@ -21,6 +21,7 @@ var Atlas = require('./atlas.js');
 var State = require('./state.js');
 var Theme = require('./theme.js');
 var Centre = require('./centre.js');
+var Feed = require('./feed.js');
 var Panel = require('./panel.js');
 var core = require('./shaders_core.js');
 var parts = require('./shaders_parts.js');
@@ -93,6 +94,9 @@ function start(host, deps) {
     /* the Track theme's centre: Waze and Turn View, asked for, never held */
     var centre = deps.centre || Centre.create({ log: log, dataDir: host.dataDir });
     try { centre.start(); } catch (e) { log.warn('centre: ' + e); }
+    /* readings another app on the head unit can supply (docs/BEEM-FLASH-FEED.md) */
+    var feed = deps.feed || Feed.create({ log: log, now: now });
+    try { feed.start(); } catch (e) { log.warn('feed: ' + e); }
 
     var connected = false;
     var running = false;        /* our layers are up */
@@ -185,6 +189,12 @@ function start(host, deps) {
     function frame() {
         if (stopped) return;
         try {
+            /* anything the feed carries goes in before the frame is built */
+            try {
+                var op = feed.value('oilPressure');
+                if (typeof op === 'number') reader.setOilPressureBar(op, now());
+            } catch (e) { log.warn('feed: ' + e); }
+
             var raw = reader.raw(now(), settings.tankLitres || profileTank(profile));
             var car = carState(raw);
             var enabled = theme && theme.settings.enabled;
@@ -235,9 +245,13 @@ function start(host, deps) {
             try { if (driver) driver.stop(); } catch (e) { /* closing anyway */ }
             running = false;
             try { centre.stop(); } catch (e) { /* closing anyway */ }
+            try { feed.stop(); } catch (e) { /* closing anyway */ }
             if (cr.close) cr.close();
         },
-        /* the centre's sources, for the iDrive screen */
+        /* the other apps we read, for the iDrive screen */
+        feed: function () {
+            try { return feed.info(); } catch (e) { return null; }
+        },
         centre: function () {
             try { return centre.info(); } catch (e) { return null; }
         },

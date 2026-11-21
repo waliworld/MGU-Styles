@@ -317,12 +317,20 @@
                     return { u_kind: opts.icon, u_col: GC.secondaryWhite };
                 }
             });
-            statics('lbl_' + id, 20,
-                { x: r.x - G.gs(30), y: r.y + G.gs(30), w: r.w + G.gs(60), h: G.gs(40) },
-                { face: 'label', size: G.gs(15) / 0.70, align: 'centre',
-                  color: GC.secondaryWhite, tracking: 0.5 },
-                [{ str: opts.l1, x: cx, y: r.y + G.gs(46) },
-                 { str: opts.l2, x: cx, y: r.y + G.gs(61) }]);
+            function label(suffix, l1, l2, show) {
+                statics('lbl_' + id + suffix, 20,
+                    { x: r.x - G.gs(30), y: r.y + G.gs(30), w: r.w + G.gs(60), h: G.gs(40) },
+                    { face: 'label', size: G.gs(15) / 0.70, align: 'centre',
+                      color: GC.secondaryWhite, tracking: 0.5, show: show },
+                    [{ str: l1, x: cx, y: r.y + G.gs(46) },
+                     { str: l2, x: cx, y: r.y + G.gs(61) }]);
+            }
+            if (opts.alt) {
+                label('', opts.l1, opts.l2, function (s) { return !s.auxIsOil; });
+                label('_alt', opts.alt[0], opts.alt[1], function (s) { return !!s.auxIsOil; });
+            } else {
+                label('', opts.l1, opts.l2, null);
+            }
 
             layers.push({
                 id: 'bar_' + id, z: 21, shader: 'gauge',
@@ -383,8 +391,9 @@
              * reading dashes. src/car/vehicle.js keeps setOilPressureBar
              * for a feed that can supply the real thing.
              */
-            instrument('boostPod', [262, 425, 357, 675], {
-                icon: 0, l1: 'PRESS.', l2: 'TURBO', key: 'boost',
+            instrument('auxPress', [262, 425, 357, 675], {
+                icon: 0, l1: 'PRESS.', l2: 'TURBO', alt: ['PRESS.', 'OLIO'],
+                key: 'auxPress',
                 marks: [imperial ? '25' : '1.7', imperial ? '12' : '0.8', '0'],
                 ticks: 5, redFrom: 0.86, invert: false
             });

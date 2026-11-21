@@ -151,7 +151,8 @@ mgu.run({
             const on = settings.get('enabled') === true;
             const track = settings.get('style') === 'track';
             const centre = background && background.centre ? background.centre() : null;
-            const sig = JSON.stringify([status, on, centre, settingsOf(settings, ctx.spec)]);
+            const feed = background && background.feed ? background.feed() : null;
+            const sig = JSON.stringify([status, on, centre, feed, settingsOf(settings, ctx.spec)]);
             if (sig === last) return;
             last = sig;
 
@@ -177,7 +178,7 @@ mgu.run({
                 ['Dial', choice('scaleMaxRpm')],
                 ['Redline / limiter', choice('rpmRedline') + '  /  ' + choice('rpmLimiter')],
                 ['Look', choice('background') + ', ' + choice('accent')],
-                ['Units', choice('units')]
+                ['Readings', feed || 'BeeM-Flash: not running']
             ];
             rows.forEach((r, i) => {
                 const y = 254 + i * 46;

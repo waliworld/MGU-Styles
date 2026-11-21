@@ -104,6 +104,14 @@
                   String(Math.round(fuel)), fuel <= 10 ? DANGER : GOLD)
             : pod(0, 2, 0, dash, GOLD);
 
+        /* The second left dial: oil pressure when something can supply it. */
+        var auxIsOil = has(oilP);
+        var auxPress = auxIsOil
+            ? pod(oilP / 8, 2, rpm > 1200 && oilP < 1.0,
+                  imperial ? String(Math.round(oilP * PSI_PER_BAR)) : oilP.toFixed(1), LIT)
+            : pod(boost / (imperial ? 25 : 25 / PSI_PER_BAR), 2, 0,
+                  boost.toFixed(imperial ? 1 : 2), LIT);
+
         /* ---- readouts ---- */
         var odoText = dash;
         if (has(raw.odoKm)) {
@@ -138,17 +146,17 @@
             boostPsi: boost,
             boostPeakPsi: boostPeak,
             gOk: has(raw.gLat) || has(raw.gLon),
+            auxIsOil: auxIsOil,
             gLat: has(raw.gLat) ? raw.gLat : 0,
             gLon: has(raw.gLon) ? raw.gLon : 0,
             gPeakLat: has(raw.gPeakLat) ? raw.gPeakLat : 0,
             gPeakLon: has(raw.gPeakLon) ? raw.gPeakLon : 0,
             pods: { oilTemp: oilTemp, oilPress: oilPress,
                     coolant: coolant, fuel: fuelPod,
-                    /* the Huracan's second left dial is oil pressure, which
-                       this car does not publish; turbo pressure takes the
-                       slot, labelled as what it is */
-                    boost: pod(boost / (imperial ? 25 : 25 / PSI_PER_BAR), 2, 0,
-                               boost.toFixed(imperial ? 1 : 2), LIT) },
+                    /* the Huracan's second left dial is oil pressure. This
+                       car does not publish it, so turbo pressure takes the
+                       slot unless a feed supplies the real thing. */
+                    auxPress: auxPress },
             odoText: odoText, rangeText: rangeText,
             clockText: clockText, ambientText: ambientText
         };

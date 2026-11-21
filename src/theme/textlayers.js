@@ -43,6 +43,7 @@
         });
     }
 
+    /* base.show(state) -> false hides the layer for that frame */
     function statics(id, z, box, base, items) {
         var chunk = [], used = 0, n = 0, i;
         function flush() {
@@ -61,7 +62,8 @@
             layers.push({
                 id: id + (n ? '_' + n : ''), z: z, shader: 'text',
                 x: box.x, y: box.y, w: box.w, h: box.h,
-                uniforms: function () {
+                uniforms: function (state) {
+                    if (base.show && !base.show(state)) return null;
                     return {
                         u_g: L.g, u_quad: L.p, u_count: L.count, u_sharp: L.sharp,
                         u_color: [col[0], col[1], col[2], al],
