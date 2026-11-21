@@ -33,6 +33,8 @@
 
     var PLACES = {
         snow: [[0, 0, 470, 646], [1450, 0, 470, 646]],
+        /* Toro's side instruments: their gauges, labels, figures and icons */
+        clearOf: /^(bar|lbl|scale|val|icon)_/,
         tree: [1702, 196, 150, 188]
     };
 
@@ -81,6 +83,12 @@
         return f > 0 ? f * f * (3 - 2 * f) : 0;
     }
 
+    function union(a, b) {
+        var x0 = Math.min(a[0], b[0]), y0 = Math.min(a[1], b[1]);
+        var x1 = Math.max(a[0] + a[2], b[0] + b[2]), y1 = Math.max(a[1] + a[3], b[1] + b[3]);
+        return [x0, y0, x1 - x0, y1 - y0];
+    }
+
     function add(theme, atlas, S, colours) {
         var layers = theme.layers;
         var places = theme.places || PLACES;
@@ -89,13 +97,36 @@
         var TL = TextLayers.create(atlas, layers, { text: [1, 1, 1], muted: [1, 1, 1] });
 
         if (S.holiday) {
+            /* the theme's instruments, which the snow keeps off: the layers
+               it names, gathered into at most four boxes per side */
+            var keepOff = theme.layers.filter(function (L) {
+                return places.clearOf && places.clearOf.test(L.id);
+            });
             places.snow.forEach(function (r, i) {
                 var right = r[0] + r[2] / 2 > Panel.PANEL_WIDTH / 2;
+                var boxes = [];
+                keepOff.forEach(function (L) {
+                    if (L.x >= r[0] + r[2] || L.x + L.w <= r[0] || L.y >= r[1] + r[3] || L.y + L.h <= r[1]) return;
+                    boxes.push([L.x - r[0], L.y - r[1], L.w, L.h]);
+                });
+                /* merge down to four: the smallest pair joined each time */
+                while (boxes.length > 4) {
+                    var bi = 0, bj = 1, best = Infinity, a, b;
+                    for (a = 0; a < boxes.length; a++) for (b = a + 1; b < boxes.length; b++) {
+                        var u = union(boxes[a], boxes[b]), area = u[2] * u[3];
+                        if (area < best) { best = area; bi = a; bj = b; }
+                    }
+                    var m = union(boxes[bi], boxes[bj]);
+                    boxes.splice(bj, 1); boxes[bi] = m;
+                }
+                var clear = [];
+                boxes.forEach(function (bx) { clear.push(bx[0], bx[1], bx[2], bx[3]); });
+                while (clear.length < 16) clear.push(0, 0, 0, 0);
                 layers.push({
                     id: 'snow' + i, z: 3, shader: 'snow',
                     x: r[0], y: r[1], w: r[2], h: r[3],
                     uniforms: function () {
-                        return { u_side: right ? 1 : 0, u_tint: [0.78, 0.88, 1.0] };
+                        return { u_side: right ? 1 : 0, u_tint: [0.78, 0.88, 1.0], u_clear: clear };
                     }
                 });
             });

@@ -256,3 +256,21 @@ test('boost: level with the speed, a step bigger each psi, its gauge sweeping ri
     assert.ok(u.u_alpha < 0.6, 'faint');
     assert.ok(gauge.x > num.x + num.w - 40, 'right of the figure');
 });
+
+test('holiday: the snow keeps off the side gauges', () => {
+    const th = Themes.build(atlas, 'x3m40i', { holiday: true });
+    for (const id of ['snow0', 'snow1']) {
+        const L = find(th, id);
+        const clear = L.uniforms().u_clear;
+        assert.strictEqual(clear.length, 16, 'four boxes');
+        const boxes = [];
+        for (let i = 0; i < 16; i += 4) if (clear[i + 2] > 0) boxes.push(clear.slice(i, i + 4));
+        assert.ok(boxes.length >= 1, id + ' clears something');
+        /* every gauge on this side lies inside a cleared box */
+        for (const g of th.layers.filter((x) => /^bar_/.test(x.id) && x.x < L.x + L.w && x.x + x.w > L.x)) {
+            const gx = g.x - L.x, gy = g.y - L.y;
+            assert.ok(boxes.some((b) => gx >= b[0] - 0.5 && gy >= b[1] - 0.5 &&
+                gx + g.w <= b[0] + b[2] + 0.5 && gy + g.h <= b[1] + b[3] + 0.5), g.id + ' cleared');
+        }
+    }
+});

@@ -338,8 +338,10 @@ shader that ships.
    Pick the style in **Settings**.
 5. For M's centre: install **Maps on cluster** (`robertnisipeanu/idrive-apps`)
    for Waze, and/or **Turn View** (`IterioDev/car-apps`) for the camera,
-   from their own Store sources. Then press **Waze on cluster** on MGU
-   Styles' page, or pick the centre in Settings. Nothing else to set:
+   from their own Store sources. Then press **Waze** on MGU Styles' page
+   (it switches the map on or off in whichever style is showing: Toro
+   opens its background over the map, M shows it in its window), or pick
+   the centre in Settings. Nothing else to set:
    MGU Styles moves the map in and out by itself. Only Turn View's
    *camera* needs the car's **Instrument cluster > Central display area**
    on **Map view**, because Turn View draws its camera there (its own

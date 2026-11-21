@@ -259,6 +259,7 @@ mgu.run({
                 ['Turn View', centre ? centre.turnView : '-'],
                 ['Redline / limiter', choice('rpmRedline') + '  /  ' + choice('rpmLimiter')]
             ] : [
+                ['Waze', settings.get('centre') === 'waze' ? (centre ? centre.waze : 'asked for') : 'Off'],
                 ['Colour', choice('accent')],
                 ['Shift lights', choice('shiftStyle') + (settings.get('shake') !== 'off' ? ', shake' : '')],
                 ['Extras', [settings.get('holiday') ? 'Holiday' : '', settings.get('intro') ? 'Start-up message' : '']
@@ -266,12 +267,12 @@ mgu.run({
                 ['Readings', feed || 'BeeM-Flash: not running']
             ];
             rows.forEach((r, i) => {
-                const y = 262 + i * 44;
+                const y = 258 + i * (rows.length > 4 ? 38 : 44);
                 label(r[0], 44, y, 18, FAINT);
                 fitLabel(r[1], 230, y, 20, 400, INK);
             });
-            label(!on ? 'Off. Show on cluster turns it on.'
-                : auto ? 'On at every start. BMW original turns it off.'
+            label(!on ? 'Off. Cluster on / off brings it up.'
+                : auto ? 'On at every start. Cluster on / off gives BMW\'s back.'
                        : 'On for this drive; BMW\'s own at the next start.',
                   44, 460, 17, DIM);
             label("Warnings and the bottom strip always stay BMW's.", 44, 488, 17, FAINT);
@@ -320,11 +321,10 @@ mgu.run({
                 else if (Math.abs(x - ARROWS.right) <= ARROWS.hit) step(1);
             });
         }
-        /* Waze lives in the Track style's centre: turning it on picks Track */
+        /* Waze on the cluster, in whichever style is showing: both host it
+           (M in its window, Toro behind its opening). On or off, nothing else. */
         ui.onClick('BTN_WAZE', () => {
-            const on = settings.get('style') === 'track' && settings.get('centre') === 'waze';
-            if (on) settings.set('centre', 'off');
-            else { settings.set('style', 'track'); settings.set('centre', 'waze'); }
+            settings.set('centre', settings.get('centre') === 'waze' ? 'off' : 'waze');
             refresh();
         });
         refresh();

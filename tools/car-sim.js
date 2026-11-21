@@ -249,8 +249,10 @@ async function main() {
     console.log('done');
 
     const THEME = process.env.CAR_SIM_THEME || 'toro';
-    const data = installHeadUnit({ enabled: true, style: THEME, centre: process.env.CAR_SIM_CENTRE || 'waze',
-                                   background: process.env.CAR_SIM_BG || 'genuine' });
+    /* CAR_SIM_SETTINGS='{"holiday":true}' adds any other setting */
+    const extra = process.env.CAR_SIM_SETTINGS ? JSON.parse(process.env.CAR_SIM_SETTINGS) : {};
+    const data = installHeadUnit(Object.assign({ enabled: true, style: THEME, centre: process.env.CAR_SIM_CENTRE || 'waze',
+                                   background: process.env.CAR_SIM_BG || 'genuine' }, extra));
     const nb = neighbours();
     const scenarioFile = path.join(OUT, 'scenario.js');
     writeScenario(scenarioFile);
@@ -275,6 +277,12 @@ async function main() {
         const s = snapshot(r.state, at);
         s.what = what;
         s.wazeTarget = nb.waze.target;
+        /* Toro: how far its background has opened over the map */
+        s.holeOpen = 0;
+        Object.keys(r.state.layers).forEach((ref) => {
+            const u = r.state.layers[ref].uniforms.u_holeOpen;
+            if (u) s.holeOpen = u[0];
+        });
         s.theme = THEME;
         shots.push(s);
     }
@@ -313,14 +321,23 @@ async function main() {
     if (!on(2) || !on(3) || !on(4)) problems.push('it did not draw while driving');
     if (shots[5].layers.length) problems.push('it did not hand the cluster back at key-off');
     if (!r.state.atlas) problems.push('the glyph atlas never arrived');
-    if (THEME === 'track') {
+    const CENTRE = process.env.CAR_SIM_CENTRE || 'waze';
+    if (CENTRE === 'waze') {
+        /* both styles host the map: M in its window, Toro behind its opening */
         console.log('  waze: ' + (nb.waze.cmds.map((c) => ((c.t - start) / 1000).toFixed(1) + ' s start ' + c.target).join(', ') || 'never asked'));
-        console.log('  turn view: ' + nb.tv.connects + ' polls, at most ' + nb.tv.maxOpen + ' connection open');
+        if (THEME === 'toro') {
+            console.log('  opening over the map: ' + shots.map((x) => x.holeOpen.toFixed(2)).join(' '));
+            if (!(shots[4].holeOpen > 0.5)) problems.push('Toro did not open over the map while driving');
+            if (shots[1].holeOpen > 0) problems.push('Toro opened before Waze was there');
+        }
         const toPanel = nb.waze.cmds.filter((c) => c.target === 'panel');
         if (!toPanel.length) problems.push('Waze was never moved into the cluster');
         else if (toPanel[0].t - start < 4000) problems.push('Waze was moved before the car was on');
         if (nb.waze.target !== 'map') problems.push('Waze was not given back at key-off');
         if (shots[3].wazeTarget !== 'panel') problems.push('Waze not in the panel while driving');
+    }
+    if (THEME === 'track') {
+        console.log('  turn view: ' + nb.tv.connects + ' polls, at most ' + nb.tv.maxOpen + ' connection open');
         if (nb.tv.maxOpen > 1 || nb.tv.open > 0) problems.push('a Turn View connection was held open');
     }
     if (problems.length) { console.log('\nFAILED: ' + problems.join('; ')); process.exit(1); }

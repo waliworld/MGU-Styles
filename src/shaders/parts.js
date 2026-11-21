@@ -473,6 +473,7 @@
     var snow = [
         'uniform float u_side;',      /* 0: the left side (outer edge x 0), 1: the right */
         'uniform vec3 u_tint;',
+        'uniform vec4 u_clear[4];',   /* x, y, w, h in the layer: kept clear (instruments) */
         'float hash(vec2 q) { return fract(sin(dot(q, vec2(127.1, 311.7))) * 43758.5453); }',
         'void main() {',
         '  vec2 p = px();',
@@ -500,7 +501,14 @@
         '    float a = (body * 0.16 + rim * 0.55 + hl * 0.9 + halo) * here * (0.45 + fi * 0.25);',
         '    c = over(vec4(mix(u_tint, vec3(1.0), clamp(hl + rim * 0.4, 0.0, 1.0)), clamp(a, 0.0, 1.0)), c);',
         '  }',
-        '  gl_FragColor = vec4(c.rgb, c.a * density);',
+        /* no snow over the instruments: it fades out round each clear box */
+        '  float keep = 1.0;',
+        '  for (int j = 0; j < 4; j++) {',
+        '    vec4 r = u_clear[j];',
+        '    vec2 dq = max(max(r.xy - p, p - (r.xy + r.zw)), 0.0);',
+        '    keep *= r.z > 0.0 ? smoothstep(0.0, 22.0, length(dq)) : 1.0;',
+        '  }',
+        '  gl_FragColor = vec4(c.rgb, c.a * density * keep);',
         '}'
     ].join('\n');
 
@@ -605,6 +613,7 @@
     var snow = [
         'uniform float u_side;',      /* 0: the left side (outer edge x 0), 1: the right */
         'uniform vec3 u_tint;',
+        'uniform vec4 u_clear[4];',   /* x, y, w, h in the layer: kept clear (instruments) */
         'float hash(vec2 q) { return fract(sin(dot(q, vec2(127.1, 311.7))) * 43758.5453); }',
         'void main() {',
         '  vec2 p = px();',
@@ -632,7 +641,14 @@
         '    float a = (body * 0.16 + rim * 0.55 + hl * 0.9 + halo) * here * (0.45 + fi * 0.25);',
         '    c = over(vec4(mix(u_tint, vec3(1.0), clamp(hl + rim * 0.4, 0.0, 1.0)), clamp(a, 0.0, 1.0)), c);',
         '  }',
-        '  gl_FragColor = vec4(c.rgb, c.a * density);',
+        /* no snow over the instruments: it fades out round each clear box */
+        '  float keep = 1.0;',
+        '  for (int j = 0; j < 4; j++) {',
+        '    vec4 r = u_clear[j];',
+        '    vec2 dq = max(max(r.xy - p, p - (r.xy + r.zw)), 0.0);',
+        '    keep *= r.z > 0.0 ? smoothstep(0.0, 22.0, length(dq)) : 1.0;',
+        '  }',
+        '  gl_FragColor = vec4(c.rgb, c.a * density * keep);',
         '}'
     ].join('\n');
 
