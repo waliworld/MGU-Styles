@@ -117,6 +117,10 @@
                     u_black: GC.screenBlack, u_blue: GC.screenBlueBlack,
                     u_lower: GC.lowerField, u_line: GC.geometricLine,
                     u_hex: S.hexagons, u_hexSize: S.hexSize, u_facets: S.facets, u_rev: S.revuelto,
+                    u_hexTint: S.hexTint,
+                    /* white lifted towards the accent, unless a colour was set */
+                    u_node: C.node || [0.5 + 0.5 * C.accent[0], 0.5 + 0.5 * C.accent[1],
+                                       0.5 + 0.5 * C.accent[2]],
                     u_accent: C.accent
                 };
             }
@@ -197,16 +201,42 @@
             numVals.push(v);
         }
         var numBox = {
-            x: Math.max(0, G.gx(T.cx - T.rNumeral) - 60),
-            y: Math.max(0, G.gy(T.cy - T.rNumeral) - 50), w: 0, h: 0
+            x: Math.max(0, G.gx(T.cx - T.rNumeral) - 84),
+            y: Math.max(0, G.gy(T.cy - T.rNumeral) - 74), w: 0, h: 0
         };
-        numBox.w = Math.min(Panel.PANEL_WIDTH, G.gx(T.cx + T.rNumeral) + 60) - numBox.x;
+        numBox.w = Math.min(Panel.PANEL_WIDTH, G.gx(T.cx + T.rNumeral) + 84) - numBox.x;
         numBox.h = Math.min(Panel.BOTTOM_CUT,
-            Math.max(G.point(T.vMax, T.rNumeral).y, G.point(T.vMin, T.rNumeral).y) + 64) - numBox.y;
+            Math.max(G.point(T.vMax, T.rNumeral).y, G.point(T.vMin, T.rNumeral).y) + 88) - numBox.y;
 
         var numLayout = Text.place(atlas, numItems.map(function (it) {
             return { str: it.str, x: it.x - numBox.x, y: it.y - numBox.y };
         }), { face: 'dial', size: numSize, align: 'centre', baseline: 'middle' });
+
+        /*
+         * The scale grows as it climbs: the first numeral a tenth larger
+         * than the brief's, each one after it a little larger again, and
+         * the numeral at the red mark the largest - a twentieth above the
+         * first. Baked into the glyph quads here rather than sent to the
+         * shader, which has no uniform vectors to spare; the shader's own
+         * scaling, as the needle passes, multiplies on top of it.
+         */
+        (function growWithTheScale() {
+            var first = 1.10, atRed = 1.05, span = Math.max(1, redV - 1), i, j = 0;
+            for (i = 0; i < numVals.length; i++) {
+                var t = Math.max(0, Math.min(1, (numVals[i] - 1) / span));
+                var k = first * (1 + (atRed - 1) * t);
+                var n = String(numVals[i]).length, c;
+                for (c = 0; c < n && j < 12; c++, j++) {
+                    var q = j * 4;
+                    var cx = numLayout.p[q] + numLayout.p[q + 2] / 2;
+                    var cy = numLayout.p[q + 1] + numLayout.p[q + 3] / 2;
+                    numLayout.p[q + 2] *= k;
+                    numLayout.p[q + 3] *= k;
+                    numLayout.p[q] = cx - numLayout.p[q + 2] / 2;
+                    numLayout.p[q + 1] = cy - numLayout.p[q + 3] / 2;
+                }
+            }
+        }());
 
         /* Each glyph carries its own scale value, so "10" works as two. */
         var gt = [];

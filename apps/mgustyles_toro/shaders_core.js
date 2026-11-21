@@ -36,6 +36,8 @@
         'uniform vec3 u_accent;',
         'uniform float u_hex;',
         'uniform float u_hexSize;',
+        'uniform vec3 u_node;',          /* the little circles at the joints */
+        'uniform float u_hexTint;',      /* how much the lattice takes the accent */
         'uniform float u_facets;',
         'uniform float u_rev;',
         'uniform vec4 u_hole;',          /* x, y, w, h of the map opening */
@@ -109,11 +111,11 @@
         '    float sector = floor((ang + 3.14159265) / 1.0471976);',
         '    float shade = 0.5 + 0.5 * sin(sector * 2.3 + hash21(hc.zw) * 6.2831);',
         '    float glass = 0.010 + 0.055 * shade * shade;',
-        '    vec3 silver = vec3(0.78, 0.80, 0.84);',
+        '    vec3 silver = mix(vec3(0.78, 0.80, 0.84), u_accent, u_hexTint);',
         '    col = mix(col, vec3(0.0), 0.6 * mask * u_hex);',   /* black behind the lattice */
         '    col += vec3(glass) * mask * u_hex;',
         '    col += silver * line * (0.30 + 0.25 * exp(-dn / 40.0)) * mask * u_hex;',
-        '    col += mix(silver, vec3(1.0), 0.5) * node * 0.85 * mask * u_hex;',
+        '    col += u_node * node * 0.85 * mask * u_hex;',
         '  }',
         '',
         /* revuelto: the Y light signature, nested three deep on each side with

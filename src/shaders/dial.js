@@ -239,7 +239,7 @@
         '    float red = u_gt[i].y;',
         '    float pop = exp(-pow((vi - u_cfg.z) * 1.45, 2.0));',
         '    float lit = step(vi, u_cfg.z);',
-        '    float scale = 1.0 + 0.85 * pop;',
+        '    float scale = 1.0 + 1.05 * pop;',
         '    vec4 q4 = u_quad[i];',
         '    vec2 cq = q4.xy + q4.zw * 0.5;',
         '    vec2 sz = max(q4.zw * scale, vec2(1.0));',

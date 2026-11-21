@@ -113,7 +113,14 @@
         facets: null,
         hexagons: null,
         revuelto: null,
-        hexSize: 150
+        hexSize: 150,
+        /*
+         * The modern lattice: how much of the accent its lines take, and
+         * the colour of the little circles at the joints. Both follow the
+         * accent, so they move with the interior light too.
+         */
+        hexTint: 0.3,            /* 0 silver .. 1 the accent */
+        nodeColour: ''           /* '' a touch of accent | accent | white | a scheme */
     };
 
     function clampNum(v, lo, hi, fallback) {
@@ -188,6 +195,7 @@
         s.showZeroNumeral = s.showZeroNumeral === true;
         s.dialFill = clampNum(s.dialFill, 0, 1.5, DEFAULTS.dialFill);
         s.hexSize = clampNum(s.hexSize, 40, 200, DEFAULTS.hexSize);
+        s.hexTint = clampNum(s.hexTint, 0, 1, DEFAULTS.hexTint);
         if (['off', 'band', 'edges', 'both'].indexOf(s.revFlash) < 0) {
             s.revFlash = DEFAULTS.revFlash;
         }
@@ -209,8 +217,18 @@
             lit: (lit || scheme.accent).slice()
         };
         s.litFollowsAccent = !lit;
+        /* the lattice's joints: white with a touch of the accent unless told */
+        var node = s.nodeColour;
+        s.colours = s.colours || {};
+        /* resolved below, once the accent is known */
+
         /* the limiter flash: the brief's red unless a scheme is named */
         s.flashCol = s.flashColourName ? SCHEMES[s.flashColourName].accent : [1.0, 0.149, 0.239];
+        s.colours.node = node === 'white' ? [1, 1, 1]
+            : node === 'accent' ? s.colours.accent
+            : SCHEMES[node] ? SCHEMES[node].accent.slice()
+            : null;                      /* null: follow the accent, lightly */
+        s.nodeFollowsAccent = !s.colours.node || node === 'accent';
         s.schemeName = scheme.name;
         return s;
     }

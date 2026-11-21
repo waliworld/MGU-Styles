@@ -211,6 +211,74 @@
       ]
     },
     {
+      "key": "nodeColour",
+      "label": "Hex lattice: joint colour",
+      "type": "choice",
+      "default": "",
+      "options": [
+        [
+          "",
+          "A touch of the colour"
+        ],
+        [
+          "accent",
+          "Full colour"
+        ],
+        [
+          "white",
+          "White"
+        ],
+        [
+          "arancio",
+          "Arancio"
+        ],
+        [
+          "rosso",
+          "Rosso"
+        ],
+        [
+          "blu",
+          "Blu"
+        ],
+        [
+          "verde",
+          "Verde"
+        ],
+        [
+          "magenta",
+          "Magenta"
+        ],
+        [
+          "giallo",
+          "Giallo"
+        ]
+      ]
+    },
+    {
+      "key": "hexTint",
+      "label": "Hex lattice: lines take the colour",
+      "type": "choice",
+      "default": "0.3",
+      "options": [
+        [
+          "0",
+          "Silver"
+        ],
+        [
+          "0.3",
+          "A little"
+        ],
+        [
+          "0.6",
+          "More"
+        ],
+        [
+          "1",
+          "Fully"
+        ]
+      ]
+    },
+    {
       "key": "accent",
       "label": "Toro: colour",
       "type": "choice",
