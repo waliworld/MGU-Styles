@@ -1,6 +1,6 @@
-# M View — measurements
+# M Sport (the M View) — measurements
 
-What the M style (`src/theme/track.js`, style `track`) is drawn from, how
+What M Sport (`src/theme/track.js`, style `track`) is drawn from, how
 each number was taken off the reference frame, and how closely the render
 matches it. The guide these answer is [M-VIEW-SPEC.md](M-VIEW-SPEC.md)
 (sections 11 and 12).
@@ -174,6 +174,23 @@ SIL OFL. They are the closest open matches, not the car's own type: at
 
 Toro's glyphs are packed first and untouched: its 133 glyphs have the same
 cells, pixel for pixel, as in Beta 1.
+
+**The 7** (corrected in Beta 3). It was first drawn with its leg starting
+at the bar's top right corner, which stood it too upright and too far
+left. Measured on the rev scale's `7`, on `270` and on the footer's `207`,
+in figure heights from the figure's left:
+
+| | Leg at 0.3 down | at 0.5 | at 0.9 | Leaves the right side |
+|---|---|---|---|---|
+| Photograph, dial cut | 0.85 – 1.23 | 0.66 – 1.05 | 0.29 – 0.66 | at 0.26, below the bar (0.19) |
+| First drawing | 0.72 – 1.06 | 0.58 – 0.93 | 0.32 – 0.67 | at the top corner |
+| Now (`mw`) | 0.87 – 1.22 | 0.68 – 1.03 | 0.30 – 0.65 | at 0.25 |
+| Photograph, footer cut | 0.63 – 0.91 | 0.50 – 0.79 | 0.23 – 0.53 | at 0.24 |
+| Now (`mn`) | 0.63 – 0.90 | 0.50 – 0.77 | 0.24 – 0.51 | at 0.25 |
+
+The bar runs the full width and ends square; the leg hangs from that end
+and leans back to a level foot (`Face.seven` in `tools/mglyphs.py`: the
+leg's level width, where it leaves, where its foot starts).
 
 ## 7. Control points
 

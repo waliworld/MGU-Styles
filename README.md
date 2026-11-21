@@ -1,19 +1,23 @@
 # MGU-Styles
 
-Custom instrument clusters for BMW iDrive 7 (MGU), in two styles you switch
-between on iDrive:
+Custom instrument clusters for BMW iDrive 7 (MGU), in three styles you
+switch between on iDrive:
 
 - **Toro**, after a modern Lamborghini: a wide rev band, a huge hollow gear
   numeral in arancio, Italian-labelled side pods, and three backgrounds
   (genuine Huracán, modern hex lattice, Revuelto). Plus two things the
   factory car never had, a **boost gauge** and **GT3 three-stage shift
   lights with a limiter flash**.
-- **M**, BMW M's iDrive 8 **M View** rebuilt on the iDrive 7 panel from a
-  photograph of the real thing, line for line: the blue speed dial and the
-  red rev dial as angular rails with a level marker, the dark-blue plates
-  behind them, both speeds, fuel and oil as leaning strips, and a centre
-  that can show the **Waze map**, **Turn View's front camera** or a turn
-  card between the dials.
+- **M Sport**, BMW M's iDrive 8 **M View** rebuilt on the iDrive 7 panel
+  from a photograph of the real thing, line for line: the blue speed dial
+  and the red rev dial as angular rails with a level marker, the dark-blue
+  plates behind them, both speeds, fuel and oil as leaning strips, and a
+  centre that can show the **Waze map**, **Turn View's front camera** or a
+  turn card between the dials.
+- **M Sport Plus**, the same dials round another middle: the blue and red
+  **M stripes** on one wide plate, with the **Waze map inside that plate**,
+  its edges melting into it, and scale numbers that **grow as the needle
+  passes them**.
 
 It runs on a rooted head unit through
 [`cluster-render`](https://github.com/robertnisipeanu/idrive-apps), installed
@@ -39,8 +43,8 @@ from the [MGU Store](https://github.com/robertnisipeanu/mgu-store).
 | Units | imperial (mph, °F, psi); metric available |
 | Head unit | iDrive 7 (ID7). iDrive 8 is planned — `cluster-render` already supports it |
 | Package | **ready to install** from the MGU Store as **MGU Styles** (`mgustyles_toro`) |
-| Releases | **Beta 2** (0.5.0, `main`): the M style rebuilt to its reference. **Beta 1** (0.4.0) is kept on the branch `beta-1`. See [CHANGELOG.md](CHANGELOG.md) |
-| On a car | Beta 1 has been installed on the target car by its owner, and what came back shaped the iDrive page and Toro's gauges. **Beta 2's M style has not been on a car yet**: it has been run in the preview and end to end against a simulated car (below). The in-car checklist is **[docs/IN-CAR-TEST.md](docs/IN-CAR-TEST.md)** |
+| Releases | **Beta 3** (0.6.0, `main`): M Sport and M Sport Plus. **Beta 2** (0.5.0) and **Beta 1** (0.4.0) are kept on the branches `beta-2` and `beta-1`. See [CHANGELOG.md](CHANGELOG.md) |
+| On a car | Beta 1 has been installed on the target car by its owner, and what came back shaped the iDrive page and Toro's gauges. **The two M styles have not been on a car yet**: they have been run in the preview and end to end against a simulated car (below). The in-car checklist is **[docs/IN-CAR-TEST.md](docs/IN-CAR-TEST.md)** |
 
 ## The design
 
@@ -122,7 +126,7 @@ facets) or switches to:
 
 ![Revuelto background](docs/img/toro-revuelto.png)
 
-## M — BMW M View, from a reference frame
+## M Sport — BMW M View, from a reference frame
 
 Rebuilt in Beta 2 from one photograph of an M3's iDrive 8 **M View**
 ([docs/ref/m-view-reference.jpg](docs/ref/m-view-reference.jpg)) and the
@@ -137,7 +141,7 @@ It is a reference-matched reconstruction for the owner's own car.
 **Unofficial, and nothing to do with BMW AG** — see the notice at the top.
 In settings and the code it is the style `track`.
 
-![M, driving](docs/img/track.png)
+![M Sport, driving](docs/img/track.png)
 
 **How close it is.** The photograph above, the render below, in the
 photograph's own state (0 km/h, P, 12:04 pm, 207 km, 4WD, +12.5 °C):
@@ -150,6 +154,10 @@ photograph's own state (0 km/h, P, 12:04 pm, 207 km, 4WD, +12.5 °C):
 | The photograph's edges with one of ours within 2 px | 26.0 % | 98.7 % |
 | Our edges with one of the photograph's within 2 px | 34.0 % | 98.1 % |
 | Control points within 2 px (143 measured) | — | 137, mean 0.72 px |
+
+(Beta 3 redrew the figure 7 — its leg now hangs from the squared end of
+its bar, as the photograph has it — and changed nothing else of M Sport:
+four frames rendered from `beta-2` and from here differ only where a 7 is.)
 
 The remainder is the photograph itself (grain, moiré in the plates, glow,
 and 1 – 3 px of lean in a hand-held shot of a curved display) and the
@@ -203,9 +211,51 @@ no figure stands in it. It opens over 180 ms and closes over 110 ms.
 | **Turn card only** | our own arrow, distance and instruction for the next turn |
 | **Nothing** | the M View as the photograph has it |
 
-![M with the Waze map in the centre (a stand-in map in the preview)](docs/img/track-waze.png)
+![M Sport with the Waze map in the centre (a stand-in map in the preview)](docs/img/track-waze.png)
 
-![M with the turn card, metric](docs/img/track-turn.png)
+![M Sport with the turn card, metric](docs/img/track-turn.png)
+
+## M Sport Plus — the M stripes, and Waze in the middle
+
+A clone of M Sport in which **only the middle is different**: the dials,
+figures, strips, footer and every reading are M Sport's own layers,
+untouched (`test/track.test.js` holds the two together layer by layer).
+The middle is the centre of a second picture
+([docs/ref/m-plus-reference.jpg](docs/ref/m-plus-reference.jpg), the M
+setup screen), laid into the same coordinates: seven plates with one fall
+of light, the light-blue and red **M stripes** leaning across the wide
+centre plate, a lattice of fine lines over them all, and the two lower
+rails meeting in the middle. In settings and the code it is the style
+`mplus`. The working is in
+**[docs/ref/M-PLUS-MEASUREMENTS.md](docs/ref/M-PLUS-MEASUREMENTS.md)**.
+
+![M Sport Plus, at rest](docs/img/mplus.png)
+
+Where that picture has its list of driving modes, this has the **Waze
+map** — in the area marked on it
+([docs/ref/m-plus-waze-area.jpg](docs/ref/m-plus-waze-area.jpg)): from the
+centre plate's top edge to its foot, clear of the two speeds on the left
+and standing in from the plate's right edge. The plate itself thins out
+into the picture over 40 units on a curve with no corner at either end, so
+there is no line where the map starts: blue plate, then map. The stripes
+and lattice fade with the plate; with no map up, they are the middle.
+
+![M Sport Plus with the Waze map (a stand-in map in the preview)](docs/img/mplus-waze.png)
+
+The picture's middle above, ours below (the picture's left lies in a
+shadow, which is not drawn; its figures stand a little differently because
+they are that screen's, where ours are M Sport's):
+
+![The reference's middle and the render's](docs/img/mplus-compare.jpg)
+
+**The numbers grow as the needle passes.** Each scale number swells by a
+fifth as the marker comes level with it and settles again as it goes by,
+on top of turning white — the nearest number is always the biggest. It
+grows about its own middle, except the one beside the car's tyre-pressure
+telltale, which grows away from it. On by default here and off in M Sport
+(*M / Numbers at the needle* turns it on or off in either).
+
+![The numbers growing as speed and revs rise](docs/img/mplus-sweep.gif)
 
 ### How the map and the camera get into the centre
 
@@ -247,9 +297,10 @@ to the cluster within half a second.
 | Setting | Values |
 |---|---|
 | Show on cluster | on / off (off = BMW's original cluster) |
-| Style | Toro (Lamborghini Huracán) · M (BMW M View, iDrive 8) |
+| Style | Toro (Lamborghini Huracán) · M Sport (BMW M View, iDrive 8) · M Sport Plus (M stripes, Waze in the centre) |
 | M: centre shows | Waze map · Turn View camera · turn card only · nothing |
 | M: footer panel shows | 4WD · 2WD · the driving mode · nothing |
+| M: numbers at the needle | as the style has them (M Sport Plus grows them) · grow as the needle passes · stay the same size |
 | Car | X3 M40i (B58) · other B58 · M car (S58) · plug-in hybrid — sets the default redline, limiter and gear count |
 | Toro: background | Genuine Huracán (stipple) · Modern hex lattice · Revuelto |
 | Accent | arancio · giallo · rosso · verde · blu · viola · bianco |
@@ -285,15 +336,16 @@ show, in the wide capitals the cluster uses. Where the head unit mounts
 USB sticks has not been confirmed on the car yet (`/media`, `/run/media`
 and `/mnt` are searched); if it is not found, the default words show.
 
-**The iDrive page** steps through the four designs (Toro genuine, modern
-hex lattice, Revuelto, M) with the ◀ ▶ arrows beside the sketch on the
+**The iDrive page** steps through the five designs (Toro genuine, modern
+hex lattice, Revuelto, M Sport, M Sport Plus) with the ◀ ▶ arrows beside the sketch on the
 touchscreen, or **Design** in the bar with the controller. It fills the
 whole screen when the Store's renderer (`mgu-render`) is installed, which
 the Store now pulls in with the app.
 The preview takes more (`flashFromRpm`, `flashRate`, `flashStrength`,
 `hexagons`, `hexSize`, `stipple`, `litColour`…) as query parameters, e.g.
 `preview/index.html?background=modern&accent=blu&rpmLimiter=6500`; all of
-them live in `src/theme/palette.js`. For M: `style=track`;
+them live in `src/theme/palette.js`. For the M styles: `style=track`
+(M Sport) or `style=mplus` (M Sport Plus), `mPop=on|off`;
 `fixture=m` is the reference photograph's exact state, lamps and all;
 `mPanel=4wd|2wd|mode|off` (with `drive=SPORT` to name a mode);
 `clock12=on`; `show=map|camera|magenta` puts a stand-in picture under the
@@ -331,9 +383,9 @@ src/engine/state.js      raw vehicle signals -> what the theme draws
 src/theme/guide.js       the CORSA brief as data, and its fit to the MGU panel
 src/theme/palette.js     colour schemes and every driver setting
 src/theme/lambo.js       Toro: 49 layers
-src/theme/track.js       M: the layout, colours and what each layer shows
-src/theme/mgeom.js       M: every measured line, in the reference frame's own coordinates
-src/shaders/mcluster.js  M: dials, plates, strips, footer and window, written from mgeom
+src/theme/track.js       M Sport and M Sport Plus: the layout, colours and what each layer shows
+src/theme/mgeom.js       both: every measured line, in the reference frame's own coordinates
+src/shaders/mcluster.js  both: dials, plates, strips, footer and windows, written from mgeom
 src/theme/index.js       the styles, picked by settings.style
 src/car/cluster.js       the theme -> cluster-render effect layers
 src/car/centre.js        M's centre: Waze and Turn View, asked for, never held
@@ -384,12 +436,13 @@ shader that ships.
    for Waze, and/or **Turn View** (`IterioDev/car-apps`) for the camera,
    from their own Store sources. Then press **Waze** on MGU Styles' page
    (it switches the map on or off in whichever style is showing: Toro
-   opens its background over the map, M shows it in its window), or pick
-   the centre in Settings. Nothing else to set:
+   opens its background over the map, M Sport shows it between its plates,
+   M Sport Plus inside its centre plate), or pick the centre in Settings. Nothing else to set:
    MGU Styles moves the map in and out by itself. Only Turn View's
    *camera* needs the car's **Instrument cluster > Central display area**
    on **Map view**, because Turn View draws its camera there (its own
-   requirement). Without either app M still works; the centre stays quiet.
+   requirement). Without either app the M styles still work: M Sport's
+   centre stays quiet, M Sport Plus shows its stripes.
 
 It draws only when the car is in drive readiness and `cluster-render` is
 running, and gives the cluster back at key-off. Follow
@@ -401,7 +454,8 @@ running, and gives the cluster back at key-off. Follow
 npm test          # unit tests, package staging check, then every shader compiled on a GPU
 npm run car-sim   # build the real package and run it against a simulated car
 npm run shot      # render a frame to build/shot.png
-npm run m-compare # M against its reference photograph, into build/m-compare/ (needs Python)
+npm run m-compare # M Sport against its reference photograph, into build/m-compare/ (needs Python)
+python3 tools/m-plus-compare.py   # M Sport Plus's middle against its picture, into build/m-plus-compare/
 npm run fonts && npm run atlas   # re-bake the SDF atlas from the OFL fonts
 ```
 
@@ -420,11 +474,12 @@ draw while driving, or does not hand the cluster back. It then redraws
 exactly what crossed the socket in WebGL 1 (`build/car-sim/car-*.png`) and
 fails if any shader does not compile.
 
-`CAR_SIM_THEME=track npm run car-sim` runs M with fake *Maps on
-cluster* and *Turn View* services beside the fake renderer, and also fails
-if Waze is moved into the cluster before the car is on, is not in it while
-driving, is not given back at key-off, or if a Turn View connection is
-held open. Its replay draws a stand-in map where Waze would draw.
+`CAR_SIM_THEME=track npm run car-sim` (M Sport) or `CAR_SIM_THEME=mplus`
+(M Sport Plus) runs with fake *Maps on cluster* and *Turn View* services
+beside the fake renderer, and also fails if Waze is moved into the cluster
+before the car is on, is not in it while driving, is not given back at
+key-off, if the style's window is not open over the map while driving, or
+if a Turn View connection is held open. Its replay draws a stand-in map where Waze would draw.
 
 After changing anything in `src/` or `app/`, run `node tools/stage-app.js`
 to refresh `apps/mgustyles_toro/`; `npm test` fails if you forget.
@@ -435,7 +490,7 @@ For a live preview, serve the repo root and open `preview/index.html`
 
 ## Known limitations
 
-- **Beta 2's M style has not been on a car.** It runs end to end in
+- **The M styles have not been on a car.** They run end to end in
   simulation; the signal decoders use the field names, invalid markers and
   scalings other projects read on real cars. Signals that do not arrive
   show nothing rather than a guess. Still to be seen in the car: the clock

@@ -4,7 +4,45 @@
 Each earlier release is kept on a branch of its own name. To go back to
 one: `git checkout <branch>`, or point the Store's source at that branch.
 
-## Beta 2 — `main`, app version 0.5.0
+## Beta 3 — `main`, app version 0.6.0
+
+**M Sport, and a second M style beside it.** Toro is exactly as it was.
+
+- **M Sport** is the M View of Beta 2 under its new name, with one
+  correction: **the figure 7**. Its leg now hangs from the squared right
+  end of its bar and leans back to its foot, as the photograph has it; it
+  had been drawn from the top corner, which stood it too upright and too
+  far left. Both cuts (the dials' and the footer's) are redrawn. Nothing
+  else of M Sport changed: frames rendered from `beta-2` and from here
+  differ only where a 7 is.
+- **M Sport Plus** (new, style `mplus`): a clone of M Sport with only the
+  middle different — the centre of the M setup screen
+  (`docs/ref/m-plus-reference.jpg`): seven plates on one lean with the
+  light-blue and red M stripes across the wide centre one, a lattice of
+  fine lines, and the lower rails meeting in the middle.
+- **Waze inside the centre plate**, in the area marked on that picture
+  (`docs/ref/m-plus-waze-area.jpg`). The plate thins out into the map over
+  40 units on a curve with no corner at either end, so the map has no
+  edge: it comes up through the blue. It keeps clear of both speeds, and
+  the stripes stand back when a turn card is shown over them.
+- **The numbers grow as the needle passes** — a fifth bigger with the
+  marker level, settling as it goes by. On in M Sport Plus, off in M Sport;
+  new setting *M / Numbers at the needle* for either.
+- The iDrive page steps through five designs; the style setting lists
+  three. Saved settings keep working (`track` is M Sport).
+- Tools: `tools/m-plus-compare.py` lays the picture's middle over ours
+  (plate or not agrees on 97 % of its unshadowed half).
+- Checked: 119 tests (9 new: the clone differs only in its middle, its
+  plates and window, the fade's curve, nothing of the map past the plate
+  or under a reading, growing numerals against the rim and the
+  tyre-pressure telltale, the 7's shape, and that every uniform is sent
+  in the shape its shader declares), every shader compiled in WebGL 1,
+  all three styles through the simulated head unit, Toro pixel-identical
+  to Beta 1.
+
+Not yet on a car: see `docs/IN-CAR-TEST.md`.
+
+## Beta 2 — branch `beta-2`, app version 0.5.0
 
 **The M style, rebuilt to look like the real thing.** Toro is exactly as
 it was in Beta 1.

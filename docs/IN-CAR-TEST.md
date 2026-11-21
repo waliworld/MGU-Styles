@@ -41,7 +41,7 @@ watching the cluster.
 | 15 | Key off | Toro disappears and BMW's cluster returns, every time |
 | 16 | Next start | Toro returns on its own (it starts with the car) |
 
-## M style (BMW M View) — rebuilt in Beta 2
+## M Sport (BMW M View) — rebuilt in Beta 2
 
 Settings → Style → M, or step to it with **Design** on the app's page.
 For the centre, *Maps on cluster* and/or *Turn View* must be installed.
@@ -71,6 +71,24 @@ reference frame the same way the preview is.
 | M14 | A route in BMW Maps or CarPlay, centre *Turn card only* | Arrow, distance and instruction (TURN LEFT, EXIT 2…) between the plates as a turn comes up; gone when the route ends |
 | M15 | Rev limiter, parked | The red band flashes (and the screen edges, if chosen); nothing else moves |
 | M16 | Holiday theme on, in M | Snow down both sides outside the dials, the tree right of the rev scale; no number is snowed on |
+
+## M Sport Plus — new in Beta 3
+
+Settings → Style → M Sport Plus, or step to it with **Design**. Everything
+in the M Sport table above applies (same dials, figures, strips, footer);
+these are the extra checks. A photo of the whole cluster with Waze showing
+would be the most useful thing to send back.
+
+| # | Check | Expect |
+|---|---|---|
+| P1 | Parked, no map | The same dials as M Sport; in the middle one wide blue plate with a light-blue and a red stripe leaning across it, fine lines over the plates, and the blue and red rails along the bottom meeting in the middle (no cyan / red lines through the centre) |
+| P2 | Rev gently in P, then drive | The number the marker is passing is clearly bigger than its neighbours, and shrinks back as the marker moves on; nothing jumps. **If a grown number touches the rim, or the tyre-pressure light when it is lit, say which** |
+| P3 | Settings → M / Numbers at the needle → Stay the same size | The numbers only turn white, as in M Sport |
+| P4 | Phone connected, Waze navigating, press **Waze** | The map comes up *inside* the centre plate: map in the middle, melting into the plate's blue all round, no line or box where it starts. **Note any hard edge, or any map showing outside the plate** |
+| P5 | Look at the left of the map | It stops short of the speed, the second speed and their units: no figure has map behind it |
+| P6 | Press **Waze** again | The plate, its stripes and its lines come back smoothly |
+| P7 | Centre → Turn card only, with a route | Arrow, distance and instruction at the top of the centre plate; the stripes dim behind them so they read |
+| P8 | Design ◀ ▶ between M Sport and M Sport Plus | Only the middle changes; dials, numbers and footer do not move |
 
 ## New in 0.3
 

@@ -18,11 +18,20 @@ reference photographs, not done piecemeal:
 - Colour and contrast on the car's own panel (photos of our cluster in the
   car, day and night).
 
-## M (BMW M View)
+## M Sport (BMW M View) and M Sport Plus
 
-Rebuilt in Beta 2 from the owner's reference frame and guide
+M Sport was rebuilt in Beta 2 from the owner's reference frame and guide
 (`docs/ref/`); measured mismatches are listed in
-`docs/ref/MEASUREMENTS.md` section 8. Still open:
+`docs/ref/MEASUREMENTS.md` section 8. M Sport Plus (Beta 3) is the same
+with the middle of a second picture (`docs/ref/M-PLUS-MEASUREMENTS.md`).
+Still open:
+
+- **M Sport Plus on the car, with Waze.** The fade is judged against a
+  stand-in map here; the real map's colours, and how the car's panel shows
+  the thinnest part of the fade, need a photo (IN-CAR-TEST P4).
+- **M Sport Plus keeps M Sport's figures where they are.** In its picture
+  the speed and the gear stand further out from the middle; the owner
+  asked for the middle only. Moving them would be a small change.
 
 - **A photo from the car.** A straight-on photo of the cluster with M
   showing would tell what the car's panel adds or hides (its telltales,
