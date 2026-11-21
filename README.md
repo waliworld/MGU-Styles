@@ -125,20 +125,28 @@ facets) or switches to:
 Built to the **M iDrive 8 cluster guide**
 ([docs/M-IDRIVE8-BRIEF.md](docs/M-IDRIVE8-BRIEF.md)) and its photographs:
 the guide's rail paths, colours and anchors, fitted onto the iDrive 7
-panel. Unbranded, with original figures (Saira Semi Condensed, SIL OFL).
+panel. Unbranded, with original figures (Saira Semi Condensed, SIL OFL) and an
+original fuel pump and oil can drawn in the shader.
 In settings and the code it is the style `track`.
 
 ![M, driving](docs/img/track.png)
 
-- **Speed (left):** a 13-unit blue rail on the guide's chevron path with
-  its inner hairline. It lights from the bottom along the path to a white
-  marker; the scale reads 0–200 mph (0–330 km/h), evenly spaced labels
-  with the top three steps wider, as on the car, and the label at the
-  marker turns white. Big speed figure with its unit, and fuel as a
-  diagonal five-segment bar with a pump glyph.
-- **Revs (right):** the red rail, 0–8 (your rev scale), the same lit run
-  and marker, an amber fringe from your redline, the rail flashing on the
-  limiter. Big gear figure, oil temperature as the mirrored diagonal bar.
+Each gauge is built the way the photographs show, measured off them:
+a **bright chevron rail** on the guide's path, tapering from 13.5 units on
+the upper limb to 7.6 on the lower; a gap; then the **value band**, a wide
+ribbon parallel to the rail (42 units above the vertex, 22 below) that is
+a deep tint when unlit and fills bright from the bottom; and a **thin
+bright line** along its inner edge. The band's edges are mitred offsets of
+the chevron, so its corners stay sharp. Scale numerals and short ticks sit
+outside the rail, and the numeral at the marker turns white.
+
+- **Speed (left):** blue, 0–200 mph (0–330 km/h) — evenly spaced labels
+  with the top steps wider, as on the car. Big speed figure with its unit,
+  and fuel as a vertical five-segment bar with 1 / ½ / 0 beside it.
+- **Revs (right):** red, 0–8 (your rev scale), with a red run in the gap
+  from your redline and an amber shift mark before it; the rail and band
+  flash white on the limiter. Big gear figure, oil temperature as the
+  mirrored vertical bar.
 - **Lower rail:** clock and range left, BMW's drive-mode name in an
   angular lozenge in the middle, outside temperature right.
 - **Centre:** one chamfered window, feathered over 40 design units exactly

@@ -195,8 +195,12 @@ test('the rails light from the bottom along the guide\'s paths, with one value m
     assert.strictEqual(L.uniforms(st({ speed: 400 })).u_val, 1, 'clamped, never wraps');
     assert.ok(Math.abs(L.uniforms(st({ speed: 140 })).u_val - 6.5 / 8) < 1e-9, 'between 120 and 160');
     assert.strictEqual(R.uniforms(st({ rpm: 4000 })).u_val, 0.5);
-    /* the red fringe starts at the redline */
-    assert.strictEqual(R.uniforms(st({ rpm: 0 })).u_bar[2], 6750 / 8000);
+    /* the red run and the amber shift mark sit at the redline and before it */
+    assert.strictEqual(R.uniforms(st({ rpm: 0 })).u_marks[0], 6750 / 8000);
+    assert.strictEqual(R.uniforms(st({ rpm: 0 })).u_marks[1], (6750 - 400) / 8000);
+    assert.strictEqual(R.uniforms(st({ rpm: 0 })).u_marks[2], 1, 'marks on the rev gauge');
+    const Lg = build().layers.find((x) => x.id === 'speedGauge');
+    assert.strictEqual(Lg.uniforms(st({})).u_marks[2], 0, 'none on the speed gauge');
     /* the numeral that brightens is the one at the marker */
     const on = t.layers.find((x) => x.id === 'speedScaleOn');
     assert.ok(on.uniforms(st({ speed: 76 })).u_count === 2, '"80" lit at 76 mph, as in the photograph');

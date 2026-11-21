@@ -25,8 +25,8 @@
      */
     function polyFn(name, pts, inside) {
         var cum = M.measure(pts), out = [
-            'vec3 ' + name + '(vec2 p) {',
-            '  float best = 1e9; float side = 0.0; float arc = 0.0;',
+            'vec4 ' + name + '(vec2 p) {',
+            '  float best = 1e9; float side = 0.0; float arc = 0.0; float itr = 0.0;',
             '  vec2 a; vec2 d; float t; float dd; float al; float pr;'
         ], i;
         for (i = 1; i < pts.length; i++) {
@@ -42,10 +42,11 @@
                 /* past either end of the path there is no inside or outside */
             '  if (dd < best) { best = dd; side = pr * ' + f(inside) +
                 (i === 1 ? ' * step(0.0, al)' : '') + (i === pts.length - 1 ? ' * step(al, ' + f(L) + ')' : '') +
-                '; arc = ' + f(cum[i - 1]) + ' + t; }'
+                '; arc = ' + f(cum[i - 1]) + ' + t;',
+                '    itr = step(1.0, al) * step(al, ' + f(L - 1) + '); }'
             );
         }
-        out.push('  return vec3(best, side, arc);', '}');
+        out.push('  return vec4(best, side, arc, itr);', '}');
         return out.join('\n');
     }
 
@@ -83,91 +84,109 @@
      * diagonal bar with its glyph.
      */
     function gauge(side) {
-        var R = M.RAILS[side], rg = M.range(side);
+        var R = M.RAILS[side], rg = M.range(side), vA = M.vertexArc(side);
         var bar = side === 'left' ? M.BARS.fuel : M.BARS.oil;
-        var bx = bar.top[0] - bar.bottom[0], by = bar.top[1] - bar.bottom[1], bl = Math.hypot(bx, by);
-        var glyph = side === 'left'
-            ? 'pumpGlyph(q, ' + v2([bar.bottom[0] + 48, bar.bottom[1] - 17]) + ')'
-            : 'oilGlyph(q, ' + v2([bar.bottom[0] - 46, bar.bottom[1] - 20]) + ')';
+        var glyph = (side === 'left' ? 'pumpGlyph(q, ' : 'oilGlyph(q, ') + v2(bar.glyph) + ')';
         var nSteps = 8;
+        var GAP = 22;            /* rail edge to the band, measured off the photograph */
         return [
             'uniform vec2 u_origin;',
             FIT,
             'uniform float u_val;',          /* 0..1 along the scale */
-            'uniform vec3 u_rail;',
-            'uniform vec3 u_hi;',
+            'uniform vec3 u_rail;',          /* the rail and the lit band */
+            'uniform vec3 u_hi;',            /* its bright edge */
             'uniform vec3 u_ink;',           /* the marker and the live bar */
             'uniform vec3 u_sub;',           /* ticks */
             'uniform vec3 u_warn;',
-            'uniform vec3 u_fringe;',        /* the high-end mark */
-            'uniform vec4 u_bar;',           /* frac, warn, fringe-from (0..1, >1 none), flash */
+            'uniform vec3 u_fringe;',        /* the shift mark */
+            'uniform vec4 u_bar;',           /* secondary bar: frac, warn, -, flash */
+            'uniform vec4 u_marks;',         /* redline frac, shift frac, on, - */
             polyFn('railD', R.rail, R.inside),
-            polyFn('hairD', R.hair, R.inside),
+            polyFn('bandOutD', M.bandEdges(side).outer, R.inside),
+            polyFn('bandInD', M.bandEdges(side).inner, R.inside),
             GLYPHS,
             'void main() {',
             '  vec2 q = design();',
             '  float aw = aaw();',
             '  vec3 col = vec3(0.0);',
             '  float alpha = 0.0;',
-            '  vec3 r = railD(q);',
-            '  vec3 h = hairD(q);',
-            '  float sd = r.y > 0.0 ? r.x : -r.x;',             /* signed: + towards the centre */
-            '  float beside = step(0.001, abs(r.y));',           /* not past either end */
+            '  vec4 r = railD(q);',
+            '  float sd = r.y > 0.0 ? r.x : -r.x;',             /* + towards the centre */
+            '  float beside = step(0.001, abs(r.y));',          /* not past either end */
             '  float a0 = ' + f(rg.a0) + ', a1 = ' + f(rg.a1) + ';',
             '  float act = a0 + (a1 - a0) * clamp(u_val, 0.0, 1.0);',
+            '  float inScale = step(a0, r.z) * step(r.z, a1);',
             '  float beat = u_bar.w * step(0.5, fract(u_time * 9.0));',
+            /* each element is thicker on the upper limb: the step is at the vertex */
+            '  float limb = smoothstep(' + f(vA - 26) + ', ' + f(vA + 26) + ', r.z);',
+            '  float wRail = mix(' + f(M.RAIL_W[0] / 2) + ', ' + f(M.RAIL_W[1] / 2) + ', limb);',
+            '  float wBand = mix(' + f(M.BAND_W[0]) + ', ' + f(M.BAND_W[1]) + ', limb);',
             '',
-            /* the band: the rail's stroke and the gap in to the hairline */
-            '  float stroke = covW(r.x - ' + f(M.RAIL_W / 2) + ', aw);',
-            /* inside the rail's centre line, outside the hairline */
-            '  float gap = step(0.0, sd) * step(h.y, 0.0) * step(r.x, 26.0);',
-            '  float band = max(stroke, gap);',
-            /* the bottom cap is decorative and always lit, as on the car */
-            '  float lit = max(covW(r.z - act, aw) * step(a0 - 0.5, r.z), step(r.z, a0));',
-            /* inactive: a deep track; active: the rail colour lifting to its highlight */
-            '  vec3 trackC = u_rail * 0.40;',
-            '  vec3 litC = mix(u_rail, u_hi, 0.30 + 0.25 * smoothstep(-6.5, 20.0, sd));',
-            '  litC = mix(litC, vec3(1.0), beat * 0.55);',
-            '  vec3 bandC = mix(trackC, litC, lit);',
-            '  float bandA = band * mix(0.92, 1.0, lit) * mix(0.55, 1.0, max(stroke, lit));',
-            '  col = bandC; alpha = bandA;',
-            /* the narrow lit edge on the outer side of the rail */
-            '  float edge = covW(abs(sd + ' + f(M.RAIL_W / 2 - 1.1) + ') - 1.1, aw) * beside;',
-            '  col = over(col, u_hi, edge); alpha = max(alpha, edge);',
-            /* glow, the lit rail only (guide: ~0.8 sigma, 8-14%) */
-            '  float glow = exp(-max(r.x - 6.5, 0.0) / 1.6) * 0.12 * lit * (1.0 - band);',
-            '  col = mix(col, u_hi, glow / max(alpha + glow, 0.001)); alpha = max(alpha, glow);',
-            /* the hairline */
-            '  float hl = covW(h.x - ' + f(M.HAIR_W / 2) + ', aw) * (1.0 - band);',
-            '  col = over(col, mix(u_rail, u_hi, 0.4), hl); alpha = max(alpha, hl * 0.85);',
-            /* the high-end fringe, outside the rail */
-            '  float fr = step(a0 + (a1 - a0) * u_bar.z, r.z) * step(r.z, a1) * covW(abs(sd + 10.5) - 2.0, aw) * beside;',
-            '  col = over(col, u_fringe, fr); alpha = max(alpha, fr);',
-            /* ticks: one per scale step, short, outside the rail */
+            /* ---- the outer rail: lit its whole length, with its own glow ---- */
+            '  float rail = covW(r.x - wRail, aw);',
+            '  vec3 railC = mix(u_rail, u_hi, 0.22 + 0.16 * limb);',
+            '  railC = mix(railC, vec3(1.0), beat * 0.6);',
+            '  col = railC; alpha = rail;',
+            '  float rg2 = exp(-max(r.x - wRail, 0.0) / 3.0) * 0.11 * (1.0 - rail);',
+            '  col = mix(col, u_hi, rg2 / max(alpha + rg2, 0.001)); alpha = max(alpha, rg2);',
+            '',
+            /* ---- the value band: between two mitred offsets of the chevron ---- */
+            '  vec4 bo = bandOutD(q); vec4 bi = bandInD(q);',
+            '  float so = bo.y > 0.0 ? bo.x : -bo.x;',          /* + inside the band */
+            '  float si = bi.y > 0.0 ? bi.x : -bi.x;',          /* + past its inner edge */
+            '  float band = covW(-so, aw) * covW(si, aw) * inScale;',
+            '  float lit = covW(r.z - act, aw);',
+            '  float across = clamp(so / max(so - si, 1.0), 0.0, 1.0);',
+            /* a shallow gradient across it, brighter at the rail side */
+            '  vec3 dark = u_rail * (0.36 - 0.11 * across);',
+            '  vec3 bright = u_rail * (0.62 - 0.14 * across);',
+            /* lifting towards the head of the fill, as on the car */
+            '  bright *= 0.86 + 0.30 * smoothstep(150.0, 0.0, act - r.z);',
+            '  bright = mix(bright, vec3(1.0), beat * 0.5);',
+            '  col = mix(col, mix(dark, bright, lit), band);',
+            '  alpha = max(alpha, band);',
+            /* the thin bright line along the band\'s inner edge */
+            '  float inner = covW(abs(si) - 2.1, aw) * inScale;',
+            '  col = mix(col, mix(u_rail, u_hi, 0.18 + 0.30 * lit) * (0.72 + 0.28 * lit), inner);',
+            '  alpha = max(alpha, inner);',
+            /* the lit band\'s bloom, out towards the rail */
+            '  float bl = exp(-max(max(-so, si), 0.0) / 6.0) * lit * inScale * 0.13 * (1.0 - band) * (1.0 - rail);',
+            '  col = mix(col, u_hi, bl / max(alpha + bl, 0.001)); alpha = max(alpha, bl);',
+            '',
+            /* ---- redline and shift marks, in the gap (rev gauge) ---- */
+            '  float gapIn = covW(-so - 17.0, aw) * covW(so + 4.0, aw) * u_marks.z;',
+            '  float redRun = step(a0 + (a1 - a0) * u_marks.x, r.z) * inScale;',
+            '  float shiftRun = step(a0 + (a1 - a0) * u_marks.y, r.z) * (1.0 - redRun) * inScale;',
+            '  col = mix(col, u_rail, gapIn * redRun); alpha = max(alpha, gapIn * redRun);',
+            '  col = mix(col, u_fringe, gapIn * shiftRun); alpha = max(alpha, gapIn * shiftRun);',
+            '',
+            /* ---- ticks, outside the rail ---- */
             '  float st = (a1 - a0) / ' + f(nSteps) + ';',
             '  float k = floor((r.z - a0) / st + 0.5);',
-            '  float tk = covW(abs(r.z - (a0 + k * st)) - 0.9, aw) * covW(abs(sd + 13.5) - 3.5, aw)',
-            '           * step(0.5, k) * step(k, ' + f(nSteps - 0.5) + ') * (1.0 - fr);',
-            '  col = over(col, u_sub, tk); alpha = max(alpha, tk * 0.9);',
-            /* the marker: white, across the rail's normal */
-            '  float mk = covW(abs(r.z - act) - ' + f(M.MARKER[1] / 2) + ', aw) * covW(abs(sd) - ' + f(M.MARKER[0] / 2) + ', aw);',
-            '  col = over(col, u_ink, mk); alpha = max(alpha, mk);',
-            '  float mg = exp(-max(length(vec2(r.z - act, sd)) - 9.0, 0.0) / 1.4) * 0.12 * (1.0 - mk);',
+            '  float tk = covW(abs(r.z - (a0 + k * st)) - 1.4, aw) * covW(abs(sd + wRail + 7.5) - 5.0, aw)',
+            '           * step(-0.5, k) * step(k, ' + f(nSteps + 0.5) + ') * r.w * inScale;',
+            '  col = mix(col, u_sub, tk); alpha = max(alpha, tk * 0.85);',
+            '',
+            /* ---- the marker at the head of the fill ---- */
+            '  float mk = covW(abs(r.z - act) - ' + f(M.MARKER[1] / 2) + ', aw)',
+            '           * covW(abs(sd + 1.0) - ' + f(M.MARKER[0] / 2) + ', aw) * inScale;',
+            '  col = mix(col, u_ink, mk); alpha = max(alpha, mk);',
+            '  float mg = exp(-max(length(vec2((r.z - act) * 1.6, sd)) - 10.0, 0.0) / 2.2) * 0.16 * (1.0 - mk) * inScale;',
             '  col = mix(col, u_ink, mg / max(alpha + mg, 0.001)); alpha = max(alpha, mg);',
             '',
-            /* the secondary bar: 5 segments up a diagonal, live from the bottom */
-            '  vec2 bd = vec2(' + f(bx / bl) + ', ' + f(by / bl) + ');',
-            '  vec2 bq = q - ' + v2(bar.bottom) + ';',
-            '  float along = dot(bq, bd);',
-            '  float acrossB = bd.x * bq.y - bd.y * bq.x;',
-            '  float inBar = covW(abs(acrossB) - ' + f(bar.width / 2) + ', aw) * covW(abs(along - ' + f(bl / 2) + ') - ' + f(bl / 2) + ', aw);',
-            '  float segL = ' + f(bl / bar.segs) + ';',
-            '  float segOn = step(along, u_bar.x * ' + f(bl) + ' + 0.01);',
-            '  vec3 barC = mix(vec3(0.16, 0.19, 0.24), mix(u_ink, u_warn, u_bar.y), segOn);',
-            '  float bA = inBar * (1.0 - step(segL - 3.0, mod(along, segL)));',
-            '  col = over(col, barC, bA); alpha = max(alpha, bA);',
+            /* ---- the secondary bar: five segments, filling from the bottom ---- */
+            '  vec2 bq = q - vec2(' + f(bar.x + bar.w / 2) + ', ' + f((bar.y0 + bar.y1) / 2) + ');',
+            '  float inBar = covW(abs(bq.x) - ' + f(bar.w / 2) + ', aw) * covW(abs(bq.y) - ' + f((bar.y0 - bar.y1) / 2) + ', aw);',
+            '  float up = (' + f(bar.y0) + ' - q.y) / ' + f(bar.y0 - bar.y1) + ';',
+            '  float segL = ' + f((bar.y0 - bar.y1) / bar.segs) + ';',
+            '  float segGap = step(segL - 3.5, mod(' + f(bar.y0) + ' - q.y, segL));',
+            '  float segOn = step(up, u_bar.x + 0.001);',
+            /* the live part is light, the rest a dark track, as on the car */
+            '  vec3 barC = mix(vec3(0.13, 0.15, 0.19), mix(u_ink, u_warn, u_bar.y) * (0.70 + 0.30 * up), segOn);',
+            '  float bA = inBar * (1.0 - segGap);',
+            '  col = mix(col, barC, bA); alpha = max(alpha, bA);',
             '  float g = covW(' + glyph + ', aw);',
-            '  col = over(col, u_sub, g); alpha = max(alpha, g);',
+            '  col = mix(col, u_sub, g); alpha = max(alpha, g);',
             '  gl_FragColor = vec4(col, alpha);',
             '}'
         ].join('\n');
@@ -197,24 +216,15 @@
         '  vec2 a = abs(q - (lo + hi) * 0.5);',
         '  return max(max(a.x - h.x, a.y - h.y), (a.x + a.y - (h.x + h.y - ch)) * 0.70710678);',
         '}',
-        polyFn('hairL', M.RAILS.left.hair, M.RAILS.left.inside),
-        polyFn('hairR', M.RAILS.right.hair, M.RAILS.right.inside),
         'void main() {',
         '  vec2 q = design();',
         '  float aw = aaw();',
         '  vec3 col = u_outside;',
-        /* graphite inside each chevron, darker towards the gutter */
-        '  vec3 hl = hairL(q);',
-        '  vec3 hr = hairR(q);',
-        /* inside each hairline, fading out towards the gutter: no hard edge */
-        '  float inL = smoothstep(0.0, 1.0, hl.y) * (1.0 - smoothstep(330.0, 432.0, q.x));',
-        '  float inR = smoothstep(0.0, 1.0, hr.y) * smoothstep(1488.0, 1590.0, q.x);',
-        '  float shadeL = inL * exp(-hl.x / 160.0);',
-        '  float shadeR = inR * exp(-hr.x / 160.0);',
-        '  col = over(col, u_recess, max(shadeL, shadeR));',
-        /* a soft graphite lift right behind the big figures */
-        '  col += vec3(0.020, 0.028, 0.040) * exp(-pow(length((q - vec2(290.0, 340.0)) / vec2(110.0, 70.0)), 2.0));',
-        '  col += vec3(0.020, 0.028, 0.040) * exp(-pow(length((q - vec2(1652.0, 350.0)) / vec2(90.0, 70.0)), 2.0));',
+        /* a shallow graphite lift behind each group of figures - no edges */
+        '  col = mix(col, u_recess, 0.85 * exp(-pow(length((q - vec2(250.0, 360.0)) / vec2(190.0, 215.0)), 2.2)));',
+        '  col = mix(col, u_recess, 0.85 * exp(-pow(length((q - vec2(1660.0, 360.0)) / vec2(175.0, 215.0)), 2.2)));',
+        '  col += vec3(0.016, 0.022, 0.032) * exp(-pow(length((q - vec2(262.0, 352.0)) / vec2(120.0, 78.0)), 2.0));',
+        '  col += vec3(0.016, 0.022, 0.032) * exp(-pow(length((q - vec2(1652.0, 360.0)) / vec2(100.0, 78.0)), 2.0));',
         '',
         /* the centre */
         '  float dc = sdCham(q, vec2(' + f(C.x0) + ', ' + f(C.y0) + '), vec2(' + f(C.x1) + ', ' + f(C.y1) + '), ' + f(C.chamfer) + ');',

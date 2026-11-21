@@ -102,8 +102,8 @@
         var N = S.scaleMaxRpm / 1000;
         var flashRail = S.revFlash === 'band' || S.revFlash === 'both';
         var flashEdges = S.revFlash === 'edges' || S.revFlash === 'both';
-        var blueTint = mix(K.secondary, K.blueHi, 0.35);
-        var roseTint = mix(K.secondary, K.redHi, 0.45);
+        var blueTint = mix(K.secondary, K.blueHi, 0.85);
+        var roseTint = mix(K.secondary, K.redHi, 0.85);
 
         /* ------------------------------------------------------ the frame */
         layers.push({
@@ -134,21 +134,25 @@
                 }
             });
         }
-        gauge('speedGauge', 'mgaugeL', box(50, 128, 400, 600), function (s) {
+        gauge('speedGauge', 'mgaugeL', box(40, 128, 452, 600), function (s) {
             var fuel = s.pods && s.pods.fuel;
             return {
-                u_val: M.speedFrac(s.speed, units), u_rail: K.blue, u_hi: K.blueHi, u_fringe: K.red,
-                u_bar: [fuel ? fuel.frac : 0, fuel && fuel.alarm ? 1 : 0, 2, 0]
+                u_val: M.speedFrac(s.speed, units), u_rail: K.blue, u_hi: K.blueHi, u_fringe: K.amber,
+                u_bar: [fuel ? fuel.frac : 0, fuel && fuel.alarm ? 1 : 0, 0, 0],
+                u_marks: [1, 1, 0, 0]
             };
         });
+        /* the red run from the redline, and an amber mark the shift before it */
         var redFrac = Math.min(1, S.rpmRedline / S.scaleMaxRpm);
-        gauge('revGauge', 'mgaugeR', box(1520, 112, 1870, 600), function (s) {
+        var shiftFrac = Math.min(redFrac, Math.max(0, (S.rpmRedline - 400) / S.scaleMaxRpm));
+        gauge('revGauge', 'mgaugeR', box(1468, 112, 1880, 600), function (s) {
             var c = oilC(s);
             return {
                 u_val: Math.max(0, Math.min(1, (s.rpm || 0) / S.scaleMaxRpm)),
                 u_rail: K.red, u_hi: K.redHi, u_fringe: K.amber,
                 u_bar: [c === null ? 0 : Math.max(0, Math.min(1, (c - 50) / 100)), c !== null && c >= 150 ? 1 : 0,
-                        redFrac, flashRail ? (s.limiter || 0) : 0]
+                        0, flashRail ? (s.limiter || 0) : 0],
+                u_marks: [redFrac, shiftFrac, 1, 0]
             };
         });
 
@@ -160,11 +164,11 @@
                 return { str: String(v), x: X(p.x + p.nx * out), y: Y(p.y + p.ny * out), align: align };
             });
         }
-        var speedItems = scaleItems('left', speedVals, 24, 'right');
+        var speedItems = scaleItems('left', speedVals, 22, 'right');
         var rpmVals = [], k;
         for (k = 0; k <= N; k++) rpmVals.push(k);
-        var rpmItems = scaleItems('right', rpmVals, 24, 'left');
-        var NUM = D(20 / CAP);
+        var rpmItems = scaleItems('right', rpmVals, 22, 'left');
+        var NUM = D(21 / CAP);
         statics('speedScale', 20, box(2, 86, 236, 615),
             { face: 'mnum', size: NUM, align: 'right', baseline: 'middle', color: blueTint }, speedItems);
         statics('rpmScale', 20, box(1690, 100, 1880, 615),
@@ -189,12 +193,12 @@
         activeNumeral('rpmScaleOn', box(1690, 100, 1880, 615), rpmItems,
             function (s) { return Math.max(0, Math.min(1, (s.rpm || 0) / S.scaleMaxRpm)); });
 
-        statics('speedTitle', 20, box(196, 100, 364, 152),
-            { face: 'labelL', size: D(24 / CAP), align: 'centre', color: blueTint },
-            [{ str: imperial ? 'mph' : 'km/h', x: X(280), y: Y(140) }]);
-        statics('rpmTitle', 20, box(1500, 96, 1712, 136),
-            { face: 'labelL', size: D(20 / CAP), align: 'right', color: roseTint },
-            [{ str: '1/min x 1000', x: X(1700), y: Y(128) }]);
+        statics('speedTitle', 20, box(196, 104, 364, 150),
+            { face: 'labelL', size: D(19 / CAP), align: 'centre', color: K.secondary },
+            [{ str: imperial ? 'mph' : 'km/h', x: X(280), y: Y(138) }]);
+        statics('rpmTitle', 20, box(1470, 96, 1700, 136),
+            { face: 'labelL', size: D(19 / CAP), align: 'right', color: roseTint },
+            [{ str: '1/min x 1000', x: X(1688), y: Y(128) }]);
 
         /* ------------------------------------------------- speed and gear */
         txt('speed', 30, box(120, 270, 392, 392),
@@ -209,15 +213,16 @@
 
         /* ------------------------------------- fuel and oil bar labels */
         var SEC = D(18 / CAP);
-        statics('fuelLabels', 30, box(270, 440, 345, 556),
+        statics('fuelLabels', 30, box(270, 406, 352, 594),
             { face: 'label', size: SEC, align: 'left', baseline: 'middle', color: K.secondary },
-            [{ str: '1', x: X(282), y: Y(456) }, { str: '1/2', x: X(302), y: Y(498) }, { str: '0', x: X(320), y: Y(538) }]);
-        statics('oilLabels', 30, box(1556, 440, 1656, 556),
+            [{ str: '1', x: X(276), y: Y(424) }, { str: '1/2', x: X(276), y: Y(500) },
+             { str: '0', x: X(276), y: Y(570) }]);
+        statics('oilLabels', 30, box(1540, 406, 1642, 594),
             { face: 'label', size: SEC, align: 'right', baseline: 'middle', color: K.secondary },
-            imperial ? [{ str: '300', x: X(1652), y: Y(454) }, { str: '°F', x: X(1624), y: Y(478) },
-                        { str: '210', x: X(1632), y: Y(500) }, { str: '120', x: X(1608), y: Y(544) }]
-                     : [{ str: '150', x: X(1652), y: Y(454) }, { str: '°C', x: X(1624), y: Y(478) },
-                        { str: '100', x: X(1632), y: Y(500) }, { str: '50', x: X(1608), y: Y(544) }]);
+            imperial ? [{ str: '300', x: X(1636), y: Y(424) }, { str: '°F', x: X(1636), y: Y(462) },
+                        { str: '210', x: X(1636), y: Y(500) }, { str: '120', x: X(1636), y: Y(570) }]
+                     : [{ str: '150', x: X(1636), y: Y(424) }, { str: '°C', x: X(1636), y: Y(462) },
+                        { str: '100', x: X(1636), y: Y(500) }, { str: '50', x: X(1636), y: Y(570) }]);
 
         /* --------------------------------------------- lower status rail */
         var FOOT = 668;
