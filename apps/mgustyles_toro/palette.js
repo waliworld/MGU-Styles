@@ -68,8 +68,24 @@
         flashColour: null,       /* null: the accent's red; else a palette name */
         accentScope: 'highlights',  /* highlights | full */
         centre: 'off',           /* waze | off: the map opening in the background */
+        /*
+         * How far the background runs below y=646, under the cluster's own
+         * bottom strip. 0 leaves the strip alone, which is the safe choice:
+         * a panel layer over the strip can make the KOMBI draw a fallback
+         * gear box over the artwork (docs/CLUSTER-CONSTRAINTS.md). Only the
+         * background ever goes there - no readout does.
+         */
+        bottomExtra: 0,          /* 0 .. 74 px */
+        /*
+         * The opening the Waze map shows through. It is not re-rendered:
+         * waze-on-cluster draws the map where it always does (416,120
+         * 1088x480) and the background fades away over it. The default is
+         * that rect inset a little, so the map stops short of the frame.
+         */
         hole: null,              /* [x, y, w, h] of the opening, panel pixels */
-        holeFeather: 46,
+        holeFeather: 120,        /* how far the fade reaches, px */
+        holeChamfer: 170,        /* corner cut: a long hexagon, as the car's own glass */
+        holeMax: 0.9,            /* never fully clear: the artwork keeps a veil over it */
         zoom: 1,                 /* 0.9-1.1, how much of the screen it fills */
         shiftY: 0,               /* -30..30 px, nudge the whole cluster up or down */
         /*
@@ -150,11 +166,14 @@
         s.zoom = clampNum(s.zoom, 0.9, 1.1, DEFAULTS.zoom);
         if (['waze', 'off'].indexOf(s.centre) < 0) s.centre = DEFAULTS.centre;
         /* kept inside the rect where waze-on-cluster draws (416,120 1088x480) */
-        var h = s.hole && s.hole.length === 4 ? s.hole : [672, 178, 576, 256];
+        var h = s.hole && s.hole.length === 4 ? s.hole : [530, 206, 860, 310];
         s.hole = [Math.max(416, h[0]), Math.max(120, h[1]),
                   Math.min(1504, h[0] + h[2]) - Math.max(416, h[0]),
                   Math.min(600, h[1] + h[3]) - Math.max(120, h[1])];
-        s.holeFeather = clampNum(s.holeFeather, 0, 120, DEFAULTS.holeFeather);
+        s.holeFeather = clampNum(s.holeFeather, 0, 200, DEFAULTS.holeFeather);
+        s.holeChamfer = clampNum(s.holeChamfer, 0, 400, DEFAULTS.holeChamfer);
+        s.holeMax = clampNum(s.holeMax, 0.3, 1, DEFAULTS.holeMax);
+        s.bottomExtra = clampNum(s.bottomExtra, 0, 74, DEFAULTS.bottomExtra);
         s.shiftY = clampNum(s.shiftY, -30, 30, DEFAULTS.shiftY);
         if (['modern', 'revuelto'].indexOf(s.background) < 0) s.background = 'genuine';
         if (['lamborghini', 'bmw', 'fixed'].indexOf(s.modeLabel) < 0) s.modeLabel = 'lamborghini';

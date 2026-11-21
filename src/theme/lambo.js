@@ -105,14 +105,15 @@
 
         /* ------------------------------------------------- background */
         layers.push({
-            /* z 1: the hosted map draws at z 0, under this */
-            id: 'bg', z: 1, shader: 'bg',
-            x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT,
+            /* z 1: the hosted map draws at z 0, under this.
+               belowCut: the only layer allowed past the bottom strip. */
+            id: 'bg', z: 1, shader: 'bg', belowCut: true,
+            x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT + S.bottomExtra,
             uniforms: function (s) {
                 var c = s && s.centre;
-                var open = c && c.mode === 'map' ? c.open : 0;
+                var open = (c && c.mode === 'map' ? c.open : 0) * S.holeMax;
                 return {
-                    u_hole: S.hole, u_holeOpen: [open, S.holeFeather],
+                    u_hole: S.hole, u_holeOpen: [open, S.holeFeather, S.holeChamfer],
                     u_black: GC.screenBlack, u_blue: GC.screenBlueBlack,
                     u_lower: GC.lowerField, u_line: GC.geometricLine,
                     u_hex: S.hexagons, u_hexSize: S.hexSize, u_facets: S.facets, u_rev: S.revuelto,

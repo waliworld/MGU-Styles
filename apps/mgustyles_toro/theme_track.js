@@ -107,8 +107,10 @@
 
         /* ------------------------------------------------------ the frame */
         layers.push({
-            id: 'frame', z: 1, shader: 'mframe',
-            x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT,
+            /* belowCut: the frame may be asked to run under the car's own
+               bottom strip, so its background shows there instead of BMW's */
+            id: 'frame', z: 1, shader: 'mframe', belowCut: true,
+            x: 0, y: 0, w: Panel.PANEL_WIDTH, h: Panel.BOTTOM_CUT + S.bottomExtra,
             uniforms: function (s) {
                 var c = centreOf(s);
                 return {

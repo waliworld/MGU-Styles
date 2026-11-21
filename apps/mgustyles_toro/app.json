@@ -127,6 +127,30 @@
       ]
     },
     {
+      "key": "bottomExtra",
+      "label": "Cover BMW's bottom strip",
+      "type": "choice",
+      "default": "0",
+      "options": [
+        [
+          "0",
+          "No (leave it to BMW)"
+        ],
+        [
+          "24",
+          "A little"
+        ],
+        [
+          "48",
+          "More"
+        ],
+        [
+          "74",
+          "All of it (watch for a grey box)"
+        ]
+      ]
+    },
+    {
       "key": "trackPalette",
       "label": "M: colours",
       "type": "choice",

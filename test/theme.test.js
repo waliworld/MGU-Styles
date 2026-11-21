@@ -30,6 +30,30 @@ test('no layer draws into the bottom strip', () => {
     }
 });
 
+test('only the background may be asked below the strip, and only so far', () => {
+    /*
+     * Covering the strip can make the KOMBI draw a fallback gear box over
+     * the artwork, so it is off by default and only the background can be
+     * sent there - never a readout, whose data the strip would hide.
+     */
+    const far = Theme.build(atlas, 'x3m40i', { bottomExtra: 74 });
+    for (const L of far.layers) {
+        if (L.belowCut) {
+            assert.strictEqual(L.id, 'bg', 'only the background');
+            assert.ok(L.y + L.h <= Panel.PANEL_HEIGHT, 'and never off the panel');
+        } else {
+            assert.ok(L.y + L.h <= Panel.BOTTOM_CUT, `${L.id} past the cut`);
+        }
+    }
+    assert.strictEqual(far.layers.find((L) => L.id === 'bg').h, Panel.BOTTOM_CUT + 74);
+    /* clamped, whatever is asked for */
+    assert.strictEqual(Theme.build(atlas, 'x3m40i', { bottomExtra: 500 }).layers
+        .find((L) => L.id === 'bg').h, Panel.BOTTOM_CUT + 74);
+    /* and off by default */
+    assert.strictEqual(Theme.build(atlas, 'x3m40i', {}).layers
+        .find((L) => L.id === 'bg').h, Panel.BOTTOM_CUT);
+});
+
 /*
  * The layout is drawn for the X3 M40i, which has neither the M boxes nor the
  * eDrive box. On those cars the KOMBI draws its own box over part of our

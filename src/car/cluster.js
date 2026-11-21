@@ -118,7 +118,7 @@ function create(opts) {
              * the shader honours it, so a layout change cannot quietly start
              * covering the strip.
              */
-            var keep = Panel.BOTTOM_CUT >= L.y + L.h ? 0 :
+            var keep = (L.belowCut || Panel.BOTTOM_CUT >= L.y + L.h) ? 0 :
                 Math.max(0, (Panel.BOTTOM_CUT - L.y) / L.h);
             cr.uniform(ref, 'u_keep', [keep]);
             if (body.indexOf('u_atlas') >= 0) {

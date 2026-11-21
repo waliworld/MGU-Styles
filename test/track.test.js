@@ -78,7 +78,8 @@ test('Track: nothing below the cut, nothing off the panel, nothing under a facto
     for (const id of Object.keys(Panel.PROFILES)) {
         const zones = Panel.keepClear(id).filter((z) => z.id !== 'bottomStrip');
         for (const L of build({ profile: id }).layers) {
-            assert.ok(L.y + L.h <= Panel.BOTTOM_CUT, `${id}/${L.id} reaches ${L.y + L.h}`);
+            if (L.belowCut) assert.strictEqual(L.id, 'frame', 'only the frame goes below');
+            else assert.ok(L.y + L.h <= Panel.BOTTOM_CUT, `${id}/${L.id} reaches ${L.y + L.h}`);
             assert.ok(L.x >= 0 && L.y >= 0 && L.x + L.w <= Panel.PANEL_WIDTH, `${L.id} off the panel`);
             if (L.id === 'frame' || L.id === 'flash') continue;
             for (const z of zones) {

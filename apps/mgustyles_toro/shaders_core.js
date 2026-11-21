@@ -39,7 +39,7 @@
         'uniform float u_facets;',
         'uniform float u_rev;',
         'uniform vec4 u_hole;',          /* x, y, w, h of the map opening */
-        'uniform vec2 u_holeOpen;',      /* how far open 0..1, feather in px */
+        'uniform vec3 u_holeOpen;',      /* open 0..1, feather px, corner cut px */
         '',
         /* Which cell p falls in: xy local offset from its centre, zw cell id. */
         'vec4 hexCell(vec2 p, float s) {',
@@ -162,9 +162,15 @@
         '  float a = 1.0;',
         '  if (u_holeOpen.x > 0.001) {',
         '    vec2 hc = u_hole.xy + u_hole.zw * 0.5;',
-        '    vec2 hd = abs(p - hc) - u_hole.zw * 0.5;',
-        '    float d = min(max(hd.x, hd.y), 0.0) + length(max(hd, 0.0));',
-        '    a = 1.0 - u_holeOpen.x * (1.0 - smoothstep(-u_holeOpen.y, 0.0, d));',
+        '    vec2 hh = u_hole.zw * 0.5;',
+        '    vec2 hq = abs(p - hc);',
+        /* a long hexagon: the rectangle with its ends cut away at 45 degrees */
+        '    float box = max(hq.x - hh.x, hq.y - hh.y);',
+        '    float cut = (hq.x + hq.y - (hh.x + hh.y - u_holeOpen.z)) * 0.70710678;',
+        '    float d = max(box, cut);',
+        /* a long, soft fade rather than an edge: the map comes out of the dark */
+        '    float t = smoothstep(-u_holeOpen.y, 0.0, d);',
+        '    a = 1.0 - u_holeOpen.x * (1.0 - t * t * (3.0 - 2.0 * t));',
         '  }',
         '  gl_FragColor = vec4(max(col, vec3(0.0)) * a, a);',
         '}'
