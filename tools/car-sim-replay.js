@@ -13,7 +13,9 @@ const path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'build', 'car-sim');
-const { VERT } = require('../src/shaders/prelude.js');
+const { VERT, compose } = require('../src/shaders/prelude.js');
+/* where Waze draws once it is in the panel: a stand-in map, z 0 */
+const FIXTURE = compose(require('../preview/fixtures.js').MGUShadersFixture.fixture);
 
 function page(snap, atlasB64) {
     return `<!doctype html><body style="margin:0;background:#000">
@@ -39,6 +41,10 @@ function sh(type, src, name) {
   const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) errors.push(name + ': ' + gl.getShaderInfoLog(s));
   return s;
+}
+if (snap.theme === 'track' && snap.wazeTarget === 'panel') {
+  snap.layers.push({ ref: 0, visible: true, binds: {}, uniforms: { u_size: [1088, 480], u_kind: [1] },
+                     msg: { class: 'content', z: 0, x: 416, y: 120, w: 1088, h: 480, fs: ${JSON.stringify(FIXTURE)} } });
 }
 const layers = snap.layers.slice().sort((a, b) => (a.msg.z - b.msg.z) || (a.ref - b.ref));
 for (const l of layers) {

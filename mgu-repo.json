@@ -5,7 +5,7 @@
       "id": "mgustyles_toro",
       "kind": "app",
       "path": "apps/mgustyles_toro",
-      "title": "Toro Cluster",
+      "title": "MGU Styles",
       "description": "Lamborghini Huracan-style cluster over the whole iDrive 7 instrument cluster. Off until you turn it on.",
       "mguHmi": [
         "ID7"

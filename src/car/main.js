@@ -18,11 +18,13 @@ var Driver = require('./cluster.js');
 var Vehicle = require('./vehicle.js');
 var Atlas = require('./atlas.js');
 var State = require('../engine/state.js');
-var Theme = require('../theme/lambo.js');
+var Theme = require('../theme/index.js');
+var Centre = require('./centre.js');
 var Panel = require('../geometry/panel.js');
 var core = require('../shaders/core.js');
 var parts = require('../shaders/parts.js');
 var dialShaders = require('../shaders/dial.js');
+var trackShaders = require('../shaders/track.js');
 
 var FRAME_MS = 33;            /* 30 Hz: past what the eye reads off a gauge */
 var IDLE_MS = 250;            /* while nothing is drawn */
@@ -30,7 +32,7 @@ var SETTLE_MS = 400;          /* settings changes, while someone scrolls through
 
 function shaders() {
     var out = {}, k, i;
-    var sets = [core, parts, dialShaders];
+    var sets = [core, parts, dialShaders, trackShaders];
     for (i = 0; i < sets.length; i++) {
         for (k in sets[i]) {
             if (Object.prototype.hasOwnProperty.call(sets[i], k)) out[k] = sets[i][k];
@@ -67,6 +69,7 @@ function profileTank(profile) {
  *   settings()                    the current settings object
  *   onSettingsChanged(fn)         optional
  *   log                           { info, warn }
+ *   dataDir                       optional: where the centre remembers what it moved
  * }
  * deps lets a test pass its own ClusterRender, clock and atlas.
  */
@@ -86,6 +89,9 @@ function start(host, deps) {
     var cr = deps.cr || new ClusterRenderMod.ClusterRender(deps.appId || 'wali_mgu_styles');
     var reader = Vehicle.createReader({});
     var SHADERS = shaders();
+    /* the Track theme's centre: Waze and Turn View, asked for, never held */
+    var centre = deps.centre || Centre.create({ log: log, dataDir: host.dataDir });
+    try { centre.start(); } catch (e) { log.warn('centre: ' + e); }
 
     var connected = false;
     var running = false;        /* our layers are up */
@@ -195,7 +201,15 @@ function start(host, deps) {
                 log.info('cluster: off, handed back to BMW');
             }
 
-            if (running) driver.tick(State.present(raw, profile, theme.settings));
+            /* only while our layers are up does anything belong in the window */
+            var hasCentre = !!(theme && theme.hasCentre);
+            centre.want(running && hasCentre ? theme.settings.centre : 'off');
+
+            if (running) {
+                var st = State.present(raw, profile, theme.settings);
+                if (hasCentre) st.centre = centre.state();
+                driver.tick(st);
+            }
 
             setStatus(!enabled ? 'Off - BMW original cluster'
                 : !connected ? 'Waiting for cluster-render'
@@ -219,7 +233,12 @@ function start(host, deps) {
             if (settleTimer) clearTimeout(settleTimer);
             try { if (driver) driver.stop(); } catch (e) { /* closing anyway */ }
             running = false;
+            try { centre.stop(); } catch (e) { /* closing anyway */ }
             if (cr.close) cr.close();
+        },
+        /* the centre's sources, for the iDrive screen */
+        centre: function () {
+            try { return centre.info(); } catch (e) { return null; }
         },
         status: function () { return status; },
         /* for tests */

@@ -37,6 +37,7 @@
         'uniform float u_hex;',
         'uniform float u_hexSize;',
         'uniform float u_facets;',
+        'uniform float u_rev;',
         '',
         /* Which cell p falls in: xy local offset from its centre, zw cell id. */
         'vec4 hexCell(vec2 p, float s) {',
@@ -111,6 +112,39 @@
         '    col += vec3(glass) * mask * u_hex;',
         '    col += silver * line * (0.30 + 0.25 * exp(-dn / 40.0)) * mask * u_hex;',
         '    col += mix(silver, vec3(1.0), 0.5) * node * 0.85 * mask * u_hex;',
+        '  }',
+        '',
+        /* revuelto: the Y light signature, nested three deep on each side with
+           the stem pointing at the dial, faceted planes between the arms and
+           the accent burning at the junction. Mirrored; the centre stays clear. */
+        '  if (u_rev > 0.001) {',
+        '    vec2 q = vec2(abs(p.x - u_size.x * 0.5), p.y);',
+        '    col = mix(col, vec3(0.006, 0.008, 0.011), 0.55 * u_rev);',
+        '    float lines = 0.0, glow = 0.0, plane = 0.0;',
+        '    for (int i = 0; i < 3; i++) {',
+        '      float k = float(i);',
+        '      vec2 J = vec2(760.0 + k * 46.0, 300.0);',            /* the junction */
+        '      vec2 S = J - vec2(150.0 - k * 20.0, 0.0);',          /* the stem, inward */
+        '      vec2 A = J + vec2(330.0, -235.0);',                  /* upper arm, outward */
+        '      vec2 Bm = J + vec2(330.0, 235.0);',                  /* lower arm */
+        '      float d = min(sdSegment(q, S, J, 0.0), min(sdSegment(q, J, A, 0.0), sdSegment(q, J, Bm, 0.0)));',
+        '      float w = 1.0 - k * 0.30;',
+        '      lines += (cov(d - (1.3 - k * 0.3)) + exp(-d / 3.0) * 0.30) * w;',
+        '      glow += exp(-length(q - J) / (26.0 + k * 10.0)) * w;',
+        '    }',
+        /* two planes either side of the arms: lighter above, darker below */
+        '    vec2 r = q - vec2(760.0, 300.0);',
+        '    float upper = step(0.0, r.x) * step(r.y, 0.0) * step(-r.y, r.x * 0.712);',
+        '    float lower = step(0.0, r.x) * step(0.0, r.y) * step(r.y, r.x * 0.712);',
+        '    float fade = exp(-max(r.x, 0.0) / 520.0);',
+        '    plane = (upper * 0.040 + lower * 0.016) * fade;',
+        /* a long diagonal sweep behind it, the car's side intake line */
+        '    float sweep = cov(abs(dot(q - vec2(700.0, 560.0), normalize(vec2(0.34, 0.94)))) - 0.6) * smoothstep(640.0, 900.0, q.x) * 0.5;',
+        '    vec3 silver = vec3(0.70, 0.73, 0.78);',
+        '    float vis = smoothstep(600.0, 700.0, q.x) * (1.0 - 0.55 * smoothstep(0.55, 0.75, n.y));',
+        '    col += vec3(plane) * u_rev;',
+        '    col += silver * (lines * 0.38 + sweep * 0.22) * vis * u_rev;',
+        '    col += u_accent * glow * 0.55 * vis * u_rev;',
         '  }',
         '',
         /* The glass is cut on a diagonal at the top corners: a hard edge. */

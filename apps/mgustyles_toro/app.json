@@ -1,10 +1,10 @@
 {
   "id": "mgustyles_toro",
-  "title": "Toro Cluster",
+  "title": "MGU Styles",
   "vendor": "MGU-Styles",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "loggingId": "TORO",
-  "description": "A Lamborghini Huracan-style instrument cluster drawn over the whole iDrive 7 cluster. Off until you turn it on; BMW's warnings and bottom strip always stay BMW's.",
+  "description": "Custom instrument clusters drawn over the whole iDrive 7 cluster: Toro, after the Lamborghini Huracan, and Track, after BMW's iDrive 8 M cluster, with the Waze map or Turn View's camera in its centre. Off until you turn it on; BMW's warnings and bottom strip always stay BMW's.",
   "autostart": true,
   "startType": "autostart",
   "iconGlyph": "gauge",
@@ -19,7 +19,7 @@
     {
       "name": "MAIN",
       "kind": "canvas",
-      "title": "Toro Cluster",
+      "title": "MGU Styles",
       "buttons": [
         [
           "BTN_SHOW",
@@ -28,6 +28,10 @@
         [
           "BTN_HIDE",
           "BMW original"
+        ],
+        [
+          "BTN_WAZE",
+          "Waze on cluster: on / off"
         ],
         [
           "BTN_SETTINGS",
@@ -78,9 +82,65 @@
   "settings": [
     {
       "key": "enabled",
-      "label": "Show Toro on the cluster",
+      "label": "Show on the cluster",
       "type": "bool",
       "default": false
+    },
+    {
+      "key": "style",
+      "label": "Style",
+      "type": "choice",
+      "default": "toro",
+      "options": [
+        [
+          "toro",
+          "Toro (Lamborghini Huracan)"
+        ],
+        [
+          "track",
+          "Track (iDrive 8 M style)"
+        ]
+      ]
+    },
+    {
+      "key": "centre",
+      "label": "Track: centre shows",
+      "type": "choice",
+      "default": "waze",
+      "options": [
+        [
+          "waze",
+          "Waze map (turn card without it)"
+        ],
+        [
+          "camera",
+          "Turn View camera"
+        ],
+        [
+          "turn",
+          "Turn card only"
+        ],
+        [
+          "off",
+          "Boost and logo only"
+        ]
+      ]
+    },
+    {
+      "key": "trackPalette",
+      "label": "Track: colours",
+      "type": "choice",
+      "default": "night",
+      "options": [
+        [
+          "night",
+          "Night"
+        ],
+        [
+          "day",
+          "Day"
+        ]
+      ]
     },
     {
       "key": "profile",
@@ -108,7 +168,7 @@
     },
     {
       "key": "background",
-      "label": "Look / Background",
+      "label": "Toro: background",
       "type": "choice",
       "default": "genuine",
       "options": [
@@ -119,6 +179,10 @@
         [
           "modern",
           "Modern hex lattice"
+        ],
+        [
+          "revuelto",
+          "Revuelto (Y signature)"
         ]
       ]
     },

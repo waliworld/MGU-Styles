@@ -32,11 +32,16 @@
 <script src="../src/shaders/core.js"></script>
 <script src="../src/shaders/dial.js"></script>
 <script src="../src/shaders/parts.js"></script>
+<script src="../src/shaders/track.js"></script>
+<script src="./fixtures.js"></script>
 <script src="../src/engine/text.js"></script>
 <script src="../src/engine/state.js"></script>
 <script src="../src/theme/palette.js"></script>
 <script src="../src/theme/guide.js"></script>
+<script src="../src/theme/textlayers.js"></script>
 <script src="../src/theme/lambo.js"></script>
+<script src="../src/theme/track.js"></script>
+<script src="../src/theme/index.js"></script>
 <script src="./engine.js"></script>
 <script src="./sim.js"></script>
 <script>
@@ -50,7 +55,7 @@
   if (params.get('strip') === 'off') document.getElementById('strip').className = 'off';
 
   var shaders = {};
-  [MGUShadersCore, MGUShadersParts, MGUShadersDial].forEach(function (set) {
+  [MGUShadersCore, MGUShadersParts, MGUShadersDial, MGUShadersTrack, MGUShadersFixture].forEach(function (set) {
     for (var k in set) if (set.hasOwnProperty(k)) shaders[k] = set[k];
   });
 
@@ -67,7 +72,7 @@
     var profileId = params.get('profile') || 'x3m40i';
     var units = params.get('units') || 'imperial';
     var cfg = { units: units };
-    ['accent', 'litColour', 'revFlash', 'mode', 'background'].forEach(function (k) {
+    ['accent', 'litColour', 'revFlash', 'mode', 'background', 'style', 'centre', 'trackPalette'].forEach(function (k) {
       if (params.get(k)) cfg[k] = params.get(k);
     });
     ['scaleMaxRpm', 'rpmRedline', 'rpmLimiter', 'redFromScale', 'flashFromRpm',
@@ -85,7 +90,19 @@
     engine.setAtlas(a.img);
 
     var profile = MGUPanel.profile(profileId);
-    var theme = MGUTheme.build(a.atlas, profileId, cfg);
+    var theme = MGUThemes.build(a.atlas, profileId, cfg);
+    /* Track: what is under the window (show=map|camera|magenta) and what the
+       centre shows (mode=map|camera|turn|neutral, turn=left|roundabout|...) */
+    var show = params.get('show');
+    var fixtureKind = { map: 1, camera: 2, grid: 2, magenta: 3 }[show] || 0;
+    if (theme.hasCentre && fixtureKind) theme.layers.push(MGUFixtureLayer(fixtureKind));
+    var centre = null;
+    if (theme.hasCentre) {
+      var cm = params.get('cmode') || (fixtureKind ? (show === 'map' ? 'map' : 'camera') : (params.get('turn') ? 'turn' : 'neutral'));
+      var open = params.get('open') !== null ? parseFloat(params.get('open')) : 1;
+      centre = { mode: cm, open: cm === 'map' || cm === 'camera' ? open : 0,
+                 maneuver: MGUSampleTurns[params.get('turn') || 'left'] };
+    }
     var sim = MGUSim.create(profile);
 
     /* A fixed point in the drive, so a screenshot is repeatable. */
@@ -95,6 +112,7 @@
 
     function draw(time) {
       var st = MGUState.present(sim.raw(), profile, theme.settings);
+      if (centre) st.centre = centre;
       engine.render(theme, st, time, 720, MGUPanel.BOTTOM_CUT);
       window.__state = st;
     }

@@ -51,6 +51,8 @@ FACES = {
     # inclined, for the dial itself
     "dial": ("saira-latin-500-normal.ttf", DIGITS, 11.0),
     "gear": ("saira-latin-700-normal.ttf", DIGITS + "PRNDSM", 12.0),
+    # the Track theme: heavy, squared, clipped corners (TBW brief section 2)
+    "track": ("chakra-petch-latin-700-normal.ttf", DIGITS + "PRNDSM", 0.0),
 }
 
 

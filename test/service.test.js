@@ -12,7 +12,7 @@ const CDS = 'de.bmw.infotainment.vehicle.CDS';
 const COND = 'de.bmw.infrastructure.VehicleCondition';
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
-function harness(t, initial) {
+function harness(t, initial, centre) {
     const calls = { effect: 0, uniform: 0, drop: 0, asset: 0, pixels: 0 };
     const on = {};
     let ref = 100;
@@ -34,7 +34,7 @@ function harness(t, initial) {
         onSettingsChanged(fn) { changed = fn; },
         subscribe(sig, cb) { onValue = cb; calls.signals = sig; }
     };
-    const svc = Main.start(host, { cr, now: () => clock });
+    const svc = Main.start(host, { cr, now: () => clock, centre });
     t.after(() => svc.stop());   /* a failed assertion must not leave a timer running */
     return {
         calls, logs, svc, on,
@@ -185,4 +185,61 @@ test('a bad signal payload never brings the service down', { timeout: 10000 }, a
     }
     await wait(300);
     assert.ok(!h.logs.some(l => /^WARN frame/.test(l)), 'no frame failed');
+});
+
+/* A centre that records what it is asked for and hands out a fixed state. */
+function fakeCentre() {
+    const asked = [];
+    let stopped = false;
+    return {
+        asked, isStopped: () => stopped,
+        start() {}, want(p) { if (asked[asked.length - 1] !== p) asked.push(p); },
+        state: () => ({ mode: 'map', open: 1, maneuver: null }),
+        info: () => ({ waze: 'Waze map showing', turnView: 'No route', wazeUp: true, cameraUp: false }),
+        stop() { stopped = true; }
+    };
+}
+
+test('Track: the centre is asked for only while our layers are up, and given back', { timeout: 10000 }, async (t) => {
+    const c = fakeCentre();
+    const h = harness(t, { style: 'track', centre: 'waze' }, c);
+    h.on.ready();
+    h.condition('WOHNEN');
+    await wait(300);
+    assert.deepStrictEqual(c.asked, ['off'], 'parked: nothing moved into the cluster');
+    h.condition('FAHREN');
+    h.rpm(1500);
+    await wait(300);
+    assert.strictEqual(c.asked[c.asked.length - 1], 'waze');
+    assert.strictEqual(h.svc.centre().waze, 'Waze map showing');
+    const frame = h.svc.driver() && h.svc.theme().layers.find((L) => L.id === 'frame');
+    assert.ok(frame, 'the Track frame is up');
+    h.condition('FAHRBEREITSCHAFT_BEENDEN');
+    await wait(300);
+    assert.strictEqual(c.asked[c.asked.length - 1], 'off', 'key-off gives the map back');
+    h.svc.stop();
+    assert.ok(c.isStopped());
+});
+
+test('Toro never asks for a centre', { timeout: 10000 }, async (t) => {
+    const c = fakeCentre();
+    const h = harness(t, { style: 'toro', centre: 'waze' }, c);
+    h.on.ready(); h.condition('FAHREN'); h.rpm(1500);
+    await wait(300);
+    assert.deepStrictEqual(c.asked, ['off']);
+});
+
+test('switching style rebuilds the cluster and moves the centre with it', { timeout: 10000 }, async (t) => {
+    const c = fakeCentre();
+    const h = harness(t, { style: 'toro', centre: 'camera' }, c);
+    h.on.ready(); h.condition('FAHREN'); h.rpm(1500);
+    await wait(300);
+    assert.strictEqual(h.svc.theme().id, 'toro');
+    h.change({ style: 'track' });
+    await wait(800);
+    assert.strictEqual(h.svc.theme().id, 'track');
+    assert.strictEqual(c.asked[c.asked.length - 1], 'camera');
+    h.change({ centre: 'off' });
+    await wait(800);
+    assert.strictEqual(c.asked[c.asked.length - 1], 'off');
 });

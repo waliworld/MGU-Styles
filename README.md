@@ -1,10 +1,17 @@
-# MGU-Styles — "Toro"
+# MGU-Styles
 
-A custom instrument cluster for BMW iDrive 7 (MGU), drawn in the style of a
-modern Lamborghini: a wide elliptical rev band, a huge hollow gear numeral in
-arancio, Italian-labelled side pods — plus two things the factory car never
-had, a **boost gauge** and **GT3 three-stage shift lights with a limiter
-flash**.
+Custom instrument clusters for BMW iDrive 7 (MGU), in two styles you switch
+between on iDrive:
+
+- **Toro**, after a modern Lamborghini: a wide rev band, a huge hollow gear
+  numeral in arancio, Italian-labelled side pods, and three backgrounds
+  (genuine Huracán, modern hex lattice, Revuelto). Plus two things the
+  factory car never had, a **boost gauge** and **GT3 three-stage shift
+  lights with a limiter flash**.
+- **Track**, after BMW's iDrive 8 M cluster, drawn on the iDrive 7 panel:
+  speed in a blue tower on the left, revs and gear in a vermilion tower on
+  the right, and a centre that shows the **Waze map**, **Turn View's front
+  camera** or a turn card, faded into the frame.
 
 It runs on a rooted head unit through
 [`cluster-render`](https://github.com/robertnisipeanu/idrive-apps), installed
@@ -29,7 +36,7 @@ from the [MGU Store](https://github.com/robertnisipeanu/mgu-store).
 | Also profiled | other B58 cars, S58 M cars, plug-in hybrids (see Known limitations) |
 | Units | imperial (mph, °F, psi); metric available |
 | Head unit | iDrive 7 (ID7). iDrive 8 is planned — `cluster-render` already supports it |
-| Package | **ready to install** from the MGU Store as **Toro Cluster** (`mgustyles_toro`) |
+| Package | **ready to install** from the MGU Store as **MGU Styles** (`mgustyles_toro`) |
 | Tried on a car | **not yet** — the built package has been run end to end against a simulated car (below). The in-car checklist is **[docs/IN-CAR-TEST.md](docs/IN-CAR-TEST.md)** |
 
 ## The design
@@ -94,15 +101,81 @@ As the revs climb:
 
 ![On the limiter: flashing edges, full shift lights, the 7 popping red](docs/img/toro-limiter.png)
 
-### Two backgrounds
+### Three backgrounds
 
 `Background` keeps the **genuine** Huracán look (stipple annulus, faint
-facets) or switches to **modern**: the Lamborghini hexagon lattice — thin
-silver lines on the left and right only, glowing nodes at some of the
-joints, faint faceted glass inside each cell, and a black centre so the dial
-stays clean. It fades out behind the side pods to keep them readable.
+facets) or switches to:
+
+- **modern**: the Lamborghini hexagon lattice — thin silver lines on the
+  left and right only, glowing nodes at some of the joints, faint faceted
+  glass inside each cell, and a black centre so the dial stays clean. It
+  fades out behind the side pods to keep them readable.
+- **revuelto**: the Revuelto's Y light signature, nested three deep on each
+  side with the stem pointing at the dial, the accent colour burning at the
+  junction, lighter and darker planes between the arms, and a long diagonal
+  sweep behind.
 
 ![Modern hexagon lattice background](docs/img/toro-modern.png)
+
+![Revuelto background](docs/img/toro-revuelto.png)
+
+## Track — the iDrive 8 M style
+
+Built to the **TBW track display brief**
+([docs/TBW-TRACK-BRIEF.md](docs/TBW-TRACK-BRIEF.md)); the photographs of
+BMW's iDrive 8 M cluster set the hierarchy, the brief sets every
+dimension. Original geometry and lettering: Chakra Petch's squared,
+clipped-corner numerals (SIL OFL), no BMW marks.
+
+![Track, the centre showing boost](docs/img/track.png)
+
+- **Left tower:** stepped blue spine, the speed bar against a 0–160 mph
+  (0–240 km/h) scale, the speed right-aligned on the brief's anchor, fuel.
+- **Right tower:** a 12-segment rev strip that turns red from your redline
+  and flashes on the limiter, the gear, oil temperature.
+- **Footer:** clock, range, BMW's drive-mode name, outside temperature.
+- **Centre:** one chamfered window. Its walls feather over 40 design units
+  exactly as the brief's checkpoint table says (`test/track.test.js`), and
+  the window opens over 180 ms and closes over 110 ms. Speed, gear, revs and
+  everything outside the window never move or fade.
+
+| Centre shows | What you see |
+|---|---|
+| **Waze map** | the phone's map from *Maps on cluster* — and the turn card when no map is up |
+| **Turn View camera** | the front camera from IterioDev's *Turn View* |
+| **Turn card only** | our own arrow, distance and instruction for the next turn |
+| **Boost and logo** | boost and the TBW mark |
+
+![Track with the Waze map in the centre (a stand-in map in the preview)](docs/img/track-waze.png)
+
+![Track with the turn card](docs/img/track-turn.png)
+
+### How the map and the camera get into the centre
+
+Neither picture is ours: two other apps draw them, and Track only asks and
+makes room. `src/car/centre.js` does all of it.
+
+- **Waze** ([Maps on cluster](https://github.com/robertnisipeanu/idrive-apps/blob/main/apps/robertn_waze_cluster/README.md)).
+  Its service normally draws on the KOMBI's map slot, under BMW's gauges.
+  While Track is on the cluster with *Waze map* chosen, we ask its control
+  socket to draw on the **panel** instead — the same scene we draw in, at
+  z 0 in BMW's map window (416,120 1088×480) — and our frame at z 1 cuts
+  the feathered window over it. The window sits wholly inside that map
+  window. Whenever we stop wanting it (key-off, another style, *BMW
+  original*, the app closing) we put the map back on its own slot, but only
+  if we moved it; that is remembered across restarts. This is the approach
+  bimmer-lab's Cluster Themes use. The **Waze on cluster** button on the
+  app's page turns it on (and picks Track) or off.
+- **Turn View** ([IterioDev/car-apps](https://github.com/IterioDev/car-apps)).
+  On iDrive 7 its tool draws the camera on the map slot, under the panel;
+  our window over BMW's map area is how it shows. *Turn View camera*
+  switches Turn View on (it is off at every car start) and off again when
+  you leave, unless you had switched it on yourself. Its control socket
+  also gives the next maneuver, which is where the turn card comes from.
+  We only ever hold that socket for an instant: the Turn View tool starts
+  its app (the part that asks the camera for a picture) only while nobody
+  is connected. Turn View is closed-source under PolyForm Strict and is
+  used as installed; nothing of it is copied here.
 
 ## Settings
 
@@ -112,8 +185,11 @@ to the cluster within half a second.
 | Setting | Values |
 |---|---|
 | Show on cluster | on / off (off = BMW's original cluster) |
+| Style | Toro (Lamborghini Huracán) · Track (iDrive 8 M style) |
+| Track: centre shows | Waze map · Turn View camera · turn card only · boost and logo |
+| Track: colours | night · day (the brief's two palettes) |
 | Car | X3 M40i (B58) · other B58 · M car (S58) · plug-in hybrid — sets the default redline, limiter and gear count |
-| Background | Genuine Huracán (stipple) · Modern hex lattice |
+| Toro: background | Genuine Huracán (stipple) · Modern hex lattice · Revuelto |
 | Accent | arancio · giallo · rosso · verde · blu · viola · bianco |
 | Rev band fill | full fill and needle · subtle · off |
 | Mode label | Strada / Sport / Corsa · BMW's own names · always CORSA |
@@ -131,7 +207,9 @@ The redline and limiter are clamped and kept in order whatever is chosen.
 The preview takes more (`flashFromRpm`, `flashRate`, `flashStrength`,
 `hexagons`, `hexSize`, `stipple`, `litColour`…) as query parameters, e.g.
 `preview/index.html?background=modern&accent=blu&rpmLimiter=6500`; all of
-them live in `src/theme/palette.js`.
+them live in `src/theme/palette.js`. For Track: `style=track`, and
+`show=map|camera|magenta` puts a stand-in picture under the window,
+`turn=left|right|bear|sharp|uturn|roundabout|keep|dest` shows the turn card.
 
 ## The one rule everything obeys
 
@@ -162,8 +240,11 @@ src/engine/text.js       SDF text layout (shared by preview and car)
 src/engine/state.js      raw vehicle signals -> what the theme draws
 src/theme/guide.js       the CORSA brief as data, and its fit to the MGU panel
 src/theme/palette.js     colour schemes and every driver setting
-src/theme/lambo.js       the layout: 49 layers
+src/theme/lambo.js       Toro: 49 layers
+src/theme/track.js       Track: 24 layers, the TBW brief's grid and feather
+src/theme/index.js       the styles, picked by settings.style
 src/car/cluster.js       the theme -> cluster-render effect layers
+src/car/centre.js        Track's centre: Waze and Turn View, asked for, never held
 src/car/vehicle.js       BMW SOME/IP signals -> raw readings
 src/car/main.js          the service: signals in, uniforms out
 app/                     the iDrive app shell (entry, manifest, icon)
@@ -198,10 +279,17 @@ shader that ships.
 2. Add this repository as a source in the Store. It reads
    [`mgu-repo.json`](mgu-repo.json), which points at the ready-staged app in
    `apps/mgustyles_toro/` and builds it with the kit in `kit/`.
-3. Install **Toro Cluster**. The Store pulls in `cluster-render` (≥ 0.6.9)
+3. Install **MGU Styles**. The Store pulls in `cluster-render` (≥ 0.6.9)
    and `mgu-deploy` as dependencies.
-4. Open Toro Cluster on iDrive and press **Show on cluster**. It starts
+4. Open MGU Styles on iDrive and press **Show on cluster**. It starts
    with the car from then on; **BMW original** hands the cluster back.
+   Pick the style in **Settings**.
+5. For Track's centre: install **Maps on cluster** (`robertnisipeanu/idrive-apps`)
+   for Waze, and/or **Turn View** (`IterioDev/car-apps`) for the camera,
+   from their own Store sources, and set **Instrument cluster > Central
+   display area** to **Map view** in the car's settings. Then press
+   **Waze on cluster** on MGU Styles' page, or pick the centre in Settings.
+   Without them Track still works; the centre shows boost and the logo.
 
 It draws only when the car is in drive readiness and `cluster-render` is
 running, and gives the cluster back at key-off. Follow
@@ -224,6 +312,12 @@ limiter → key-off. It fails if the app draws before the car is on, does not
 draw while driving, or does not hand the cluster back. It then redraws
 exactly what crossed the socket in WebGL 1 (`build/car-sim/car-*.png`) and
 fails if any shader does not compile.
+
+`CAR_SIM_THEME=track npm run car-sim` runs Track with fake *Maps on
+cluster* and *Turn View* services beside the fake renderer, and also fails
+if Waze is moved into the cluster before the car is on, is not in it while
+driving, is not given back at key-off, or if a Turn View connection is
+held open. Its replay draws a stand-in map where Waze would draw.
 
 After changing anything in `src/` or `app/`, run `node tools/stage-app.js`
 to refresh `apps/mgustyles_toro/`; `npm test` fails if you forget.
@@ -258,8 +352,31 @@ For a live preview, serve the repo root and open `preview/index.html`
   follows the written specification.
 - **Boost** needs a turbocharged engine and comes from the Sport Display,
   falling back to reading the engine unit directly.
+- **Track's centre depends on two other apps' behaviour on your car.**
+  Moving Waze into the panel is the method bimmer-lab's Cluster Themes use
+  on cars; it has not been run with this app yet. Do not run both apps'
+  map windows at once: whichever asked last owns the map.
+- **Turn View and Waze compete for the cluster's video.** Turn View's own
+  advice is not to use both on the cluster; the cluster and HUD together
+  show at most two videos. Choosing *Turn View camera* gives the Waze map
+  back to its own slot, where Turn View's camera hides it.
+- **The camera window shows whatever the KOMBI draws in its map area.**
+  Turn View's camera lands on the map slot under BMW's gauges, so any
+  readout BMW draws over its own map in Map view shows through the window
+  too. That has to be judged in the car.
+- **The turn card has a distance but no street name.** Turn View's tool
+  reports the maneuver and its formatted distance only. Waze sends no turns
+  to the car (Turn View's notes), so with Waze the card stays empty.
+- **On M cars** the KOMBI's M boxes fall inside Track's centre; readouts
+  stay clear of them, what the centre shows may be covered.
 
 ## Credits
+
+- **[bimmer-lab/apps](https://github.com/bimmer-lab/apps)** — showing the
+  Waze map inside a cluster theme through waze-on-cluster's control socket,
+  and BMW's map window on the panel (416,120 1088×480).
+- **[IterioDev/car-apps](https://github.com/IterioDev/car-apps)** — Turn
+  View, used as installed, through its documented control socket.
 
 This project is built on what others worked out, mostly on their own cars:
 
@@ -278,5 +395,5 @@ This project is built on what others worked out, mostly on their own cars:
   **[cauliflowermossgrape/idrive7-apps](https://github.com/cauliflowermossgrape/idrive7-apps)**
   — app structure, signal catalogues and layout practice.
 
-Fonts: **Saira** and **Barlow Condensed**, SIL OFL 1.1, baked into
+Fonts: **Saira**, **Chakra Petch** and **Barlow Condensed**, SIL OFL 1.1, baked into
 `assets/fonts/`. Licences in `assets/fonts/OFL.txt`.

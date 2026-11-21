@@ -196,6 +196,42 @@ exports.value = (iface, field, t) => {
 `);
 }
 
+/* ------------------------- the Track centre's two neighbours, faked */
+function neighbours() {
+    const dir = path.join(OUT, 'neighbours');
+    fs.mkdirSync(dir, { recursive: true });
+    /* waze-on-cluster: status file + control socket that moves the map */
+    const waze = { target: 'map', state: 'showing', cmds: [] };
+    const statusFile = path.join(dir, 'waze-status.json');
+    const writeStatus = () => fs.writeFileSync(statusFile, JSON.stringify({ state: waze.state, target: waze.target }));
+    writeStatus();
+    const tick = setInterval(writeStatus, 500);
+    const wazeSock = path.join(dir, 'waze-ctl.sock');
+    const ws = net.createServer((c) => {
+        c.setEncoding('utf8'); c.on('error', () => {});
+        c.on('data', (d) => d.split('\n').filter(Boolean).forEach((l) => {
+            let m; try { m = JSON.parse(l); } catch (e) { return; }
+            waze.cmds.push({ t: Date.now(), target: m.target });
+            waze.target = m.target; writeStatus();
+            c.write('{"ok":true}\n');
+        }));
+    }).listen(wazeSock);
+    /* Turn View's tool: a route with a left turn coming */
+    const tv = { connects: 0, open: 0, maxOpen: 0 };
+    const tvSock = path.join(dir, 'tv-ctl.sock');
+    const ts = net.createServer((c) => {
+        tv.connects++; tv.open++; tv.maxOpen = Math.max(tv.maxOpen, tv.open);
+        c.on('close', () => { tv.open--; }); c.on('error', () => {});
+        c.write(JSON.stringify({ state: { settings: { enabled: false }, status: { camera: 'off', route: 'active',
+            maneuver: { kind: 'intersection', angle: 90, side: -1, exit: 0, text: '0.3 mi' } } } }) + '\n');
+    }).listen(tvSock);
+    return {
+        waze, tv,
+        env: { WAZE_STATUS: statusFile, WAZE_CTL: wazeSock, TURNVIEW_CTL: tvSock },
+        close: () => { clearInterval(tick); ws.close(); ts.close(); }
+    };
+}
+
 /* ------------------------------------------------------------ run */
 function snapshot(state, t) {
     const layers = Object.keys(state.layers).map((r) => {
@@ -212,14 +248,17 @@ async function main() {
     build();
     console.log('done');
 
-    const data = installHeadUnit({ enabled: true, background: process.env.CAR_SIM_BG || 'genuine' });
+    const THEME = process.env.CAR_SIM_THEME || 'toro';
+    const data = installHeadUnit({ enabled: true, style: THEME, centre: process.env.CAR_SIM_CENTRE || 'waze',
+                                   background: process.env.CAR_SIM_BG || 'genuine' });
+    const nb = neighbours();
     const scenarioFile = path.join(OUT, 'scenario.js');
     writeScenario(scenarioFile);
     const r = renderer();
 
     const log = [];
     const app = cp.spawn(process.execPath, [path.join(SRC, 'javascript', 'app.js')], {
-        cwd: data, env: Object.assign({}, process.env, { CAR_SIM_SCENARIO: scenarioFile })
+        cwd: data, env: Object.assign({}, process.env, nb.env, { CAR_SIM_SCENARIO: scenarioFile })
     });
     app.stdout.on('data', (d) => log.push(String(d)));
     app.stderr.on('data', (d) => log.push('ERR ' + String(d)));
@@ -235,11 +274,14 @@ async function main() {
         await new Promise((res) => setTimeout(res, Math.max(0, at - (Date.now() - start))));
         const s = snapshot(r.state, at);
         s.what = what;
+        s.wazeTarget = nb.waze.target;
+        s.theme = THEME;
         shots.push(s);
     }
     app.kill('SIGTERM');
     await new Promise((res) => setTimeout(res, 300));
     r.close();
+    nb.close();
 
     /* the atlas as the renderer received it */
     fs.writeFileSync(path.join(OUT, 'snapshots.json'), JSON.stringify(shots));
@@ -271,6 +313,16 @@ async function main() {
     if (!on(2) || !on(3) || !on(4)) problems.push('it did not draw while driving');
     if (shots[5].layers.length) problems.push('it did not hand the cluster back at key-off');
     if (!r.state.atlas) problems.push('the glyph atlas never arrived');
+    if (THEME === 'track') {
+        console.log('  waze: ' + (nb.waze.cmds.map((c) => ((c.t - start) / 1000).toFixed(1) + ' s start ' + c.target).join(', ') || 'never asked'));
+        console.log('  turn view: ' + nb.tv.connects + ' polls, at most ' + nb.tv.maxOpen + ' connection open');
+        const toPanel = nb.waze.cmds.filter((c) => c.target === 'panel');
+        if (!toPanel.length) problems.push('Waze was never moved into the cluster');
+        else if (toPanel[0].t - start < 4000) problems.push('Waze was moved before the car was on');
+        if (nb.waze.target !== 'map') problems.push('Waze was not given back at key-off');
+        if (shots[3].wazeTarget !== 'panel') problems.push('Waze not in the panel while driving');
+        if (nb.tv.maxOpen > 1 || nb.tv.open > 0) problems.push('a Turn View connection was held open');
+    }
     if (problems.length) { console.log('\nFAILED: ' + problems.join('; ')); process.exit(1); }
     console.log('car behaviour: as expected');
 }

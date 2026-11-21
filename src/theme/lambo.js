@@ -3,11 +3,13 @@
         module.exports = factory(require('../engine/text.js'),
                                  require('../geometry/panel.js'),
                                  require('./palette.js'),
-                                 require('./guide.js'));
+                                 require('./guide.js'),
+                                 require('./textlayers.js'));
     } else {
-        root.MGUTheme = factory(root.MGUText, root.MGUPanel, root.MGUPalette, root.MGUGuide);
+        root.MGUTheme = factory(root.MGUText, root.MGUPanel, root.MGUPalette, root.MGUGuide,
+                                root.MGUTextLayers);
     }
-}(typeof self !== 'undefined' ? self : this, function (Text, Panel, Palette, Guide) {
+}(typeof self !== 'undefined' ? self : this, function (Text, Panel, Palette, Guide, TextLayers) {
     'use strict';
 
     /*
@@ -92,70 +94,8 @@
 
         /* ------------------------------------------------------ helpers */
 
-        function txt(id, z, box, style, fn) {
-            layers.push({
-                id: id, z: z, shader: 'text',
-                x: box.x, y: box.y, w: box.w, h: box.h,
-                uniforms: function (state) {
-                    var str = fn ? fn(state) : style.str;
-                    if (str === null || str === undefined || str === '') return null;
-                    var L = Text.layout(atlas, String(str), {
-                        face: style.face || 'label', size: style.size,
-                        x: style.x - box.x, y: style.y - box.y,
-                        align: style.align || 'left', baseline: style.baseline,
-                        tracking: style.tracking || 0
-                    });
-                    if (!L) return null;
-                    var col = (typeof style.color === 'function' ? style.color(state) : style.color) || C.text;
-                    var oc = (typeof style.outCol === 'function' ? style.outCol(state) : style.outCol) || col;
-                    return {
-                        u_g: L.g, u_quad: L.p, u_count: L.count, u_sharp: L.sharp,
-                        u_color: [col[0], col[1], col[2], style.alpha === undefined ? 1 : style.alpha],
-                        u_glowCol: style.glowCol || oc, u_glow: style.glow || 0,
-                        u_outline: style.outline || 0, u_outCol: oc
-                    };
-                }
-            });
-        }
-
-        function statics(id, z, box, base, items) {
-            var chunk = [], used = 0, n = 0, i;
-            function flush() {
-                if (!chunk.length) return;
-                var local = chunk.map(function (it) {
-                    var o = {}, k;
-                    for (k in it) if (Object.prototype.hasOwnProperty.call(it, k)) o[k] = it[k];
-                    o.x = it.x - box.x; o.y = it.y - box.y;
-                    return o;
-                });
-                var L = Text.place(atlas, local, base);
-                chunk = []; used = 0;
-                if (!L) return;
-                var col = base.color || C.muted;
-                var al = base.alpha === undefined ? 1 : base.alpha;
-                layers.push({
-                    id: id + (n ? '_' + n : ''), z: z, shader: 'text',
-                    x: box.x, y: box.y, w: box.w, h: box.h,
-                    uniforms: function () {
-                        return {
-                            u_g: L.g, u_quad: L.p, u_count: L.count, u_sharp: L.sharp,
-                            u_color: [col[0], col[1], col[2], al],
-                            u_glowCol: col, u_glow: 0,
-                            u_outline: base.outline || 0, u_outCol: col
-                        };
-                    }
-                });
-                n++;
-            }
-            for (i = 0; i < items.length; i++) {
-                var str = items[i].str !== undefined ? items[i].str : items[i].ch;
-                var cost = String(str).replace(/\s/g, '').length;
-                if (used + cost > Text.MAX_GLYPHS) flush();
-                chunk.push(items[i]);
-                used += cost;
-            }
-            flush();
-        }
+        var TL = TextLayers.create(atlas, layers, { text: C.text, muted: C.muted });
+        var txt = TL.txt, statics = TL.statics;
 
         /* ------------------------------------------------- background */
         layers.push({
@@ -165,7 +105,7 @@
                 return {
                     u_black: GC.screenBlack, u_blue: GC.screenBlueBlack,
                     u_lower: GC.lowerField, u_line: GC.geometricLine,
-                    u_hex: S.hexagons, u_hexSize: S.hexSize, u_facets: S.facets,
+                    u_hex: S.hexagons, u_hexSize: S.hexSize, u_facets: S.facets, u_rev: S.revuelto,
                     u_accent: C.accent
                 };
             }

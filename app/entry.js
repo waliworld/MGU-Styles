@@ -1,6 +1,6 @@
 'use strict';
 /*
- * Toro Cluster - the iDrive app.
+ * MGU Styles - the iDrive app (Toro and Track cluster styles).
  *
  * A thin adapter between the MGU App Kit (kit/runtime/mgu.js) and the
  * cluster service (service.js, built from src/car/main.js). The service
@@ -31,6 +31,7 @@ function hostFor(bg) {
             warn: (m) => bg.log.warn(m)
         },
         settings: () => settingsOf(bg.settings, bg.spec),
+        dataDir: bg.dataDir,
         onSettingsChanged: (fn) => bg.settings.onChange(fn),
         subscribe(signals, onValue) {
             Object.keys(signals).forEach((svc) => {
@@ -84,6 +85,21 @@ function dialSketch(cv, cx, cy, r, accent) {
     cv.line(n[0], n[1], m[0], m[1], 2.5, accent);
 }
 
+/* A small drawing of the Track layout: two towers and the centre window. */
+function trackSketch(cv, x, y, w, h) {
+    const s = w / 1920;
+    const X = (v) => x + v * s, Y = (v) => y + v * s;
+    cv.roundRect(X(72), Y(116), 344 * s, 472 * s, 10, '#0a131f');
+    cv.roundRect(X(1504), Y(116), 344 * s, 472 * s, 10, '#0a131f');
+    cv.roundRect(X(440), Y(108), 1040 * s, 478 * s, 12, '#0c1722');
+    cv.line(X(104), Y(140), X(104), Y(303), 3, '#3eaeeb');
+    cv.line(X(118), Y(317), X(118), Y(518), 3, '#3eaeeb');
+    cv.line(X(163), Y(563), X(386), Y(563), 3, '#3eaeeb');
+    for (let i = 0; i < 12; i++) cv.fillRect(X(1524 + i * 25.5), Y(176), 21 * s, 20 * s, i < 8 ? '#f25a43' : '#32495d');
+    cv.text('88', X(200), Y(392), 92, INK, { literal: true });
+    cv.text('4', X(1650), Y(451), 92, INK, { literal: true });
+}
+
 mgu.run({
     background(bg) {
         try {
@@ -112,7 +128,9 @@ mgu.run({
             const status = background ? background.status()
                 : 'The cluster service did not start - see Logs';
             const on = settings.get('enabled') === true;
-            const sig = JSON.stringify([status, on, settingsOf(settings, ctx.spec)]);
+            const track = settings.get('style') === 'track';
+            const centre = background && background.centre ? background.centre() : null;
+            const sig = JSON.stringify([status, on, centre, settingsOf(settings, ctx.spec)]);
             if (sig === last) return;
             last = sig;
 
@@ -122,14 +140,19 @@ mgu.run({
 
             /* left: what it is, and what it is doing */
             cv.roundRect(18, 18, 640, 484, 16, CARD);
-            label('TORO', 46, 82, 48, INK);
-            label('Lamborghini Huracan-style cluster', 46, 116, 20, DIM);
+            label(track ? 'TRACK' : 'TORO', 46, 82, 48, INK);
+            label(track ? 'iDrive 8 M-style cluster' : 'Lamborghini Huracan-style cluster', 46, 116, 20, DIM);
             cv.roundRect(46, 146, 584, 64, 10, FIELD);
             cv.circle(76, 178, 9, statusColour(status));
             const sw = cv.textWidth(status, 24, { literal: true });
             label(status, 98, 187, sw > 510 ? 24 * 510 / sw : 24, INK);
 
-            const rows = [
+            const rows = track ? [
+                ['Centre', choice('centre')],
+                ['Waze', centre ? centre.waze : '-'],
+                ['Turn View', centre ? centre.turnView : '-'],
+                ['Redline / limiter', choice('rpmRedline') + '  /  ' + choice('rpmLimiter')]
+            ] : [
                 ['Dial', choice('scaleMaxRpm')],
                 ['Redline / limiter', choice('rpmRedline') + '  /  ' + choice('rpmLimiter')],
                 ['Look', choice('background') + ', ' + choice('accent')],
@@ -138,7 +161,8 @@ mgu.run({
             rows.forEach((r, i) => {
                 const y = 254 + i * 46;
                 label(r[0], 46, y, 18, FAINT);
-                label(r[1], 250, y, 20, INK);
+                const vw = cv.textWidth(String(r[1]), 20, { literal: true });
+                label(String(r[1]), 250, y, vw > 380 ? 20 * 380 / vw : 20, INK);
             });
             label(on ? 'Shown whenever the car is on. BMW original turns it off.'
                      : 'Off. Show on cluster turns it on; it stays on at every start.',
@@ -150,9 +174,12 @@ mgu.run({
             cv.roundRect(698, 40, 862, 440, 12, FIELD);
             const accent = { arancio: '#ff6a1a', giallo: '#ffd117', rosso: '#ff2e1c', verde: '#2ee07a',
                              blu: '#3394ff', viola: '#b073ff', bianco: '#ebf2fb' }[settings.get('accent')] || '#ff6a1a';
-            dialSketch(cv, 1129, 470, 380, accent);
-            label('P', 1100, 380, 120, RED);
-            label('Settings: revs, colours, background, units', 722, 466, 17, FAINT);
+            if (track) trackSketch(cv, 710, 110, 838, 314);
+            else {
+                dialSketch(cv, 1129, 470, 380, accent);
+                label('P', 1100, 380, 120, RED);
+            }
+            label('Settings: style, centre, revs, colours, units', 722, 466, 17, FAINT);
 
             return ui.image('MAIN_GFX', cv);
         }
@@ -163,6 +190,13 @@ mgu.run({
         ui.onVisible((name) => { if (name === 'MAIN') refresh(); });
         ui.onClick('BTN_SHOW', () => { settings.set('enabled', true); refresh(); });
         ui.onClick('BTN_HIDE', () => { settings.set('enabled', false); refresh(); });
+        /* Waze lives in the Track style's centre: turning it on picks Track */
+        ui.onClick('BTN_WAZE', () => {
+            const on = settings.get('style') === 'track' && settings.get('centre') === 'waze';
+            if (on) settings.set('centre', 'off');
+            else { settings.set('style', 'track'); settings.set('centre', 'waze'); }
+            refresh();
+        });
         refresh();
     }
 });

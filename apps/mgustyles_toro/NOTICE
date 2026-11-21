@@ -16,7 +16,7 @@ This package carries third-party work under its own licences:
   https://github.com/robertnisipeanu/idrive-apps (native/cluster-render/js).
   MPL-2.0 text: https://mozilla.org/MPL/2.0/
 
-* The glyph atlas in atlas_data.js is baked from Saira and Barlow
+* The glyph atlas in atlas_data.js is baked from Saira, Chakra Petch and Barlow
   Condensed, SIL Open Font License 1.1, reproduced below.
 
 Measurements and signal decoding this work relies on, with thanks:
@@ -58,6 +58,8 @@ typefaces, both under the SIL Open Font License, Version 1.1:
 
   Saira            Copyright 2016 The Saira Project Authors
                    https://github.com/Omnibus-Type/Saira
+  Chakra Petch     Copyright 2018 The Chakra Petch Project Authors
+                   https://github.com/m4rc1e/Chakra-Petch
   Barlow Condensed Copyright 2017 The Barlow Project Authors
                    https://github.com/jpt/barlow
 
